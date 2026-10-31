@@ -44,5 +44,6 @@ PY
 git add -A
 git commit -m "release: v${NEW} - ${NOTES}"
 git tag -a "v${NEW}" -m "v${NEW}: ${NOTES}"
-git push origin HEAD --follow-tags
+git push origin HEAD          # 先推代码（触发在线版更新）
+git push origin "v${NEW}"     # 再单独推标签（确保触发 Release 生成）
 echo "✅ 已发布 v${NEW}（GitHub Actions 将自动更新在线版本并创建 Release）"
