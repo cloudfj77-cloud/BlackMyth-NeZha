@@ -429,11 +429,20 @@
   }
   // 翻滚（地面翻滚 / 空中翻身），可连续翻滚、可接跳跃
   function tryRoll() {
-    const ok = canFree() || canCancel() || P.state === 'charge' || P.state === 'jump' || P.state === 'land' ||
-      (P.state === 'roll' && P.t > 0.24) || (P.state === 'airatk' && P.t < 0.15);
-    if (!ok) return;
-    if (!useSt(15)) { tired(); return; }
-    if (P.state === 'charge') P.rig.gold.emissive.setRGB(0, 0, 0);
+    // 翻滚可在任何时刻取消任何动作（攻击前摇/后摇、蓄力、重击、跳劈、饮酒、施法、受击、翻滚中），只有阵亡时不可
+    if (P.state === 'dead' || G.mode !== 'play') return;
+    // 气力：够 15 正常扣除；不足 15 但仍有余量也允许滚（扣到 0），彻底见底才滚不出
+    if (P.st <= 0.5) { tired(); return; }
+    const lowSt = P.st < 15;
+    P.st = Math.max(0, P.st - 15); P.stDelay = lowSt ? 1.3 : 0.85;
+    // 清理被打断动作的残留状态
+    const prev = P.state, prevT = P.t;
+    if (prev === 'charge') P.rig.gold.emissive.setRGB(0, 0, 0);
+    if (prev === 'drink') { P.rig.gourdHand.visible = false; P.rig.gourdWaist.visible = true; } // 未喝到则不消耗葫芦
+    pTrail.active = false; P.queued = false; P.hitDone = true; P.comboTimer = 0;
+    P.knock.set(0, 0, 0);
+    // 防止狂按：上一次翻滚开始不足 0.2s 又滚，这一次不给完美闪避判定
+    P.noPerfect = prev === 'roll' && prevT < 0.2;
     const mv = inputDir();
     P.backstep = !mv.lengthSq() && !airborne();
     const dir = mv.lengthSq() ? mv : (airborne() && P.vel.lengthSq() > 1 ? P.vel.clone().setY(0).normalize() : fwdOf(P.facing).negate());
@@ -534,7 +543,7 @@
   }
   function resolvePlayerHit(dmg, heavy, src) {
     if (P.state === 'dead' || G.mode !== 'play') return 'none';
-    if (P.state === 'roll' && P.t < PERFECT_WIN) { perfectDodge(src); return 'perfect'; }
+    if (P.state === 'roll' && P.t < PERFECT_WIN && !P.noPerfect) { perfectDodge(src); return 'perfect'; }
     if (P.invuln > 0) return 'none';
     hurtPlayer(Math.round(dmg * (B.phase === 2 ? 1.12 : 1)), src, heavy);
     return 'hit';
