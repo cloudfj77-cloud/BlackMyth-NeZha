@@ -1,0 +1,7 @@
+# WorkBuddy 项目数据（本地记忆/日志，不入库）
+.workbuddy/
+# 系统与工具产物
+.DS_Store
+node_modules/
+*.log
+dist/

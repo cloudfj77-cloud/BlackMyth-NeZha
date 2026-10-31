@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑神话：悟空 · 黑风山</title>
+<style>
+  :root { --gold: #d9b36a; --gold2: #f3d9a0; --ink: #0d0b09; --red: #a8241a; --kai: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Serif SC", serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #eee; font-family: var(--kai); user-select: none; }
+  #game canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; transition: opacity 0.6s; }
+  body.titleMode #hud { opacity: 0; }
+
+  /* 玩家面板 */
+  #playerPanel { position: absolute; left: 42px; bottom: 40px; width: 360px; }
+  .pname { font-size: 18px; color: var(--gold2); letter-spacing: 6px; margin-bottom: 6px; text-shadow: 0 2px 6px #000; }
+  .bar { position: relative; height: 10px; background: rgba(10,8,6,0.75); border: 1px solid rgba(217,179,106,0.45); margin-bottom: 6px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.6); }
+  .bar .fill, .bar .trail { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transition: width 0.06s linear; }
+  .bar.hp { height: 12px; }
+  .bar.hp .fill { background: linear-gradient(180deg, #f2ece0, #c9bfae); }
+  .bar.hp .trail { background: #a8241a; }
+  .bar.st { height: 7px; width: 82%; }
+  .bar.st .fill { background: linear-gradient(180deg, #f0cf7d, #b98a2e); }
+  .bar.st.exhaust .fill { background: linear-gradient(180deg, #9a7a50, #5c4426); }
+  .bar.st.warn { animation: warn 0.4s 2; }
+  @keyframes warn { 50% { border-color: #ff4a2a; box-shadow: 0 0 12px #ff3a1a; } }
+  #items { display: flex; gap: 14px; margin-top: 12px; }
+  .item { position: relative; width: 58px; height: 58px; border: 1px solid rgba(217,179,106,0.6); background: radial-gradient(circle, rgba(40,30,20,0.85), rgba(10,8,6,0.85)); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(0,0,0,0.7) inset, 0 2px 10px rgba(0,0,0,0.6); }
+  .item svg { width: 34px; height: 34px; }
+  .item .icon { font-size: 28px; color: var(--gold2); text-shadow: 0 0 8px rgba(255,190,90,0.7); }
+  .item .count { position: absolute; right: -4px; bottom: -4px; background: #1a120c; border: 1px solid var(--gold); color: var(--gold2); font-size: 14px; min-width: 22px; height: 22px; line-height: 20px; text-align: center; border-radius: 11px; font-family: Georgia, serif; }
+  .item .key { position: absolute; left: -6px; top: -6px; font-size: 11px; color: #ddd; background: rgba(0,0,0,0.8); border: 1px solid #777; padding: 0 5px; border-radius: 3px; font-family: Menlo, monospace; }
+  .item.empty { filter: grayscale(1) brightness(0.5); }
+  .item .cd { position: absolute; inset: 0; border-radius: 50%; }
+  .item .cdt { position: absolute; font-size: 20px; color: #fff; font-family: Georgia, serif; text-shadow: 0 0 4px #000; }
+  #spell.ready { box-shadow: 0 0 16px rgba(255,200,90,0.6), 0 0 14px rgba(0,0,0,0.7) inset; }
+
+  /* Boss 面板 */
+  #bossPanel { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(760px, 60vw); opacity: 0; transition: opacity 0.8s; }
+  #bossPanel.show { opacity: 1; }
+  .bname { text-align: center; font-size: 22px; color: var(--gold2); letter-spacing: 8px; margin-bottom: 6px; text-shadow: 0 2px 8px #000; }
+  .bname #bossPhase { font-size: 15px; color: #c9a86a; letter-spacing: 3px; margin-left: 8px; }
+  #bossPanel.p2 .bname #bossPhase { color: #ff8a3a; }
+  .bar.boss { height: 9px; border-color: rgba(217,179,106,0.55); }
+  .bar.boss .fill { background: linear-gradient(180deg, #e8dcc6, #a89a82); }
+  #bossPanel.p2 .bar.boss .fill { background: linear-gradient(180deg, #ffb070, #c8501c); }
+  #bossPanel.frozen .bar.boss .fill { background: linear-gradient(180deg, #ffe08a, #d4a036); }
+  .bar.boss .trail { background: #8a1a10; }
+  .mark50 { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: rgba(255,200,120,0.7); }
+  /* Boss 血条置顶布局（默认）；按 B 可切回原作的底部布局 */
+  body.bossTop #bossPanel { top: 22px; bottom: auto; width: min(820px, 62vw); padding: 8px 0 10px; background: radial-gradient(ellipse 60% 100% at center, rgba(0,0,0,0.5), transparent 75%); }
+  body.bossTop #bossPanel .bname { margin-bottom: 7px; }
+  body.bossTop #bossPanel::before, body.bossTop #bossPanel::after { content: ''; position: absolute; top: 36px; width: 18px; height: 18px; border: 1px solid rgba(217,179,106,0.75); transform: rotate(45deg); background: rgba(20,14,8,0.8); }
+  body.bossTop #bossPanel::before { left: -26px; } body.bossTop #bossPanel::after { right: -26px; }
+  body.bossTop #msg { top: 19%; }
+  body.bossTop #fightInfo { top: auto; bottom: 200px; }
+  .poise { position: relative; height: 3px; width: 40%; margin: 4px auto 0; background: rgba(0,0,0,0.6); }
+  .poise::before { content: '架势'; position: absolute; right: calc(100% + 8px); top: -7px; font-size: 11px; color: #b8a074; letter-spacing: 2px; white-space: nowrap; }
+  .poise div { height: 100%; width: 0; background: #f3d9a0; }
+
+  #fightInfo { position: absolute; top: 24px; left: 32px; font-size: 16px; color: #e8d6b0; letter-spacing: 2px; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity 0.6s; background: linear-gradient(90deg, rgba(0,0,0,0.55), transparent); padding: 8px 40px 8px 14px; border-left: 2px solid var(--gold); }
+  #fightInfo.show { opacity: 1; }
+  #fightInfo b { color: var(--gold2); font-family: Georgia, serif; font-weight: normal; }
+
+  #lockMark { position: absolute; left: 0; top: 0; width: 0; height: 0; display: none; }
+  #lockMark::before { content: ''; position: absolute; left: -9px; top: -9px; width: 14px; height: 14px; border: 2px solid #ffe2a0; transform: rotate(45deg); box-shadow: 0 0 10px #ffb84a; animation: lockspin 2.4s linear infinite; }
+  #lockMark::after { content: ''; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; background: #fff3d0; border-radius: 50%; box-shadow: 0 0 8px #ffcc66; }
+  @keyframes lockspin { from { transform: rotate(45deg); } to { transform: rotate(405deg); } }
+
+  #msg { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); font-size: 20px; letter-spacing: 4px; color: #f3e6c8; background: linear-gradient(90deg, transparent, rgba(0,0,0,0.65), transparent); padding: 10px 90px; opacity: 0; transition: opacity 0.35s; white-space: nowrap; text-shadow: 0 2px 6px #000; }
+  #msg.show { opacity: 1; }
+  #banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.9); font-size: 54px; letter-spacing: 16px; opacity: 0; transition: opacity 0.25s, transform 0.25s; white-space: nowrap; text-shadow: 0 0 20px rgba(0,0,0,0.9); }
+  #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #banner.perfect { color: #bff4ff; text-shadow: 0 0 24px #2ac6ff, 0 0 4px #fff; font-size: 44px; }
+  #banner.spell { color: #ffe08a; text-shadow: 0 0 30px #ffaa22; font-size: 80px; }
+  #banner.break { color: #ffe9c0; text-shadow: 0 0 24px #ff9a3a; }
+  #banner.phase { color: #ff8a3a; text-shadow: 0 0 30px #ff3a00, 0 2px 6px #000; font-size: 48px; }
+  #banner.victory { color: var(--gold2); font-size: 110px; letter-spacing: 30px; text-shadow: 0 0 40px #d08a20, 0 4px 10px #000; }
+
+  #bossTitle { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); text-align: center; opacity: 0; pointer-events: none; }
+  #bossTitle.show { animation: bossTitle 4s ease forwards; }
+  #bossTitle .t1 { font-size: 72px; color: #f3e6c8; letter-spacing: 22px; text-shadow: 0 0 30px rgba(0,0,0,0.95), 0 0 8px #000; }
+  #bossTitle .t2 { font-size: 18px; color: var(--gold); letter-spacing: 10px; margin-top: 6px; }
+  #bossTitle .line { height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 10px auto; width: 420px; }
+  @keyframes bossTitle { 0% { opacity: 0; letter-spacing: 40px; } 20% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; letter-spacing: 22px; } }
+
+  #vignette { position: absolute; inset: 0; opacity: 0; }
+  #vignette.hurt { background: radial-gradient(ellipse at center, transparent 45%, rgba(160,10,0,0.75)); animation: fl 0.5s ease-out; }
+  #vignette.perfect { background: radial-gradient(ellipse at center, rgba(120,220,255,0.12) 30%, rgba(40,180,255,0.6)); animation: fl 0.8s ease-out; }
+  #vignette.heal { background: radial-gradient(ellipse at center, transparent 50%, rgba(120,255,140,0.35)); animation: fl 0.8s ease-out; }
+  #vignette.spell { background: radial-gradient(ellipse at center, rgba(255,220,120,0.25) 20%, rgba(255,170,40,0.55)); animation: fl 0.7s ease-out; }
+  #vignette.phase { background: radial-gradient(ellipse at center, rgba(255,90,0,0.2) 20%, rgba(200,30,0,0.7)); animation: fl 1.2s ease-out; }
+  @keyframes fl { 0% { opacity: 1; } 100% { opacity: 0; } }
+  #lowHp { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(120,0,0,0.7)); opacity: 0; }
+
+  #dmgLayer { position: absolute; inset: 0; overflow: hidden; }
+  .dmg { position: absolute; left: 0; top: 0; font-family: Georgia, serif; font-size: 22px; color: #fff4dc; text-shadow: 0 0 6px #000, 0 2px 2px #000; white-space: nowrap; }
+  .dmg.heavy { font-size: 32px; color: #ffd36a; }
+  .dmg.player { color: #ff6a50; font-size: 20px; }
+  .dmg.heal { color: #9aff8a; }
+  .dmg.immune { color: #aaa; font-family: var(--kai); font-size: 18px; }
+
+  #controls { position: absolute; right: 26px; bottom: 30px; font-size: 13px; line-height: 1.75; color: #d8ccb4; background: rgba(0,0,0,0.45); padding: 10px 14px; border-left: 2px solid var(--gold); text-shadow: 0 1px 3px #000; transition: opacity 0.3s; }
+  #controls.hide { opacity: 0; }
+  #controls kbd { display: inline-block; min-width: 20px; padding: 0 5px; margin-right: 6px; border: 1px solid #8a7a5a; border-radius: 3px; background: rgba(30,25,18,0.8); font-family: Menlo, monospace; font-size: 11px; color: #f3e6c8; text-align: center; }
+
+  /* 覆盖层 */
+  .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 10; }
+  .overlay.show { display: flex; }
+  #title { background: radial-gradient(ellipse at center, rgba(0,0,0,0.15), rgba(0,0,0,0.75)); }
+  #title h1 { font-size: 84px; letter-spacing: 18px; color: #f3e6c8; text-shadow: 0 0 40px rgba(0,0,0,0.9), 0 4px 10px #000; font-weight: normal; }
+  #title h1 span { color: var(--gold); }
+  #title h2 { font-size: 26px; letter-spacing: 16px; color: var(--gold); margin: 6px 0 30px; font-weight: normal; text-shadow: 0 2px 8px #000; }
+  .keys { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 36px; font-size: 15px; color: #e6dac0; background: rgba(0,0,0,0.5); padding: 18px 28px; border-top: 1px solid rgba(217,179,106,0.5); border-bottom: 1px solid rgba(217,179,106,0.5); margin-bottom: 30px; }
+  .keys kbd { display: inline-block; min-width: 26px; padding: 1px 6px; margin-right: 8px; border: 1px solid #a08a5a; border-radius: 3px; background: rgba(40,30,20,0.9); font-family: Menlo, monospace; font-size: 12px; color: #f3e6c8; text-align: center; }
+  .btn { pointer-events: auto; cursor: pointer; font-family: var(--kai); font-size: 22px; letter-spacing: 10px; color: #1a120a; background: linear-gradient(180deg, #f3d9a0, #c4923a); border: none; padding: 12px 52px 12px 62px; box-shadow: 0 0 24px rgba(220,160,60,0.45); transition: transform 0.15s, box-shadow 0.15s; }
+  .btn:hover { transform: scale(1.05); box-shadow: 0 0 36px rgba(255,190,80,0.7); }
+  .btn.ghost { background: transparent; color: var(--gold2); border: 1px solid var(--gold); box-shadow: none; }
+  .tip { margin-top: 18px; font-size: 13px; color: #b8a888; letter-spacing: 2px; }
+
+  #death { background: radial-gradient(ellipse at center, rgba(40,0,0,0.55), rgba(0,0,0,0.92)); cursor: pointer; animation: fadeIn 1.2s; }
+  #death .big { font-size: 76px; letter-spacing: 20px; color: #c8b89a; text-shadow: 0 0 30px #000; }
+  #death .sub { margin-top: 18px; font-size: 18px; color: #a89878; letter-spacing: 4px; }
+  #death .hint { margin-top: 40px; font-size: 20px; color: var(--gold2); letter-spacing: 6px; animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: 0.4; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  #result { background: radial-gradient(ellipse at center, rgba(20,14,8,0.6), rgba(0,0,0,0.9)); animation: fadeIn 1s; }
+  .rbox { position: relative; width: 620px; padding: 34px 44px 30px; background: linear-gradient(180deg, rgba(30,22,14,0.95), rgba(14,10,7,0.95)); border: 1px solid rgba(217,179,106,0.6); box-shadow: 0 0 60px rgba(0,0,0,0.9), inset 0 0 40px rgba(217,179,106,0.08); }
+  .rbox h3 { text-align: center; font-size: 40px; letter-spacing: 16px; color: var(--gold2); font-weight: normal; }
+  .rbox .rs { text-align: center; color: #a8946a; letter-spacing: 6px; font-size: 14px; margin-bottom: 22px; }
+  .grade { position: absolute; right: 36px; top: 26px; font-size: 92px; font-family: Georgia, serif; font-style: italic; }
+  .gS { color: #ffd66a; text-shadow: 0 0 24px #ff9a2a; } .gA { color: #e8d6b0; text-shadow: 0 0 18px #c0a060; } .gB { color: #b8c8d8; } .gC { color: #999; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 30px; font-size: 18px; color: #e6dac0; border-top: 1px solid rgba(217,179,106,0.3); border-bottom: 1px solid rgba(217,179,106,0.3); padding: 16px 4px; }
+  .stats div { display: flex; justify-content: space-between; }
+  .stats b { color: var(--gold2); font-family: Georgia, serif; font-weight: normal; }
+  .reward { display: flex; gap: 18px; margin: 20px 0 24px; }
+  .rw { flex: 1; padding: 14px; background: rgba(217,179,106,0.07); border: 1px solid rgba(217,179,106,0.35); }
+  .rw .k { font-size: 13px; color: #a8946a; letter-spacing: 4px; }
+  .rw .v { font-size: 26px; color: var(--gold2); margin: 4px 0; }
+  .rw .d { font-size: 13px; color: #c8b896; }
+  .rbtns { display: flex; gap: 18px; justify-content: center; }
+
+  #pause { background: rgba(0,0,0,0.6); cursor: pointer; }
+  #pause .big { font-size: 46px; letter-spacing: 14px; color: var(--gold2); }
+  #pause .sub { margin-top: 14px; color: #c8b896; letter-spacing: 4px; }
+
+  .ver { position: absolute; right: 22px; bottom: 16px; font-family: Menlo, monospace; font-size: 12px; color: rgba(217,179,106,0.6); letter-spacing: 1px; }
+  #loading { position: fixed; inset: 0; background: #0b0907; display: flex; align-items: center; justify-content: center; font-size: 28px; letter-spacing: 12px; color: var(--gold); z-index: 20; transition: opacity 0.8s; }
+  #loading.hide { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body class="titleMode">
+<div id="game"></div>
+<div id="hud">
+  <div id="lowHp"></div>
+  <div id="vignette"></div>
+  <div id="dmgLayer"></div>
+  <div id="fightInfo">用时 <b id="timer">00:00</b>　受击 <b id="hits">0</b>　完美闪避 <b id="perf">0</b></div>
+  <div id="lockMark"></div>
+  <div id="msg"></div>
+  <div id="banner"></div>
+  <div id="bossTitle"><div class="t1">黑风大王</div><div class="line"></div><div class="t2">黑风山 · 观音禅院旧址</div></div>
+  <div id="playerPanel">
+    <div class="pname">天命人</div>
+    <div class="bar hp"><div class="trail" id="pHpTrail"></div><div class="fill" id="pHp"></div></div>
+    <div class="bar st"><div class="fill" id="pSt"></div></div>
+    <div id="items">
+      <div class="item" id="gourd">
+        <svg viewBox="0 0 40 40"><path d="M20 4c-2 0-3 1.2-3 2.6 0 1.2.6 2 .6 2.8C14 11 12.8 14 14.6 17 9 19 7 24 8.6 29c1.6 5 6.2 7.4 11.4 7.4S29.8 34 31.4 29c1.6-5-.4-10-6-12 1.8-3 .6-6-3-7.6 0-.8.6-1.6.6-2.8C23 5.2 22 4 20 4z" fill="#c8963e" stroke="#f3d9a0" stroke-width="1"/><path d="M14.4 17.2h11.2" stroke="#8a1a10" stroke-width="2"/></svg>
+        <span class="count" id="gourdCount">4</span><span class="key">Q</span>
+      </div>
+      <div class="item ready" id="spell"><div class="icon">定</div><div class="cd" id="spellCdMask"></div><span class="cdt" id="spellCdText"></span><span class="key">1</span></div>
+    </div>
+  </div>
+  <div id="bossPanel">
+    <div class="bname"><span id="bossName">黑风大王</span><span id="bossPhase">· 壹</span></div>
+    <div class="bar boss"><div class="trail" id="bHpTrail"></div><div class="fill" id="bHp"></div><div class="mark50"></div></div>
+    <div class="poise"><div id="bPoise"></div></div>
+  </div>
+  <div id="controls">
+    <div><kbd>WASD</kbd>移动　<kbd>鼠标</kbd>转视角</div>
+    <div><kbd>左键</kbd>轻击连招　<kbd>右键</kbd>按住蓄力重击</div>
+    <div><kbd>空格</kbd>翻滚　<kbd>Ctrl/F</kbd>跳跃　<kbd>Shift</kbd>按住疾奔</div>
+    <div><kbd>空中左键</kbd>跳劈　<kbd>空中空格</kbd>空翻</div>
+    <div><kbd>R</kbd>锁定　<kbd>Q</kbd>葫芦　<kbd>1</kbd>定身术</div>
+    <div><kbd>B</kbd>血条位置　<kbd>H</kbd>隐藏提示　<kbd>M</kbd>静音</div>
+  </div>
+</div>
+
+<div id="title" class="overlay">
+  <h1>黑神话<span>：</span>悟空</h1>
+  <h2>第一回 · 黑风山</h2>
+  <div class="keys">
+    <div><kbd>W A S D</kbd>移动</div><div><kbd>鼠标</kbd>旋转镜头</div><div><kbd>R</kbd>锁定 Boss</div>
+    <div><kbd>左键</kbd>多段轻击</div><div><kbd>右键</kbd>按住蓄力重击</div><div><kbd>空格</kbd>翻滚闪身</div>
+    <div><kbd>Ctrl / F</kbd>跳跃</div><div><kbd>Shift</kbd>按住疾奔</div><div><kbd>空中左键</kbd>跳劈</div>
+    <div><kbd>Q</kbd>饮葫芦回血</div><div><kbd>1</kbd>定身术</div><div><kbd>Esc</kbd>暂停</div>
+  </div>
+  <button class="btn" id="btnStart">踏上西行</button>
+  <div class="ver" id="verTitle"></div>
+  <div class="tip">奔跑、翻滚、跳跃可随意衔接：跑中翻滚、翻滚跳、跳中空翻、跳劈 · 命中前一瞬翻滚触发「完美闪避」· 跳跃可越过横扫与火环</div>
+</div>
+
+<div id="death" class="overlay">
+  <div class="big">胜败乃兵家常事</div>
+  <div class="sub" id="deathInfo"></div>
+  <div class="hint">按 E 或点击 · 于土地庙重整旗鼓</div>
+</div>
+
+<div id="result" class="overlay">
+  <div class="rbox">
+    <div class="grade gS" id="rGrade">S</div>
+    <h3>得 胜</h3>
+    <div class="rs">黑风大王 · 已伏诛</div>
+    <div class="stats">
+      <div>用时<b id="rTime">00:00</b></div>
+      <div>受击次数<b id="rHits">0</b></div>
+      <div>完美闪避<b id="rPerfect">0</b></div>
+      <div>葫芦使用<b id="rGourd">0</b></div>
+      <div>挑战次数<b id="rTries">1</b></div>
+      <div>累计通关<b id="rClears">1</b></div>
+    </div>
+    <div class="reward">
+      <div class="rw"><div class="k">灵光点 · 技能点</div><div class="v" id="rSp">+3</div><div class="d">累计 <span id="rSpTotal">3</span> 点，可于土地庙研习</div></div>
+      <div class="rw"><div class="k">战利品</div><div class="v" id="rItem">黑缨枪</div><div class="d" id="rItemDesc"></div></div>
+    </div>
+    <div class="rbtns"><button class="btn" id="btnAgain">再战妖王</button><button class="btn ghost" id="btnRoam">游览古寺</button></div>
+  </div>
+</div>
+
+<div id="pause" class="overlay"><div class="big">暂　停</div><div class="sub">点击画面继续</div><div class="ver" id="verPause"></div></div>
+<div id="loading">山 林 渐 显 ……</div>
+
+<script src="js/version.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/world.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/game.js"></script>
+<script>document.querySelectorAll(".ver").forEach(e => e.textContent = "v" + (window.GAME_VERSION || "dev"));</script>
+</body>
+</html>
