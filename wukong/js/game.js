@@ -58,14 +58,21 @@
   const PR = 0.42, BR = 1.25, PERFECT_WIN = 0.25;
 
   const P = {
-    rig: Chars.buildPlayer(), pos: world.spawn.clone(), facing: Math.PI, hp: 300, maxHp: 300, hpTrail: 300,
+    rig: null, pos: world.spawn.clone(), facing: Math.PI, hp: 300, maxHp: 300, hpTrail: 300,
     st: 100, maxSt: 100, stDelay: 0, exhausted: false, state: 'idle', t: 0, combo: 0, comboTimer: 0, queued: false,
     atk: null, hitDone: false, charge: 0, level: 0, gourds: 4, maxGourds: 4, spellCD: 0, spellMax: 22,
     invuln: 0, dodgeDir: new V3(), sprinting: false, ph: 0, pose: Chars.zeroPose(), knock: new V3(), hurtDur: 0.4,
     healed: false, cast: false, stepT: 0, tiredT: 0,
     y: 0, vy: 0, vel: new V3(), rollDir: new V3(0, 0, 1), rollFace: 0, rollSpeed: 10, rollAir: false, backstep: false, flipAng: 0, flipBase: 0, flipEnd: 0,
   };
-  scene.add(P.rig.root);
+  // ---------- 可选角色 ----------
+  const CHARS = {
+    wukong: { id: 'wukong', name: '天命人', title: '悟空', game: '黑神话：悟空', spell: '定身术', spellChar: '定', banner: '定！', trail: 0xffcf7a, jumpV: 8.4, speedMul: 1, glide: false, tint: [0.55, 0.4, 0.08], ring: 0xffd070 },
+    nezha: { id: 'nezha', name: '哪吒', title: '哪吒', game: '黑神话：哪吒', spell: '混天绫·缚', spellChar: '缚', banner: '缚！', trail: 0xff5a20, jumpV: 9.8, speedMul: 1.12, glide: true, tint: [0.4, 0.05, 0.02], ring: 0xff3a20 },
+  };
+  const rigs = { wukong: Chars.buildPlayer(), nezha: Chars.buildNezha() };
+  let CH = CHARS.wukong;
+  P.rig = rigs.wukong; scene.add(P.rig.root, P.rig.fx);
   const B = {
     rig: Chars.buildBoss(), pos: world.bossHome.clone(), facing: 0, hp: 1800, maxHp: 1800, hpTrail: 1800, phase: 1,
     state: 'dormant', t: 0, atk: null, cd: 1.5, freeze: 0, poise: 0, poiseMax: 130, poiseT: 0, flash: 0, alive: true,
@@ -318,7 +325,7 @@
       case 'KeyR': toggleLock(); break;
       case 'KeyQ': tryDrink(); break;
       case 'Digit1': case 'Numpad1': trySpell(); break;
-      case 'Digit2': case 'Digit3': case 'Digit4': msg('此法术尚未习得 · 当前可用：1 定身术'); break;
+      case 'Digit2': case 'Digit3': case 'Digit4': msg('此法术尚未习得 · 当前可用：1 ' + CH.spell); break;
       case 'KeyH': $('controls').classList.toggle('hide'); break;
       case 'KeyB': toggleBossBarPos(); break;
       case 'KeyM': { const m = AudioSys.toggleMute(); msg(m ? '已静音' : '已开启声音', 1.2); break; }
@@ -472,7 +479,8 @@
     const mv = inputDir();
     if (P.state === 'roll') { const keep = Math.max(P.vel.length(), 6); P.vel.copy(mv.lengthSq() ? mv : P.rollDir).multiplyScalar(keep * 1.05); }
     else if (mv.lengthSq() && P.vel.lengthSq() < 4) P.vel.copy(mv).multiplyScalar(4.6);
-    P.vy = JUMP_V; P.y = 0.001;
+    P.vy = CH.jumpV; P.y = 0.001;
+    if (CH.glide) FX.emit(P.pos.clone().setY(0.2), { count: 16, speed: 2.5, life: 0.5, size: 0.25, colors: [[1, 0.45, 0.08], [1, 0.75, 0.25]], drag: 3, flat: true, radius: 0.4 });
     P.state = 'jump'; P.t = 0; P.queued = false;
     AudioSys.S.jump();
     SMOKE.emit(P.pos.clone().setY(0.1), { count: 8, speed: 1.2, life: 0.6, size: 0.45, sizeEnd: 1.0, color: [0.55, 0.5, 0.42], drag: 3, flat: true, radius: 0.4 });
@@ -494,9 +502,9 @@
   }
   function trySpell() {
     if (!(canFree() || canCancel())) return;
-    if (P.spellCD > 0) { AudioSys.S.empty(); msg(`定身术冷却中 · ${Math.ceil(P.spellCD)} 秒`, 1.2); return; }
+    if (P.spellCD > 0) { AudioSys.S.empty(); msg(`${CH.spell}冷却中 · ${Math.ceil(P.spellCD)} 秒`, 1.2); return; }
     if (!G.fight || !B.alive) { AudioSys.S.empty(); msg('附近没有可定身的目标', 1.4); return; }
-    if (flatDist(P.pos, B.pos) > 22) { AudioSys.S.empty(); msg('目标太远，定身术无法触及', 1.4); return; }
+    if (flatDist(P.pos, B.pos) > 22) { AudioSys.S.empty(); msg('目标太远，' + CH.spell + '无法触及', 1.4); return; }
     if (B.state === 'transform') { AudioSys.S.empty(); msg('妖王正在蜕变，法术无效', 1.4); return; }
     P.state = 'cast'; P.t = 0; P.cast = false;
     P.facing = Math.atan2(B.pos.x - P.pos.x, B.pos.z - P.pos.z);
@@ -813,7 +821,7 @@
     if (b.freeze > 0 && b.state !== 'dying') {
       b.freeze -= dt;
       if (Math.random() < 0.5) FX.emit(b.pos.clone().setY(1 + Math.random() * 3), { count: 1, speed: 0.4, up: 0.8, life: 1, size: 0.16, color: [1, 0.85, 0.4], radius: 2.2 });
-      if (b.freeze <= 0) { msg('定身术解除'); }
+      if (b.freeze <= 0) { msg(CH.spell + '解除'); }
       const fd = flatDist(P.pos, b.pos);
       if (fd < BR + PR && fd > 0.001) { P.pos.x = b.pos.x + (P.pos.x - b.pos.x) / fd * (BR + PR); P.pos.z = b.pos.z + (P.pos.z - b.pos.z) / fd * (BR + PR); }
       tintBoss(); return;
@@ -912,9 +920,9 @@
     tintBoss();
   }
   function tintBoss() {
-    const fz = B.freeze > 0 ? 1 : 0, ph = B.phase === 2 ? 0.08 + Math.sin(G.t * 4) * 0.03 : B.aura * 0.08;
+    const fz = B.freeze > 0 ? 1 : 0, tc = CH.tint, ph = B.phase === 2 ? 0.08 + Math.sin(G.t * 4) * 0.03 : B.aura * 0.08;
     B.rig.flashMats.forEach(m => {
-      m.emissive.setRGB(B.flash * 0.6 + fz * 0.55 + ph, B.flash * 0.55 + fz * 0.4 + ph * 0.3, B.flash * 0.5 + fz * 0.08);
+      m.emissive.setRGB(B.flash * 0.6 + fz * tc[0] + ph, B.flash * 0.55 + fz * tc[1] + ph * 0.3, B.flash * 0.5 + fz * tc[2]);
     });
   }
 
@@ -960,7 +968,7 @@
           tgt = L3b; rate = 24; p.vel.multiplyScalar(Math.exp(-dt * 10)); p.pos.addScaledVector(p.vel, dt); break;
         }
         p.sprinting = sh && moving && !p.exhausted && p.st > 0;
-        const speed = p.sprinting ? 8.4 : (lockOn ? 4.2 : 4.8);
+        const speed = (p.sprinting ? 8.4 : (lockOn ? 4.2 : 4.8)) * CH.speedMul;
         // 速度平滑：翻滚/跳跃带来的高速自然衰减到跑步速度，而不是突然停住
         const want = mv.clone().multiplyScalar(moving ? speed : 0);
         const cur = p.vel.length();
@@ -973,7 +981,7 @@
         } else if (lockOn) faceTarget(10, dt);
         if (sp > 0.4) {
           p.ph += sp * dt * 2.7;
-          p.stepT -= dt * sp; if (p.stepT <= 0) { p.stepT = 1.4; AudioSys.S.step(); if (p.sprinting) SMOKE.emit(p.pos.clone().setY(0.1), { count: 2, speed: 0.6, life: 0.6, size: 0.35, sizeEnd: 0.8, color: [0.55, 0.5, 0.42], flat: true }); }
+          p.stepT -= dt * sp; if (p.stepT <= 0) { p.stepT = CH.glide ? 3.5 : 1.4; if (CH.glide) AudioSys.S.wheel(); else AudioSys.S.step(); if (p.sprinting) SMOKE.emit(p.pos.clone().setY(0.1), { count: 2, speed: 0.6, life: 0.6, size: 0.35, sizeEnd: 0.8, color: [0.55, 0.5, 0.42], flat: true }); }
         }
         if (p.sprinting) { p.st -= 16 * dt; p.stDelay = 0.6; if (p.st <= 0) { p.st = 0; p.exhausted = true; tired(); } }
         else regen = true;
@@ -983,6 +991,10 @@
           const run = p.sprinting || sp > 6.5;
           const base = run ? { ...P_IDLE, tX: 0.42, rsX: 0.7, rsZ: -0.15, reX: -0.3, wX: -2.4, wZ: 0.2, lsX: s * 0.9, leX: -1.1 } : { ...P_IDLE, lsX: -0.55 + s * 0.35 };
           tgt = Object.assign({}, base, { lhX: -s * 0.7 * amp, rhX: s * 0.7 * amp, lkX: 0.25 + Math.max(0, c) * 0.9 * amp, rkX: 0.25 + Math.max(0, -c) * 0.9 * amp, hipY: -0.03 - Math.abs(c) * 0.05 * amp, tY: s * 0.1 });
+          if (CH.glide) { // 哪吒：脚踏风火轮滑行，不迈步，身体前倾
+            const lean = clamp(sp / 9.5, 0, 1);
+            tgt = Object.assign({}, run ? base : { ...P_IDLE }, { lsX: run ? 0.6 : -0.5, lhX: -0.32 - lean * 0.25, lkX: 0.5 + lean * 0.25, rhX: 0.28 + lean * 0.1, rkX: 0.42 + lean * 0.15, hipY: -0.05 - lean * 0.06 + Math.sin(G.t * 3) * 0.015, tX: (run ? 0.42 : 0.12) + lean * 0.22, tY: 0.15 });
+          }
         } else {
           tgt = Object.assign({}, P_IDLE, { tX: P_IDLE.tX + Math.sin(G.t * 2) * 0.02 });
         }
@@ -1104,8 +1116,9 @@
           p.cast = true;
           if (B.alive && B.state !== 'transform' && B.state !== 'dying') {
             B.freeze = B.phase === 2 ? 3.2 : 4.2; p.spellCD = p.spellMax;
-            AudioSys.S.spell(); flash('spell'); banner('定！', 'spell', 1.0);
-            vRing(B.pos, 0xffd070, 3.5, 0.8, 5); shockwave(B.pos, 0xffd070, 4, 0.7);
+            AudioSys.S.spell(); flash('spell'); banner(CH.banner, 'spell', 1.0);
+            vRing(B.pos, CH.ring, 3.5, 0.8, 5); shockwave(B.pos, CH.ring, 4, 0.7);
+            if (CH.id === 'nezha') { vRing(B.pos, 0xff2010, 2.4, 1.2, 4.5); for (let k = 0; k < 40; k++) { const a = k / 40 * TAU * 3; FX.emit(new V3(B.pos.x + Math.sin(a) * 1.8, 0.3 + k * 0.1, B.pos.z + Math.cos(a) * 1.8), { count: 1, speed: 0.3, life: 0.9, size: 0.22, colors: [[1, 0.15, 0.05], [1, 0.4, 0.1]] }); } }
             glint.material.opacity = 0; clearTeleIfWind();
             const h = new V3(); p.rig.lH.getWorldPosition(h); FX.emit(h, { count: 20, speed: 3, life: 0.5, size: 0.12, color: [1, 0.85, 0.4] });
           }
@@ -1141,10 +1154,16 @@
       if (Math.abs(p.flipEnd - p.flipAng) < 0.02) { p.flipAng = 0; p.flipEnd = 0; p.flipBase = 0; }
     }
     extra.flip = p.flipAng; extra.flipC = 0.6;
+    if (CH.glide && p.state !== 'dead') extra.lift = (extra.lift || 0) + Math.sin(G.t * 2.8) * 0.025; // 风火轮悬浮起伏
     Chars.blendPose(p.pose, tgt, 1 - Math.exp(-dt * rate));
     Chars.applyPose(p.rig, p.pose, extra);
     p.rig.root.position.set(p.pos.x, p.y, p.pos.z);
     p.rig.root.rotation.y = p.facing;
+    p.rig.update(dt, G.t, p.vel.length());
+    if (p.rig.wheels && p.rig.root.visible) { // 风火轮喷火
+      const sp = p.vel.length(), back = p.vel.clone().setY(0); if (back.lengthSq() > 0.01) back.normalize().negate(); back.y = 0.35;
+      p.rig.wheels.forEach(w => { if (Math.random() < 0.45 + sp * 0.07) { const wp = new V3(); w.spin.getWorldPosition(wp); FX.emit(wp, { count: sp > 6 ? 2 : 1, speed: 0.8 + sp * 0.15, up: 0.6, life: 0.3 + Math.min(0.3, sp * 0.03), size: 0.16, sizeEnd: 0.05, colors: [[1, 0.42, 0.06], [1, 0.72, 0.22], [1, 0.25, 0.04]], drag: 2.5, dir: back, spread: 0.7 }); } });
+    }
     // 飘带随动
     p.rig.sash.rotation.x = Math.sin(G.t * 3) * 0.1 - (p.state === 'move' ? 0.3 : 0);
   }
@@ -1197,7 +1216,7 @@
     if (cam.look.lengthSq() === 0) cam.look.copy(lookAt);
     camera.lookAt(cam.look);
     // 角色过近时半透明处理：镜头极近则略微抬高
-    P.rig.root.visible = cam.cur > 0.7 || P.state === 'dead';
+    P.rig.root.visible = cam.cur > 0.7 || P.state === 'dead'; P.rig.fx.visible = P.rig.root.visible;
   }
 
   // ---------- 流程 ----------
@@ -1222,6 +1241,7 @@
     Object.assign(P, { hp: P.maxHp, hpTrail: P.maxHp, st: P.maxSt, exhausted: false, gourds: P.maxGourds, spellCD: 0, state: 'idle', t: 0, invuln: 0, combo: 0, comboTimer: 0, queued: false });
     P.pos.copy(world.checkpoint); P.facing = Math.PI; P.knock.set(0, 0, 0);
     P.y = 0; P.vy = 0; P.vel.set(0, 0, 0); P.flipAng = 0; P.flipEnd = 0; P.flipBase = 0; P.sprinting = false;
+    P.rig.root.position.set(P.pos.x, 0, P.pos.z); P.rig.reset();
     P.pose = Chars.zeroPose(); P.rig.gourdHand.visible = false; P.rig.gourdWaist.visible = true; P.rig.gold.emissive.setRGB(0, 0, 0);
     $('gourd').classList.remove('empty');
     G.fight = false; G.fightT = 0; G.hits = 0; G.perfects = 0; G.gourdUsed = 0; G.lock = false; G.mode = 'play'; G.slowT = 0; G.bossDefeated = false;
@@ -1317,11 +1337,17 @@
     const rdt = Math.min(clock.getDelta(), 0.05);
     G.t += rdt;
     if (G.mode === 'title') {
-      introCam += rdt * 0.05;
-      camera.position.set(Math.sin(introCam) * 34, 9 + Math.sin(introCam * 2) * 1.5, Math.cos(introCam) * 34 + 6);
-      camera.lookAt(0, 4, -12);
+      introCam += rdt;
+      // 角色展示：镜头环绕所选角色，角色位于画面右侧
+      const SHOW = new V3(0, 0, 17), a = 0.35 + Math.sin(introCam * 0.18) * 0.35;
+      camera.position.set(SHOW.x + Math.sin(a) * 4.6, 1.75, SHOW.z + Math.cos(a) * 4.6);
+      const rgt = new V3(Math.cos(a), 0, -Math.sin(a));
+      camera.lookAt(SHOW.x - rgt.x * 1.55, 1.25, SHOW.z - rgt.z * 1.55);
       Chars.applyPose(B.rig, Object.assign(B.pose, B_SIT), {}); B.rig.root.position.copy(B.pos); B.rig.root.rotation.y = 0;
-      Chars.applyPose(P.rig, Object.assign(P.pose, P_IDLE), {}); P.rig.root.position.copy(P.pos); P.rig.root.rotation.y = P.facing;
+      Chars.blendPose(P.pose, P_IDLE, 1 - Math.exp(-rdt * 10));
+      Chars.applyPose(P.rig, P.pose, { lift: CH.glide ? Math.sin(G.t * 2.8) * 0.025 : 0 }); P.rig.root.position.set(0, 0, 17); P.rig.root.rotation.y = 0.35;
+      P.rig.update(rdt, G.t, 0);
+      if (P.rig.wheels) P.rig.wheels.forEach(w => { if (Math.random() < 0.5) { const wp = new V3(); w.spin.getWorldPosition(wp); FX.emit(wp, { count: 1, speed: 0.6, up: 0.7, life: 0.35, size: 0.15, sizeEnd: 0.05, colors: [[1, 0.42, 0.06], [1, 0.72, 0.22]], drag: 2.5 }); } });
       world.update(G.t, rdt, camera.position, false);
       FX.update(rdt); SMOKE.update(rdt);
       sun.position.copy(new V3(0, 0, 0)).addScaledVector(world.sunDir, 100); sun.target.position.set(0, 0, 0);
@@ -1359,6 +1385,25 @@
     updateHUD(rdt);
     renderer.render(scene, camera);
   }
+
+  // 切换角色：替换模型、HUD、标题与法术外观
+  function setChar(id) {
+    if (!CHARS[id]) id = 'wukong';
+    scene.remove(P.rig.root, P.rig.fx);
+    CH = CHARS[id]; P.rig = rigs[id];
+    scene.add(P.rig.root, P.rig.fx);
+    P.pose = Chars.zeroPose(); Object.assign(P.pose, P_IDLE);
+    P.rig.root.position.set(0, 0, 17); P.rig.reset();
+    pTrail.mat.uniforms.col.value.setHex(CH.trail);
+    document.querySelectorAll('.charCard').forEach(c => c.classList.toggle('sel', c.dataset.char === id));
+    $('titleName').textContent = CH.title; document.title = CH.game + ' · 黑风山';
+    $('pName').textContent = CH.name; $('spellIcon').textContent = CH.spellChar;
+    document.querySelectorAll('.spellName').forEach(e => e.textContent = CH.spell);
+    try { localStorage.setItem('bm_char', id); } catch (e) { }
+  }
+  document.querySelectorAll('.charCard').forEach(c => c.addEventListener('click', () => { if (G.mode === 'title') { setChar(c.dataset.char); AudioSys.init(); AudioSys.S.lock(true); } }));
+  addEventListener('keydown', (e) => { if (G.mode !== 'title') return; if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Tab') setChar(CH.id === 'wukong' ? 'nezha' : 'wukong'); });
+  { let c = 'wukong'; try { c = localStorage.getItem('bm_char') || 'wukong'; } catch (e) { } setChar(c); }
 
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
   resetBoss();

@@ -226,6 +226,11 @@ const AudioSys = (() => {
       tone({ t, f: 120, f2: 50, a: 0.002, d: 0.14 + v * 0.1, v: 0.25 + v * 0.3 });
       noise({ t, type: 'lowpass', f: 700, f2: 200, a: 0.002, d: 0.12, v: 0.2 + v * 0.2 });
     },
+    wheel() {
+      if (!ok()) return; const t = now();
+      noise({ t, f: 900, f2: 400, q: 0.6, a: 0.05, d: 0.35, v: 0.07 });
+      for (let i = 0; i < 3; i++) noise({ t: t + Math.random() * 0.3, type: 'highpass', f: 3500, a: 0.001, d: 0.02, v: 0.05 });
+    },
     step() {
       if (!ok()) return;
       noise({ type: 'lowpass', f: 400, a: 0.002, d: 0.06, v: 0.06 });

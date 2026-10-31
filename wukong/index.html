@@ -109,10 +109,20 @@
   /* 覆盖层 */
   .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 10; }
   .overlay.show { display: flex; }
-  #title { background: radial-gradient(ellipse at center, rgba(0,0,0,0.15), rgba(0,0,0,0.75)); }
-  #title h1 { font-size: 84px; letter-spacing: 18px; color: #f3e6c8; text-shadow: 0 0 40px rgba(0,0,0,0.9), 0 4px 10px #000; font-weight: normal; }
+  #title { background: linear-gradient(90deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.55) 42%, rgba(0,0,0,0.0) 68%); align-items: flex-start; padding-left: 6vw; }
+  #title h1 b { font-weight: normal; }
+  #charSel { display: flex; gap: 14px; margin: -12px 0 6px; pointer-events: auto; }
+  .charCard { cursor: pointer; width: 200px; padding: 12px 16px; border: 1px solid rgba(217,179,106,0.35); background: rgba(20,14,8,0.6); transition: all 0.2s; }
+  .charCard:hover { border-color: rgba(243,217,160,0.8); }
+  .charCard.sel { border-color: #f3d9a0; background: linear-gradient(180deg, rgba(120,60,20,0.55), rgba(30,16,8,0.7)); box-shadow: 0 0 20px rgba(255,150,60,0.35); }
+  .charCard[data-char="nezha"].sel { background: linear-gradient(180deg, rgba(160,30,15,0.6), rgba(40,10,6,0.75)); box-shadow: 0 0 22px rgba(255,70,30,0.45); }
+  .charCard .cn { font-size: 19px; color: #f3e6c8; letter-spacing: 3px; }
+  .charCard .cd { font-size: 12px; color: #c8b896; margin-top: 6px; line-height: 1.6; letter-spacing: 1px; }
+  .selTip { font-size: 12px; color: #9a8a6a; letter-spacing: 2px; margin-bottom: 18px; }
+  #title h1 { font-size: 76px; letter-spacing: 18px; color: #f3e6c8; text-shadow: 0 0 40px rgba(0,0,0,0.9), 0 4px 10px #000; font-weight: normal; }
   #title h1 span { color: var(--gold); }
   #title h2 { font-size: 26px; letter-spacing: 16px; color: var(--gold); margin: 6px 0 30px; font-weight: normal; text-shadow: 0 2px 8px #000; }
+  #title .tip { max-width: 640px; line-height: 1.7; }
   .keys { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 36px; font-size: 15px; color: #e6dac0; background: rgba(0,0,0,0.5); padding: 18px 28px; border-top: 1px solid rgba(217,179,106,0.5); border-bottom: 1px solid rgba(217,179,106,0.5); margin-bottom: 30px; }
   .keys kbd { display: inline-block; min-width: 26px; padding: 1px 6px; margin-right: 8px; border: 1px solid #a08a5a; border-radius: 3px; background: rgba(40,30,20,0.9); font-family: Menlo, monospace; font-size: 12px; color: #f3e6c8; text-align: center; }
   .btn { pointer-events: auto; cursor: pointer; font-family: var(--kai); font-size: 22px; letter-spacing: 10px; color: #1a120a; background: linear-gradient(180deg, #f3d9a0, #c4923a); border: none; padding: 12px 52px 12px 62px; box-shadow: 0 0 24px rgba(220,160,60,0.45); transition: transform 0.15s, box-shadow 0.15s; }
@@ -164,7 +174,7 @@
   <div id="banner"></div>
   <div id="bossTitle"><div class="t1">黑风大王</div><div class="line"></div><div class="t2">黑风山 · 观音禅院旧址</div></div>
   <div id="playerPanel">
-    <div class="pname">天命人</div>
+    <div class="pname" id="pName">天命人</div>
     <div class="bar hp"><div class="trail" id="pHpTrail"></div><div class="fill" id="pHp"></div></div>
     <div class="bar st"><div class="fill" id="pSt"></div></div>
     <div id="items">
@@ -172,7 +182,7 @@
         <svg viewBox="0 0 40 40"><path d="M20 4c-2 0-3 1.2-3 2.6 0 1.2.6 2 .6 2.8C14 11 12.8 14 14.6 17 9 19 7 24 8.6 29c1.6 5 6.2 7.4 11.4 7.4S29.8 34 31.4 29c1.6-5-.4-10-6-12 1.8-3 .6-6-3-7.6 0-.8.6-1.6.6-2.8C23 5.2 22 4 20 4z" fill="#c8963e" stroke="#f3d9a0" stroke-width="1"/><path d="M14.4 17.2h11.2" stroke="#8a1a10" stroke-width="2"/></svg>
         <span class="count" id="gourdCount">4</span><span class="key">Q</span>
       </div>
-      <div class="item ready" id="spell"><div class="icon">定</div><div class="cd" id="spellCdMask"></div><span class="cdt" id="spellCdText"></span><span class="key">1</span></div>
+      <div class="item ready" id="spell"><div class="icon" id="spellIcon">定</div><div class="cd" id="spellCdMask"></div><span class="cdt" id="spellCdText"></span><span class="key">1</span></div>
     </div>
   </div>
   <div id="bossPanel">
@@ -185,19 +195,24 @@
     <div><kbd>左键</kbd>轻击连招　<kbd>右键</kbd>按住蓄力重击</div>
     <div><kbd>空格</kbd>翻滚　<kbd>Ctrl/F</kbd>跳跃　<kbd>Shift</kbd>按住疾奔</div>
     <div><kbd>空中左键</kbd>跳劈　<kbd>空中空格</kbd>空翻</div>
-    <div><kbd>R</kbd>锁定　<kbd>Q</kbd>葫芦　<kbd>1</kbd>定身术</div>
+    <div><kbd>R</kbd>锁定　<kbd>Q</kbd>葫芦　<kbd>1</kbd><span class="spellName">定身术</span></div>
     <div><kbd>B</kbd>血条位置　<kbd>H</kbd>隐藏提示　<kbd>M</kbd>静音</div>
   </div>
 </div>
 
 <div id="title" class="overlay">
-  <h1>黑神话<span>：</span>悟空</h1>
+  <h1>黑神话<span>：</span><b id="titleName">悟空</b></h1>
   <h2>第一回 · 黑风山</h2>
+  <div id="charSel">
+    <div class="charCard" data-char="wukong"><div class="cn">天命人 · 悟空</div><div class="cd">金箍棒 · 定身术<br>稳扎稳打，四段棍法</div></div>
+    <div class="charCard" data-char="nezha"><div class="cn">哪吒 · 三太子</div><div class="cd">红缨枪 · 风火轮 · 混天绫<br>身法更快，跳得更高</div></div>
+  </div>
+  <div class="selTip">点击切换角色（或按 ← →）</div>
   <div class="keys">
     <div><kbd>W A S D</kbd>移动</div><div><kbd>鼠标</kbd>旋转镜头</div><div><kbd>R</kbd>锁定 Boss</div>
     <div><kbd>左键</kbd>多段轻击</div><div><kbd>右键</kbd>按住蓄力重击</div><div><kbd>空格</kbd>翻滚闪身</div>
     <div><kbd>Ctrl / F</kbd>跳跃</div><div><kbd>Shift</kbd>按住疾奔</div><div><kbd>空中左键</kbd>跳劈</div>
-    <div><kbd>Q</kbd>饮葫芦回血</div><div><kbd>1</kbd>定身术</div><div><kbd>Esc</kbd>暂停</div>
+    <div><kbd>Q</kbd>饮葫芦回血</div><div><kbd>1</kbd><span class="spellName">定身术</span></div><div><kbd>Esc</kbd>暂停</div>
   </div>
   <button class="btn" id="btnStart">踏上西行</button>
   <div class="ver" id="verTitle"></div>
