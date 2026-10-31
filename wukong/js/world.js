@@ -664,5 +664,5 @@ const World = (() => {
       inArena: (p) => Math.hypot(p.x, p.z) < ARENA_R - 0.3 && p.z < ENTRY_Z,
     };
   }
-  return { build };
+  return { build, util: { rng, fbm, smooth, stoneSlabTex, rockTex, tileTex, woodTex, plasterTex, toTex, noiseFill, canvasPair } };
 })();

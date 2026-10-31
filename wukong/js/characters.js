@@ -239,7 +239,7 @@ const Chars = (() => {
 
     const root = new THREE.Group();
     const model = G(root);
-    const BH = 1.22; // 立于风火轮上，整体抬高
+    const BH = 1.22; // 风火轮在脚下；悬浮高度由 HoverMotion 额外叠加（永不触地）
     const hips = G(model, [0, BH, 0]);
     M(sph(0.15), redDark, hips, [0, 0, 0], [0, 0, 0], [1.2, 0.8, 1]);
     // 荷叶裙：绿叶在下、粉莲瓣在上
@@ -364,13 +364,20 @@ const Chars = (() => {
 
     const wind = new THREE.Vector3(), backDir = new THREE.Vector3();
     let spinAng = 0;
+    const hover = new HoverMotion(BH);
+    const groundGlow = hoverShadow(); fx.add(groundGlow);
     return {
       root, model, hips, torso, head, rS: R.sh, rE: R.el, rH: R.hand, lS: L.sh, lE: L.el, lH: L.hand,
       staffPivot, staff, tip, mid, gourdHand, gourdWaist, lHip: LL.hip, lK: LL.knee, rHip: RL.hip, rK: RL.knee,
-      baseHipY: BH, gold: steel, eyeM, sash, fx, wheels, ribbons,
-      reset() { root.updateMatrixWorld(true); ribbons.forEach(r => r.reset()); },
+      baseHipY: BH, gold: steel, eyeM, sash, fx, wheels, ribbons, hover, groundGlow,
+      reset() { hover.reset(); root.updateMatrixWorld(true); ribbons.forEach(r => r.reset()); },
       update(dt, t, speed) {
         root.updateMatrixWorld(true);
+        // 地面火光：随离地高度变淡变大，持续提示"悬空"
+        const hgt = Math.max(0, root.position.y + hover.out.y);
+        groundGlow.position.set(root.position.x, 0.06, root.position.z);
+        groundGlow.scale.setScalar(0.9 + hgt * 0.35 + Math.min(0.6, speed * 0.04));
+        groundGlow.material.opacity = Math.max(0.15, 0.85 - hgt * 0.25);
         spinAng += (3 + speed * 7) * dt;
         wheels.forEach((w, i) => {
           // 抵消大小腿弯曲，让风火轮始终保持水平滚动姿态
@@ -494,6 +501,323 @@ const Chars = (() => {
     };
   }
 
+  // ---------------- 悬浮运动系统（程序化，弹簧-阻尼驱动） ----------------
+  // 设计依据：
+  //  1) 惯性前倾：lean = atan(水平加速度 / g)，加速前倾、刹车后仰（物理驱动倾斜）
+  //  2) 转弯侧倾：由横向加速度驱动 roll，身体倒向弯内，腿部向弯外甩
+  //  3) 重叠动作：躯干领先、骨盆滞后、腿部双摆滞后、头部提前转向（预判）
+  //  4) 永不触地：离地高度由“状态曲线”决定，任何状态下都不贴地
+  //  5) 从不静止：多频率正弦叠加漂移，避免机械感
+  class Spring { // 临界附近阻尼的二阶弹簧
+    constructor(f = 3, z = 0.6) { this.x = 0; this.v = 0; this.f = f; this.z = z; }
+    step(target, dt, force = 0) {
+      const w = 2 * Math.PI * this.f;
+      const a = w * w * (target - this.x) - 2 * this.z * w * this.v + force;
+      this.v += a * dt; this.x += this.v * dt; return this.x;
+    }
+    reset(x = 0) { this.x = x; this.v = 0; }
+  }
+  // 各状态的悬浮参数：hover=离地高度、bob=起伏幅度、freq=起伏频率、legs=收腿程度、lean=前倾附加
+  const HOVER_PROFILES = {
+    idle: { hover: 0.58, bob: 0.065, freq: 0.5, legs: 0.35, lean: 0.0, drift: 1.0 },
+    move: { hover: 0.48, bob: 0.045, freq: 0.9, legs: 0.5, lean: 0.12, drift: 0.6 },
+    sprint: { hover: 0.40, bob: 0.025, freq: 1.4, legs: 0.85, lean: 0.3, drift: 0.3 },
+    attack: { hover: 0.42, bob: 0.015, freq: 1.2, legs: 0.55, lean: 0.10, drift: 0.2 },
+    heavy: { hover: 0.30, bob: 0.01, freq: 1.0, legs: 0.9, lean: 0.05, drift: 0.1 },
+    charge: { hover: 0.85, bob: 0.03, freq: 2.2, legs: 1.0, lean: -0.05, drift: 0.2 },
+    roll: { hover: 0.55, bob: 0.0, freq: 0, legs: 1.0, lean: 0.0, drift: 0 },
+    jump: { hover: 0.30, bob: 0.0, freq: 0, legs: 0.7, lean: 0.05, drift: 0.2 },
+    airatk: { hover: 0.20, bob: 0.0, freq: 0, legs: 1.0, lean: 0.25, drift: 0 },
+    land: { hover: 0.30, bob: 0.0, freq: 0, legs: 0.7, lean: 0.05, drift: 0.2 },
+    cast: { hover: 0.95, bob: 0.05, freq: 1.6, legs: 0.6, lean: -0.08, drift: 0.4 },
+    drink: { hover: 0.62, bob: 0.05, freq: 0.7, legs: 0.4, lean: -0.04, drift: 0.8 },
+    hurt: { hover: 0.38, bob: 0.0, freq: 0, legs: 0.6, lean: -0.3, drift: 0 },
+    dead: { hover: 0.12, bob: 0.0, freq: 0, legs: 0.2, lean: 0, drift: 0 },
+  };
+  class HoverMotion {
+    constructor(baseHipY) {
+      this.baseHipY = baseHipY;
+      this.h = new Spring(1.8, 0.55);      // 离地高度（软，带回弹）
+      this.pitch = new Spring(2.2, 0.5);   // 前倾/后仰
+      this.roll = new Spring(2.0, 0.45);   // 转弯侧倾
+      this.pelvisYaw = new Spring(2.6, 0.5); // 骨盆滞后扭转
+      this.headYaw = new Spring(4.0, 0.7); // 头部预判
+      this.thigh = new Spring(2.4, 0.4);   // 大腿惯性摆
+      this.shin = new Spring(3.2, 0.35);   // 小腿二级滞后（双摆）
+      this.legSide = new Spring(2.0, 0.45);// 腿部向弯外甩
+      this.armDrag = new Spring(2.4, 0.4); // 手臂拖尾
+      this.prevV = new THREE.Vector3(); this.prevYaw = 0; this.yawRate = 0; this.t = 0;
+      this.state = 'idle'; this.speed = 0; this.vy = 0; this.facing = 0; this.vel = new THREE.Vector3(); this.inputYaw = null;
+      this.out = { y: 0.55, pitch: 0, roll: 0, pelvisYaw: 0, headYaw: 0, thigh: 0, shin: 0, legSide: 0, arm: 0, prof: HOVER_PROFILES.idle };
+      this.h.reset(0.55);
+    }
+    // 每帧由游戏逻辑喂入运动学状态
+    feed(dt, state, vel, vy, facing, inputYaw) {
+      if (dt <= 0) return;
+      dt = Math.min(dt, 1 / 30);
+      this.t += dt; this.state = state; this.vy = vy; this.facing = facing; this.inputYaw = inputYaw;
+      const prof = HOVER_PROFILES[state] || HOVER_PROFILES.idle;
+      // 世界加速度 → 角色局部坐标（前/侧）
+      const ax = (vel.x - this.prevV.x) / dt, az = (vel.z - this.prevV.z) / dt;
+      this.prevV.copy(vel); this.vel.copy(vel);
+      const s = Math.sin(facing), c = Math.cos(facing);
+      let aF = ax * s + az * c, aS = ax * c - az * s;
+      aF = Math.max(-40, Math.min(40, aF)); aS = Math.max(-40, Math.min(40, aS));
+      let dy = facing - this.prevYaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
+      this.prevYaw = facing;
+      const yawRateNew = dy / dt; const yawAcc = (yawRateNew - this.yawRate) / dt; this.yawRate = yawRateNew;
+      const speed = Math.hypot(vel.x, vel.z); this.speed = speed;
+      const G = 9.8, t = this.t;
+      // 1) 离地高度：状态基准 + 多频起伏 + 漂移（叠加两个不同频率，避免规律感）
+      const bob = prof.bob * (Math.sin(t * prof.freq * Math.PI * 2) * 0.7 + Math.sin(t * prof.freq * Math.PI * 2 * 1.618 + 1.3) * 0.3);
+      const drift = prof.drift * 0.02 * Math.sin(t * 0.37 + 2.1);
+      const sink = -Math.min(0.12, Math.max(0, -aF) * 0.004); // 急停时下沉，带回弹
+      this.out.y = this.h.step(prof.hover + bob + drift + sink, dt);
+      // 2) 惯性前倾：atan(a/g)，加上速度带来的常驻前倾
+      const leanA = Math.atan2(aF, G) * 0.35 + Math.min(0.14, speed * 0.014) + prof.lean * 0.5;
+      this.out.pitch = this.pitch.step(Math.max(-0.35, Math.min(0.38, leanA)), dt);
+      // 3) 转弯侧倾：横向加速度 + 角速度×速度（向心）
+      const centri = this.yawRate * speed;
+      const rollT = Math.atan2(aS * 0.5 + centri * 0.6, G) + Math.sin(t * 0.43) * 0.025 * prof.drift;
+      this.out.roll = this.roll.step(Math.max(-0.5, Math.min(0.5, rollT)), dt);
+      // 4) 骨盆滞后（由角加速度驱动），头部朝输入方向预判
+      this.out.pelvisYaw = this.pelvisYaw.step(0, dt, -yawAcc * 0.35);
+      let hy = 0; if (inputYaw !== null && inputYaw !== undefined) { hy = inputYaw - facing; while (hy > Math.PI) hy -= Math.PI * 2; while (hy < -Math.PI) hy += Math.PI * 2; }
+      this.out.headYaw = this.headYaw.step(Math.max(-0.6, Math.min(0.6, hy * 0.6)), dt);
+      // 5) 腿部：惯性拖尾（加速时腿向后、刹车时向前甩），小腿二级滞后
+      this.out.thigh = this.thigh.step(prof.legs * 0.25, dt, -aF * 1.4 - this.vy * 1.5);
+      this.out.shin = this.shin.step(0, dt, this.thigh.v * 9);
+      this.out.legSide = this.legSide.step(0, dt, centri * 2.2 + aS * 0.8);
+      this.out.arm = this.armDrag.step(0, dt, -aF * 1.2);
+      this.out.prof = prof;
+    }
+    reset() { [this.h, this.pitch, this.roll, this.pelvisYaw, this.headYaw, this.thigh, this.shin, this.legSide, this.armDrag].forEach(s => s.reset()); this.h.reset(0.55); this.prevV.set(0, 0, 0); this.yawRate = 0; }
+    // 叠加到骨骼（在常规姿势之上）
+    apply(rig, p, extra) {
+      const o = this.out, prof = o.prof;
+      const flipping = !!extra.flip;
+      rig.model.position.y += o.y;
+      if (!flipping) { rig.model.rotation.x += o.pitch; rig.model.rotation.z = -o.roll; }
+      else rig.model.rotation.z = 0;
+      rig.hips.rotation.y = o.pelvisYaw;
+      rig.torso.rotation.y += -o.pelvisYaw * 0.8;
+      rig.head.rotation.y += o.headYaw; rig.head.rotation.x -= o.pitch * 0.55; // 头部保持水平视线
+      // 腿：悬浮时始终收拢下垂，不做迈步；按状态收腿 + 惯性摆动 + 左右错频
+      const tuck = prof.legs, t = this.t;
+      const sw = Math.sin(t * 1.3) * 0.06, sw2 = Math.sin(t * 1.3 + 1.1) * 0.06;
+      rig.lHip.rotation.x = -0.28 - tuck * 0.55 + o.thigh + sw;
+      rig.rHip.rotation.x = 0.12 - tuck * 0.2 + o.thigh * 0.85 + sw2;
+      rig.lK.rotation.x = 0.55 + tuck * 0.9 + o.shin;
+      rig.rK.rotation.x = 0.35 + tuck * 0.5 + o.shin * 0.8;
+      rig.lHip.rotation.z = o.legSide * 0.6 + 0.06; rig.rHip.rotation.z = o.legSide * 0.6 - 0.06;
+      // 手臂：非攻击状态时有拖尾
+      if (!(p.__attacking)) { rig.lS.rotation.x += o.arm * 0.5; }
+      // 硬约束：任何姿态（翻滚/跳劈/重击下压）下，风火轮最低点都不得低于离地安全线
+      if (rig.wheels) {
+        rig.root.updateMatrixWorld(true);
+        let lo = Infinity; const v = this._v || (this._v = new THREE.Vector3());
+        for (const w of rig.wheels) { w.mount.getWorldPosition(v); lo = Math.min(lo, v.y - 0.25); }
+        const SAFE = 0.12;
+        if (lo < SAFE) { rig.model.position.y += SAFE - lo; }
+      }
+    }
+  }
+  // 哪吒专用离地阴影（悬浮时投在地面的柔和光斑，强化"离地"读感）
+  function hoverShadow() {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,120,40,0.55)'); g.addColorStop(0.5, 'rgba(255,80,20,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    m.rotation.x = -Math.PI / 2; m.renderOrder = 3; return m;
+  }
+
+  // ---------------- 东海三太子 · 敖丙（Boss） ----------------
+  // 设计要点：冰蓝白主色与哪吒红金形成冷暖对立；龙角、龙鳞肩甲、长发与披帛飘动；手持冰锥长戟；
+  // 剪影识别：头顶双龙角 + 背后冰晶脊 + 长尾。二阶段“龙化”：龙角变大发光、背后冰晶增多、尾巴变长。
+  function buildAoBing() {
+    const skin = std(0xdfe8ee, 0.55);
+    const armor = std(0xbfd8e8, 0.3, 0.7);
+    const armorDark = std(0x2a4a66, 0.4, 0.6);
+    const scale = std(0x6aa8d0, 0.35, 0.5, { emissive: 0x08202e });
+    const robe = std(0x3e5c72, 0.6, 0.1); // 深冰蓝长袍（压暗，避免白色大面积抢剪影；亮部留给龙角与冰刃）
+    const robeBlue = std(0x23506e, 0.55);
+    const gold = std(0xd8c070, 0.3, 1.0);
+    const ice = new THREE.MeshStandardMaterial({ color: 0xbff4ff, emissive: 0x3ac8ff, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.85 });
+    const hair = std(0x1a2a3a, 0.5);
+    const horn = std(0xe8f4ff, 0.3, 0.2, { emissive: 0x2a8acf, emissiveIntensity: 0.6 });
+    const eyeM = new THREE.MeshStandardMaterial({ color: 0x9ff0ff, emissive: 0x4ad8ff, emissiveIntensity: 3 });
+    const silk = new THREE.MeshStandardMaterial({ color: 0xd8eef8, emissive: 0x1a3a4a, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+
+    const root = new THREE.Group();
+    const model = G(root);
+    const BH = 1.75; // 基础身高约 3.4m；整体再放大 1.3 倍 → 约 4.4m（悬浮哪吒的 2 倍以上，保证 Boss 压迫感）
+    const hips = G(model, [0, BH, 0]);
+    M(sph(0.36), robeBlue, hips, [0, 0, 0], [0, 0, 0], [1.2, 0.8, 1]);
+    const skirt = M(new THREE.CylinderGeometry(0.4, 0.72, 1.5, 16, 1, true), robe, hips, [0, -0.65, 0]); skirt.material = robe.clone(); skirt.material.side = THREE.DoubleSide;
+    // 鳞甲裙片
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const p = M(new THREE.BoxGeometry(0.28, 0.7, 0.04), scale, hips, [Math.sin(a) * 0.55, -0.45, Math.cos(a) * 0.55], [0, a, 0]); p.rotation.x = -0.25; p.rotation.order = 'YXZ'; }
+    M(new THREE.TorusGeometry(0.42, 0.05, 8, 28), gold, hips, [0, 0.08, 0], [Math.PI / 2, 0, 0]);
+    const tailPin = G(hips, [0, -0.1, -0.35]);
+
+    const torso = G(hips, [0, 0.12, 0]);
+    M(cap(0.36, 0.6), skin, torso, [0, 0.5, 0], [0, 0, 0], [1.15, 1, 0.8]);
+    M(new THREE.CylinderGeometry(0.43, 0.38, 0.75, 16, 1, true, -Math.PI * 0.55, Math.PI * 1.1), armor, torso, [0, 0.52, 0.0]).material = armor.clone();
+    torso.children[torso.children.length - 1].material.side = THREE.DoubleSide;
+    M(new THREE.TorusGeometry(0.2, 0.03, 8, 20), gold, torso, [0, 0.62, 0.36]);
+    M(sph(0.06, 10, 8), ice, torso, [0, 0.62, 0.38]);
+    // 龙鳞肩甲（层叠三片）
+    [-1, 1].forEach(sd => { for (let k = 0; k < 3; k++) M(new THREE.SphereGeometry(0.3 - k * 0.05, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), k % 2 ? scale : armor, torso, [sd * (0.5 + k * 0.05), 0.95 - k * 0.12, 0], [0, 0, sd * (-0.6 - k * 0.15)]); });
+    // 背后冰晶脊
+    const spine = G(torso, [0, 0.6, -0.32]);
+    const crystals = [];
+    for (let i = 0; i < 7; i++) { const c = M(new THREE.ConeGeometry(0.07 + (i % 3) * 0.02, 0.5 + (i % 3) * 0.25, 5), ice, spine, [(i % 2 ? 1 : -1) * (0.1 + (i % 3) * 0.05), 0.5 - i * 0.13, -0.05], [-0.6, 0, (i % 2 ? -1 : 1) * 0.4]); crystals.push(c); }
+    const backL = G(torso, [0.38, 0.9, -0.2]), backR = G(torso, [-0.38, 0.9, -0.2]);
+
+    const head = G(torso, [0, 1.12, 0.02]);
+    M(sph(0.24), skin, head, [0, 0.04, 0], [0, 0, 0], [0.95, 1.12, 1]);
+    M(sph(0.255), hair, head, [0, 0.1, -0.04], [0, 0, 0], [1.0, 0.95, 1.02]);
+    M(new THREE.BoxGeometry(0.34, 0.03, 0.05), hair, head, [0, 0.1, 0.22], [0.2, 0, 0]);
+    M(sph(0.022, 8, 6), eyeM, head, [-0.08, 0.04, 0.22]); M(sph(0.022, 8, 6), eyeM, head, [0.08, 0.04, 0.22]);
+    M(new THREE.ConeGeometry(0.02, 0.07, 4), std(0x6ad8ff, 0.4, 0, { emissive: 0x2a9aff, emissiveIntensity: 1.5 }), head, [0, 0.12, 0.235], [0.1, 0, 0]);
+    // 龙角（分叉）
+    const horns = [];
+    [-1, 1].forEach(sd => {
+      const h = G(head, [sd * 0.12, 0.26, -0.02]); h.rotation.set(-0.5, 0, sd * -0.35);
+      M(new THREE.ConeGeometry(0.045, 0.5, 6), horn, h, [0, 0.25, 0]);
+      M(new THREE.ConeGeometry(0.03, 0.22, 5), horn, h, [sd * 0.06, 0.2, 0.02], [0, 0, sd * -0.8]);
+      horns.push(h);
+    });
+    const hairPin = G(head, [0, 0.0, -0.22]);
+    M(new THREE.TorusGeometry(0.1, 0.025, 6, 16), gold, head, [0, 0.2, -0.16], [Math.PI / 2 - 0.4, 0, 0]);
+
+    function arm(side) {
+      const sh = G(torso, [side * 0.55, 0.88, 0]);
+      M(cap(0.11, 0.38), robe, sh, [0, -0.25, 0]);
+      const el = G(sh, [0, -0.55, 0]);
+      M(cap(0.09, 0.34), skin, el, [0, -0.2, 0]);
+      M(new THREE.CylinderGeometry(0.12, 0.1, 0.32, 10), armor, el, [0, -0.25, 0]);
+      const hand = G(el, [0, -0.5, 0]);
+      M(sph(0.09), skin, hand, [0, 0, 0], [0, 0, 0], [1, 1.1, 0.9]);
+      return { sh, el, hand };
+    }
+    const R = arm(-1), L = arm(1);
+    // 冰锥长戟
+    const spearPivot = G(R.hand), spear = G(spearPivot);
+    const SL = 4.2, grip = 1.4;
+    M(new THREE.CylinderGeometry(0.045, 0.05, SL, 10), armorDark, spear, [0, SL / 2 - grip, 0]);
+    const bladeG = new THREE.ConeGeometry(0.16, 0.95, 5); bladeG.scale(1, 1, 0.35);
+    M(bladeG, ice, spear, [0, SL - grip + 0.47, 0]);
+    M(new THREE.ConeGeometry(0.08, 0.45, 5), ice, spear, [0.16, SL - grip + 0.1, 0], [0, 0, -0.9]);
+    M(new THREE.ConeGeometry(0.08, 0.45, 5), ice, spear, [-0.16, SL - grip + 0.1, 0], [0, 0, 0.9]);
+    M(new THREE.CylinderGeometry(0.09, 0.07, 0.2, 10), gold, spear, [0, SL - grip - 0.08, 0]);
+    const tip = G(spear, [0, SL - grip + 0.95, 0]); const mid = G(spear, [0, 1.0, 0]);
+    const iceM = new THREE.MeshBasicMaterial({ color: 0x8aeaff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const fireSheath = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, SL * 0.7, 8, 1, true), iceM); fireSheath.position.set(0, SL * 0.35, 0); spear.add(fireSheath);
+
+    function leg(side) {
+      const hip = G(hips, [side * 0.22, -0.08, 0]);
+      M(cap(0.15, 0.55), robeBlue, hip, [0, -0.4, 0]);
+      const knee = G(hip, [0, -0.85, 0]);
+      M(cap(0.12, 0.5), robeBlue, knee, [0, -0.35, 0]);
+      M(new THREE.CylinderGeometry(0.15, 0.13, 0.42, 12), armor, knee, [0, -0.45, 0]);
+      M(new THREE.BoxGeometry(0.2, 0.12, 0.38), armorDark, knee, [0, -0.78, 0.08]);
+      return { hip, knee };
+    }
+    const LL = leg(1), RL = leg(-1);
+    const flashMats = [];
+    root.traverse(o => { if (o.isMesh) { o.castShadow = true; if (o.material !== eyeM && o.material !== iceM && o.material !== ice && !flashMats.includes(o.material)) flashMats.push(o.material); } });
+    flashMats.forEach(m => { m.emissive = m.emissive || new THREE.Color(0); });
+
+    // 飘动：龙尾（粗）、长发、披帛
+    model.scale.setScalar(1.3);
+    const fx = new THREE.Group();
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0x6aa8d0, emissive: 0x0a2a3a, roughness: 0.35, metalness: 0.4, side: THREE.DoubleSide });
+    const ribbons = [
+      new Ribbon({ pinA: tailPin, n: 22, len: 3.2, width: 0.42, material: tailMat, gravity: -6, flutter: 3, taper: 0.9, twist: 0.3, back: 3 }),
+      new Ribbon({ pinA: hairPin, n: 14, len: 1.3, width: 0.22, material: new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.5, side: THREE.DoubleSide }), gravity: -3, flutter: 4, taper: 0.6, twist: 0.4, back: 2.5 }),
+      new Ribbon({ pinA: backL, pinB: backR, n: 26, len: 3.8, width: 0.3, material: silk, gravity: 0.6, flutter: 5, taper: 0.3, twist: 0.8, back: 4 }),
+      new Ribbon({ pinA: L.el, n: 18, len: 2.4, width: 0.16, material: silk, gravity: -1.2, flutter: 5, taper: 0.6, twist: 1, back: 3 }),
+    ];
+    ribbons.forEach(r => fx.add(r.mesh));
+    const wind = new THREE.Vector3(), backDir = new THREE.Vector3();
+    let dragon = 0;
+    return {
+      root, model, hips, torso, head, rS: R.sh, rE: R.el, rH: R.hand, lS: L.sh, lE: L.el, lH: L.hand,
+      staffPivot: spearPivot, staff: spear, tip, mid, lHip: LL.hip, lK: LL.knee, rHip: RL.hip, rK: RL.knee,
+      baseHipY: BH, eyeM, fireM: iceM, flashMats, fx, ribbons, horns, crystals,
+      setDragon(k) { dragon = k; horns.forEach(h => h.scale.setScalar(1 + k * 0.6)); crystals.forEach((c, i) => c.scale.setScalar(1 + k * (0.6 + (i % 3) * 0.3))); horn.emissiveIntensity = 0.6 + k * 2.5; },
+      reset() { root.updateMatrixWorld(true); ribbons.forEach(r => r.reset()); this.setDragon(0); },
+      update(dt, t) {
+        root.updateMatrixWorld(true);
+        wind.set(Math.sin(t * 0.6) * 1.0, 0, Math.cos(t * 0.45) * 0.8);
+        root.getWorldDirection(backDir); backDir.negate();
+        ribbons.forEach(r => r.update(dt, t, wind, backDir));
+        if (dragon > 0) crystals.forEach((c, i) => c.material.emissiveIntensity = 0.9 + Math.sin(t * 6 + i) * 0.4 * dragon);
+      },
+    };
+  }
+
+  // ---------------- 巡海夜叉（小怪） ----------------
+  // 设计要点：佝偻、长臂、鱼鳍头冠、墨绿皮肤 + 珊瑚骨刺；手持鱼叉。体型 ≈ 玩家 1.2 倍，剪影与 Boss 明显区分。
+  function buildYaksha(seed = 1) {
+    const skinC = [0x3a6a5a, 0x4a6a4a, 0x2f5a62][seed % 3];
+    const skin = std(skinC, 0.55, 0.05, { map: furTexture('#2a4a40', 40 + seed) });
+    const belly = std(0x8aa890, 0.6);
+    const fin = new THREE.MeshStandardMaterial({ color: 0xc85a3a, roughness: 0.5, side: THREE.DoubleSide, emissive: 0x200604 });
+    const bone = std(0xe0d0b0, 0.6);
+    const cloth = std(0x2a2a30, 0.9);
+    const iron = std(0x5a6066, 0.4, 0.8);
+    const eyeM = new THREE.MeshStandardMaterial({ color: 0xffe06a, emissive: 0xffb020, emissiveIntensity: 2.5 });
+    const root = new THREE.Group(); const model = G(root);
+    const BH = 1.05;
+    const hips = G(model, [0, BH, 0]);
+    M(sph(0.22), cloth, hips, [0, 0, 0], [0, 0, 0], [1.2, 0.8, 1]);
+    M(new THREE.CylinderGeometry(0.24, 0.36, 0.42, 10, 1, true), cloth, hips, [0, -0.15, 0]).material = cloth.clone();
+    hips.children[hips.children.length - 1].material.side = THREE.DoubleSide;
+    const torso = G(hips, [0, 0.08, 0]);
+    M(cap(0.24, 0.32), skin, torso, [0, 0.3, 0.04], [0.25, 0, 0], [1.2, 1, 0.95]);
+    M(sph(0.2), belly, torso, [0, 0.22, 0.17], [0, 0, 0], [1.1, 1.1, 0.6]);
+    for (let i = 0; i < 5; i++) M(new THREE.ConeGeometry(0.04, 0.26 - i * 0.02, 5), bone, torso, [0, 0.55 - i * 0.1, -0.2 - i * 0.02], [-1.0, 0, 0]);
+    const head = G(torso, [0, 0.62, 0.14]);
+    M(sph(0.2), skin, head, [0, 0, 0], [0, 0, 0], [1.05, 0.9, 1.2]);
+    M(sph(0.13), skin, head, [0, -0.08, 0.15], [0, 0, 0], [1.2, 0.6, 1]);
+    for (let i = 0; i < 6; i++) M(new THREE.ConeGeometry(0.018, 0.07, 4), bone, head, [(i - 2.5) * 0.04, -0.12, 0.26], [Math.PI, 0, 0]);
+    M(sph(0.035, 8, 6), eyeM, head, [-0.09, 0.04, 0.17]); M(sph(0.035, 8, 6), eyeM, head, [0.09, 0.04, 0.17]);
+    const finG = new THREE.ConeGeometry(0.25, 0.5, 3, 1, true); finG.scale(0.15, 1, 1);
+    M(finG, fin, head, [0, 0.22, -0.05], [-0.4, 0, 0]);
+    [-1, 1].forEach(sd => M(finG, fin, head, [sd * 0.18, 0.02, -0.02], [0, 0, sd * 1.2], [0.7, 0.7, 0.7]));
+    function arm(side) {
+      const sh = G(torso, [side * 0.3, 0.45, 0.06]);
+      M(cap(0.07, 0.3), skin, sh, [0, -0.2, 0]);
+      const el = G(sh, [0, -0.42, 0]);
+      M(cap(0.06, 0.3), skin, el, [0, -0.18, 0]);
+      M(new THREE.TorusGeometry(0.07, 0.02, 6, 12), iron, el, [0, -0.1, 0], [Math.PI / 2, 0, 0]);
+      const hand = G(el, [0, -0.4, 0]);
+      M(sph(0.07), skin, hand); for (let k = 0; k < 3; k++) M(new THREE.ConeGeometry(0.018, 0.1, 4), bone, hand, [(k - 1) * 0.04, -0.08, 0.04], [Math.PI * 0.8, 0, 0]);
+      return { sh, el, hand };
+    }
+    const R = arm(-1), L = arm(1);
+    const spearPivot = G(R.hand), spear = G(spearPivot);
+    const SL = 2.4, grip = 0.9;
+    M(new THREE.CylinderGeometry(0.03, 0.03, SL, 8), std(0x4a3a2a, 0.8), spear, [0, SL / 2 - grip, 0]);
+    [-1, 0, 1].forEach(k => M(new THREE.ConeGeometry(0.03, 0.3, 4), iron, spear, [k * 0.07, SL - grip + 0.12, 0], [0, 0, -k * 0.15]));
+    M(new THREE.BoxGeometry(0.2, 0.04, 0.04), iron, spear, [0, SL - grip - 0.02, 0]);
+    const tip = G(spear, [0, SL - grip + 0.28, 0]); const mid = G(spear, [0, 0.4, 0]);
+    function leg(side) {
+      const hip = G(hips, [side * 0.14, -0.05, 0]);
+      M(cap(0.09, 0.3), skin, hip, [0, -0.22, 0]);
+      const knee = G(hip, [0, -0.48, 0]);
+      M(cap(0.075, 0.3), skin, knee, [0, -0.2, 0]);
+      M(new THREE.BoxGeometry(0.14, 0.06, 0.26), skin, knee, [0, -0.46, 0.06]);
+      return { hip, knee };
+    }
+    const LL = leg(1), RL = leg(-1);
+    const flashMats = [];
+    root.traverse(o => { if (o.isMesh) { o.castShadow = true; if (o.material !== eyeM && !flashMats.includes(o.material)) flashMats.push(o.material); } });
+    flashMats.forEach(m => { m.emissive = m.emissive || new THREE.Color(0); m.userData.base = m.emissive.clone(); });
+    return { root, model, hips, torso, head, rS: R.sh, rE: R.el, rH: R.hand, lS: L.sh, lE: L.el, lH: L.hand, staffPivot: spearPivot, staff: spear, tip, mid, lHip: LL.hip, lK: LL.knee, rHip: RL.hip, rK: RL.knee, baseHipY: BH, eyeM, flashMats };
+  }
+
   // ---------------- 姿势系统 ----------------
   const KEYS = ['hipY', 'hipX', 'hipZ', 'tX', 'tY', 'tZ', 'hX', 'hY', 'rsX', 'rsY', 'rsZ', 'reX', 'wX', 'wY', 'wZ', 'lsX', 'lsY', 'lsZ', 'leX', 'lhX', 'rhX', 'lkX', 'rkX', 'lhZ', 'rhZ'];
   const zeroPose = () => { const p = {}; KEYS.forEach(k => p[k] = 0); return p; };
@@ -515,6 +839,7 @@ const Chars = (() => {
     rig.model.rotation.x = (extra.tilt || 0) + fa;
     rig.model.position.y = (extra.lift || 0) + (fa ? fc - fc * Math.cos(fa) : 0);
     rig.model.position.z = fa ? -fc * Math.sin(fa) : 0;
+    if (rig.hover) rig.hover.apply(rig, p, extra); // 悬浮角色叠加程序化浮动层
   }
   function blendPose(cur, tgt, k) { for (const key of KEYS) cur[key] += ((tgt[key] ?? 0) - cur[key]) * k; }
   const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -528,5 +853,5 @@ const Chars = (() => {
     keys.forEach(k => { const va = a[k] ?? base[k] ?? 0, vb = b[k] ?? base[k] ?? 0; out[k] = va + (vb - va) * u; });
     return out;
   }
-  return { buildPlayer, buildNezha, buildBoss, applyPose, blendPose, keyframes, zeroPose, ease };
+  return { buildPlayer, buildNezha, buildBoss, buildAoBing, buildYaksha, applyPose, blendPose, keyframes, zeroPose, ease };
 })();

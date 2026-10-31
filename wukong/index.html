@@ -158,6 +158,8 @@
   #pause .sub { margin-top: 14px; color: #c8b896; letter-spacing: 4px; }
 
   .ver { position: absolute; right: 22px; bottom: 16px; font-family: Menlo, monospace; font-size: 12px; color: rgba(217,179,106,0.6); letter-spacing: 1px; }
+  .mobBar { position: absolute; left: 0; top: 0; width: 60px; height: 4px; background: rgba(0,0,0,0.6); border: 1px solid rgba(217,179,106,0.4); display: none; }
+  .mobBar i { display: block; height: 100%; width: 100%; background: linear-gradient(180deg, #e8dcc6, #a89a82); }
   #loading { position: fixed; inset: 0; background: #0b0907; display: flex; align-items: center; justify-content: center; font-size: 28px; letter-spacing: 12px; color: var(--gold); z-index: 20; transition: opacity 0.8s; }
   #loading.hide { opacity: 0; pointer-events: none; }
 </style>
@@ -236,6 +238,7 @@
       <div>完美闪避<b id="rPerfect">0</b></div>
       <div>葫芦使用<b id="rGourd">0</b></div>
       <div>挑战次数<b id="rTries">1</b></div>
+      <div>斩杀小怪<b id="rKills">0</b></div>
       <div>累计通关<b id="rClears">1</b></div>
     </div>
     <div class="reward">
@@ -253,6 +256,7 @@
 <script src="lib/three.min.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/world.js"></script>
+<script src="js/sea.js"></script>
 <script src="js/characters.js"></script>
 <script src="js/game.js"></script>
 <script>document.querySelectorAll(".ver").forEach(e => e.textContent = "v" + (window.GAME_VERSION || "dev"));</script>

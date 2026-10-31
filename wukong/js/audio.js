@@ -226,6 +226,18 @@ const AudioSys = (() => {
       tone({ t, f: 120, f2: 50, a: 0.002, d: 0.14 + v * 0.1, v: 0.25 + v * 0.3 });
       noise({ t, type: 'lowpass', f: 700, f2: 200, a: 0.002, d: 0.12, v: 0.2 + v * 0.2 });
     },
+    ice() {
+      if (!ok()) return; const t = now();
+      [2637, 3136, 3951, 4699].forEach((f, i) => tone({ t: t + i * 0.03, type: 'triangle', f, f2: f * 0.97, a: 0.001, d: 0.6, v: 0.07, rv: 0.8 }));
+      noise({ t, type: 'highpass', f: 4000, a: 0.002, d: 0.35, v: 0.35, rv: 0.5 });
+      noise({ t, type: 'lowpass', f: 900, f2: 120, a: 0.003, d: 0.5, v: 0.4 });
+    },
+    splash() {
+      if (!ok()) return; const t = now();
+      noise({ t, type: 'lowpass', f: 2500, f2: 300, a: 0.01, d: 0.8, v: 0.55, rv: 0.4 });
+      noise({ t: t + 0.05, f: 900, q: 0.5, a: 0.02, d: 0.6, v: 0.3 });
+      for (let i = 0; i < 8; i++) noise({ t: t + 0.1 + Math.random() * 0.5, type: 'highpass', f: 2500 + Math.random() * 2000, a: 0.001, d: 0.05, v: 0.12 });
+    },
     wheel() {
       if (!ok()) return; const t = now();
       noise({ t, f: 900, f2: 400, q: 0.6, a: 0.05, d: 0.35, v: 0.07 });

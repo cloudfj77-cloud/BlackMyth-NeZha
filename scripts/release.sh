@@ -25,6 +25,18 @@ DATE="$(date +%Y-%m-%d)"
 
 if git rev-parse "v${NEW}" >/dev/null 2>&1; then echo "标签 v${NEW} 已存在"; exit 1; fi
 
+# ===== 质量门禁：自循环验收不通过，禁止发版 =====
+# 设置 SKIP_QA=1 可跳过（仅限紧急修复，且需在更新说明中注明）
+if [[ "${SKIP_QA:-0}" != "1" ]]; then
+  echo "▶ 运行自循环验收（qa/run.js）……"
+  [[ -d qa/node_modules ]] || (cd qa && npm i --silent)
+  if ! node qa/run.js; then
+    echo "❌ 验收未通过，已中止发版。查看 qa/report/report.md，修复后重新执行。"
+    exit 1
+  fi
+  echo "✅ 验收通过，继续发版"
+fi
+
 echo "${NEW}" > VERSION
 perl -pi -e "s/GAME_VERSION = '[^']*'/GAME_VERSION = '${NEW}'/" wukong/js/version.js
 

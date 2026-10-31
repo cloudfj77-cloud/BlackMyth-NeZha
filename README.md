@@ -15,6 +15,25 @@
 
 在标题页点击角色卡（或按 ← →）切换，选择会被记住。
 
+## 关卡与 Boss
+
+| 角色 | 关卡 | 前置关卡 | Boss |
+| --- | --- | --- | --- |
+| 悟空 | 黑风山 · 古道与古寺 | 古道、土地庙 | 黑风大王（二阶段：怒焰） |
+| 哪吒 | 东海 · 陈塘关 | 海岸栈道两波巡海夜叉 → 太乙莲台 → 镇海水门 | 东海三太子 · 敖丙（二阶段：龙化·万龙甲） |
+
+哪吒全程悬浮于风火轮上，不同动作有不同的浮动形态（待机漂浮、疾奔贴低前倾、转弯侧倾、蓄力升空、受击下沉）。
+
+## 质量门禁（自循环验收）
+
+```bash
+cd qa && npm i && cd ..
+node qa/run.js            # 全量验收，报告见 qa/report/report.md
+node qa/run.js --only sea # 只跑某个套件：boot / hover / feel / sea / retry / wukong / perf
+```
+
+`scripts/release.sh` 发版前会自动运行验收，**任一阻断级用例失败即中止发版**。设计与验收标准详见 [`docs/PROMPT_ENGINEERING.md`](docs/PROMPT_ENGINEERING.md)。
+
 ## 操作
 
 | 按键 | 动作 | 按键 | 动作 |
@@ -36,12 +55,15 @@
 wukong/              游戏本体（GitHub Pages 发布此目录）
   index.html         页面与 HUD
   js/game.js         玩家控制、Boss AI、战斗、镜头、流程
-  js/world.js        场景：地形、古寺、断墙、石灯、树林、远山
-  js/characters.js   角色模型与程序化动画
+  js/world.js        场景一：黑风山（地形、古寺、断墙、石灯、树林、远山）
+  js/sea.js          场景二：东海陈塘关（海面、栈道、龙柱、镇海台、远景龙宫）
+  js/characters.js   角色模型（悟空/哪吒/黑风大王/敖丙/夜叉）、物理飘带、悬浮运动系统
   js/audio.js        程序化音效与循环 BGM
   js/version.js      版本号（发版脚本自动更新）
   lib/three.min.js   Three.js r149
-scripts/release.sh   一键发版脚本
+scripts/release.sh   一键发版脚本（内置质量门禁）
+qa/run.js            自循环验收系统
+docs/                Prompt 工程文档
 .github/workflows/   自动部署 Pages、自动创建 Release
 ```
 
