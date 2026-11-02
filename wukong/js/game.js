@@ -1,4 +1,4 @@
-// ===== 黑神话：悟空 · 黑风山 Boss 战 =====
+// ===== 白神话：哪吒 / 悟空 · 网页 Boss 战 =====
 (() => {
   const $ = (id) => document.getElementById(id);
   const V3 = THREE.Vector3;
@@ -76,8 +76,8 @@
   };
   // ---------- 可选角色 ----------
   const CHARS = {
-    wukong: { id: 'wukong', name: '天命人', title: '悟空', game: '黑神话：悟空', spell: '定身术', spellChar: '定', banner: '定！', trail: 0xffcf7a, jumpV: 8.4, speedMul: 1, glide: false, tint: [0.55, 0.4, 0.08], ring: 0xffd070 },
-    nezha: { id: 'nezha', name: '哪吒', title: '哪吒', game: '黑神话：哪吒', spell: '混天绫·缚', spellChar: '缚', banner: '缚！', trail: 0xff5a20, jumpV: 9.8, speedMul: 1.12, glide: true, tint: [0.4, 0.05, 0.02], ring: 0xff3a20 },
+    wukong: { id: 'wukong', name: '天命人', title: '悟空', game: '白神话：悟空', spell: '定身术', spellChar: '定', banner: '定！', trail: 0xffcf7a, jumpV: 8.4, speedMul: 1, glide: false, tint: [0.55, 0.4, 0.08], ring: 0xffd070 },
+    nezha: { id: 'nezha', name: '哪吒', title: '哪吒', game: '白神话：哪吒', spell: '混天绫·缚', spellChar: '缚', banner: '缚！', trail: 0xff5a20, jumpV: 9.8, speedMul: 1.12, glide: true, tint: [0.4, 0.05, 0.02], ring: 0xff3a20 },
   };
   const rigs = { wukong: Chars.buildPlayer(), nezha: Chars.buildNezha() };
   let CH = CHARS.wukong;
@@ -219,10 +219,10 @@
   }
   function ghost() { // 完美闪避残影
     const g = P.rig.model.clone(true);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x7fe8ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x3ac8ff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
     g.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = false; } });
     const holder = new THREE.Group(); holder.position.copy(P.rig.root.position); holder.rotation.copy(P.rig.root.rotation); holder.add(g); scene.add(holder);
-    effects.push({ t: 0, life: 0.7, update(u) { mat.opacity = 0.55 * (1 - u); holder.scale.setScalar(1 + u * 0.08); }, dispose() { scene.remove(holder); mat.dispose(); } });
+    effects.push({ t: 0, life: 0.7, update(u) { mat.opacity = 0.3 * (1 - u); holder.scale.setScalar(1 + u * 0.08); }, dispose() { scene.remove(holder); mat.dispose(); } });
   }
   function updateEffects(dt) {
     for (let i = effects.length - 1; i >= 0; i--) {
@@ -741,7 +741,7 @@
   function perfectDodge() {
     G.perfects++;
     P.invuln = 0.45;
-    P.st = Math.min(P.maxSt, P.st + 25);
+    staminaReward(PERFECT_ST);
     P.spellCD = Math.max(0, P.spellCD - 2);
     slowmo(0.22, 0.55);
     ghost();
@@ -750,6 +750,35 @@
     AudioSys.S.perfect();
     FX.emit(P.pos.clone().setY(1.0), { count: 40, speed: 4, life: 0.6, size: 0.12, colors: [[0.6, 0.95, 1], [1, 1, 1]], drag: 3, radius: 0.8 });
   }
+  // ---------- 完美闪避的气力奖励 ----------
+  // 立即回复 PERFECT_ST 点气力，并获得 BOOST_T 秒「灵息」：无回气延迟、回气速度 ×2、解除力竭。
+  // 反馈三层：① 气力条——新增段高亮、整条青光脉冲、灵息期间流光；② 条旁浮字「+30 气力」；
+  //          ③ 场景——青色灵气粒子从四周汇入角色、脚下青色冲击环。
+  const PERFECT_ST = 30, BOOST_T = 2.5;
+  function staminaReward(amount) {
+    const before = P.st;
+    P.st = Math.min(P.maxSt, P.st + amount);
+    P.exhausted = false; P.stDelay = 0; P.stBoost = BOOST_T;
+    const gained = P.st - before;
+    G.lastStReward = { before, after: P.st, gained, t: G.t };
+    // UI：新增段（从旧值到新值）高亮后淡出
+    const bar = $('pSt').parentElement, seg = $('pStGain');
+    seg.style.left = (before / P.maxSt * 100) + '%'; seg.style.width = (Math.max(gained, 0.5) / P.maxSt * 100) + '%';
+    seg.classList.remove('show'); bar.classList.remove('perfect'); void bar.offsetWidth;
+    seg.classList.add('show'); bar.classList.add('perfect', 'boost');
+    const pop = $('stPop'); pop.textContent = gained >= 1 ? `+${Math.round(gained)} 气力` : '气力已满'; pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
+    // 场景：灵气汇聚（粒子从外圈飞向角色胸口）+ 脚下冲击环
+    const c = P.pos.clone().setY(1.1 + P.y);
+    for (let i = 0; i < 28; i++) {
+      const a = Math.random() * TAU, r = 2.2 + Math.random() * 1.2, h = (Math.random() - 0.3) * 1.6;
+      const from = new V3(c.x + Math.sin(a) * r, c.y + h, c.z + Math.cos(a) * r);
+      const dir = c.clone().sub(from).normalize();
+      FX.emit(from, { count: 1, speed: 7.5, dir, spread: 0.05, life: 0.32, size: 0.16, sizeEnd: 0.04, colors: [[0.45, 0.95, 1], [0.85, 1, 1]], drag: 0 });
+    }
+    shockwave(P.pos, 0x5ae8ff, 2.6, 0.5, 0.9);
+    AudioSys.S.heal();
+  }
+
   let deathReady = false;
   function die() {
     P.state = 'dead'; P.t = 0; G.lock = false; LT = null; G.mode = 'dead'; deathReady = false;
@@ -1343,8 +1372,10 @@
         break;
       }
     }
-    if (regen && p.stDelay <= 0) {
-      p.st = Math.min(p.maxSt, p.st + (p.exhausted ? 24 : 36) * dt);
+    if (p.stBoost > 0) { p.stBoost = Math.max(0, p.stBoost - dt); p.stDelay = Math.min(p.stDelay, 0); }
+    if ((regen || p.stBoost > 0) && p.stDelay <= 0) {
+      const rate = (p.exhausted ? 24 : 36) * (p.stBoost > 0 ? 2 : 1);
+      p.st = Math.min(p.maxSt, p.st + rate * dt);
       if (p.exhausted && p.st >= 30) p.exhausted = false;
     }
     world.constrain(p.pos, PR, G.fight && B.alive);
@@ -1468,7 +1499,7 @@
     resetBoss();
     Object.assign(P, { hp: P.maxHp, hpTrail: P.maxHp, st: P.maxSt, exhausted: false, gourds: P.maxGourds, spellCD: 0, state: 'idle', t: 0, invuln: 0, combo: 0, comboTimer: 0, queued: false });
     P.pos.copy(G.checkpointLit ? world.checkpoint : world.spawn); P.facing = Math.PI; P.knock.set(0, 0, 0);
-    P.y = 0; P.vy = 0; P.vel.set(0, 0, 0); P.flipAng = 0; P.flipEnd = 0; P.flipBase = 0; P.sprinting = false;
+    P.y = 0; P.vy = 0; P.vel.set(0, 0, 0); P.flipAng = 0; P.flipEnd = 0; P.flipBase = 0; P.sprinting = false; P.stBoost = 0;
     P.rig.root.position.set(P.pos.x, 0, P.pos.z); P.rig.reset();
     P.pose = Chars.zeroPose(); P.rig.gourdHand.visible = false; P.rig.gourdWaist.visible = true; P.rig.gold.emissive.setRGB(0, 0, 0);
     $('gourd').classList.remove('empty');
@@ -1528,6 +1559,7 @@
     $('pHpTrail').style.width = (P.hpTrail / P.maxHp * 100) + '%';
     $('pSt').style.width = (P.st / P.maxSt * 100) + '%';
     $('pSt').parentElement.classList.toggle('exhaust', P.exhausted);
+    $('pSt').parentElement.classList.toggle('boost', (P.stBoost || 0) > 0);
     $('gourdCount').textContent = P.gourds;
     $('gourd').classList.toggle('empty', P.gourds <= 0);
     const cdf = P.spellCD / P.spellMax;
@@ -1687,12 +1719,12 @@
   }
   document.querySelectorAll('.charCard').forEach(c => c.addEventListener('click', () => { if (G.mode === 'title') { setChar(c.dataset.char); AudioSys.init(); AudioSys.S.lock(true); } }));
   addEventListener('keydown', (e) => { if (G.mode !== 'title') return; if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Tab') setChar(CH.id === 'wukong' ? 'nezha' : 'wukong'); });
-  { let c = 'wukong'; try { c = localStorage.getItem('bm_char') || 'wukong'; } catch (e) { } setChar(c); }
+  setChar('nezha'); // 默认进入哪吒
 
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
   resetBoss();
   $('loading').classList.add('hide');
   $('title').classList.add('show');
   frame();
-  window.__G = { G, P, B, get world() { return world; }, camera, cam, Mobs, LS, get LV() { return LV; }, get BD() { return BD; }, setChar };
+  window.__G = { G, P, B, get world() { return world; }, camera, cam, Mobs, LS, get LV() { return LV; }, get BD() { return BD; }, setChar, hit: resolvePlayerHit, PERFECT_ST, BOOST_T };
 })();

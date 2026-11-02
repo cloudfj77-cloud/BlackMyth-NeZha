@@ -64,12 +64,13 @@ function record(suite, name, pass, measured, expect, level = 'block') {
     await page.goto(URL, { waitUntil: 'load', timeout: 90000 });
     await page.waitForFunction(() => window.__G, { timeout: 90000 });
     record('启动', '页面加载到可交互', true, ((Date.now() - tl) / 1000).toFixed(1) + 's', '≤ 30s（软件渲染）');
-    await sleep(1200); await shot('01_title_wukong');
+    await sleep(1200); await shot('01_title_default');
+    { const d = await ev(() => [__G.LV, document.title, document.querySelector('.charCard.sel').dataset.char]); record('启动', '打开页面默认进入哪吒', d[0] === 'sea' && d[1].startsWith('白神话：哪吒') && d[2] === 'nezha', d.join(' / '), 'sea / 白神话：哪吒… / nezha'); }
     const ver = await ev(() => document.getElementById('verTitle').textContent);
     record('启动', '标题页显示版本号', /^v\d+\.\d+\.\d+$/.test(ver), ver, 'vX.Y.Z');
     await page.click('.charCard[data-char="nezha"]'); await sleep(2000); await shot('02_title_nezha');
     const t = await ev(() => document.title);
-    record('启动', '选择哪吒后标题为《黑神话：哪吒》', t.startsWith('黑神话：哪吒'), t, '黑神话：哪吒…');
+    record('启动', '选择哪吒后标题为《白神话：哪吒》', t.startsWith('白神话：哪吒'), t, '白神话：哪吒…');
     record('启动', '选择哪吒后进入东海关卡', await ev(() => __G.LV) === 'sea', await ev(() => __G.LV), 'sea');
   }
 
@@ -163,6 +164,25 @@ function record(suite, name, pass, measured, expect, level = 'block') {
     await page.keyboard.up('ShiftLeft'); await page.keyboard.up('KeyW');
     record('手感', '疾奔→翻滚 期间速度不断档', minV >= sprintV * 0.9, minV.toFixed(2) + ' / 疾奔 ' + sprintV.toFixed(2) + ' m/s', '≥ 疾奔速度 90%');
     record('手感', '翻滚→跳跃 立即起跳并保留速度', rj[0] === 'jump' && +rj[2] > 6, rj.join(' / '), 'jump / vy>0 / 水平>6');
+    // 完美闪避气力奖励 + UI/特效反馈
+    await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+    await ev(() => { const P = __G.P; P.state = 'idle'; P.y = 0; P.vy = 0; P.invuln = 0; P.st = 20; P.stDelay = 2; P.exhausted = true; });
+    await frames(3);
+    const fxBefore = await ev(() => document.querySelectorAll('canvas').length);
+    const r = await ev(() => { const P = __G.P; P.state = 'roll'; P.t = 0.05; P.noPerfect = false; const res = __G.hit(30, false, __G.B.pos.clone()); return { res, st: P.st, ex: P.exhausted, boost: P.stBoost }; });
+    record('手感', '完美闪避判定且无伤', r.res === 'perfect', r.res, 'perfect');
+    record('手感', '完美闪避奖励气力（20 → ≥50）', r.st >= 20 + 30 - 0.01, r.st.toFixed(1), '≥ 50');
+    record('手感', '完美闪避解除力竭并进入灵息', !r.ex && r.boost > 2, `力竭=${r.ex} 灵息=${r.boost.toFixed(1)}s`, '力竭 false，灵息 > 2s');
+    await frames(1);
+    const ui = await ev(() => { const bar = document.getElementById('pSt').parentElement, seg = document.getElementById('pStGain'), pop = document.getElementById('stPop');
+      return { perfect: bar.classList.contains('perfect'), boost: bar.classList.contains('boost'), seg: seg.classList.contains('show') && parseFloat(seg.style.width) > 20, pop: pop.classList.contains('show') ? pop.textContent : '' }; });
+    await shot('05_perfect_stamina');
+    record('手感', '气力条反馈：脉冲 + 新增段高亮 + 灵息流光', ui.perfect && ui.seg && ui.boost, JSON.stringify(ui), 'perfect/seg/boost 均为 true');
+    record('手感', '气力浮字提示', /^\+30 气力$/.test(ui.pop), ui.pop || '(无)', '+30 气力');
+    const st1 = await ev(() => __G.P.st); await frames(20); const st2 = await ev(() => __G.P.st);
+    record('手感', '灵息期间立即加速回气（无延迟）', st2 > st1 + 1, `${st1.toFixed(1)} → ${st2.toFixed(1)}`, '持续上涨');
+    const full = await ev(() => { const P = __G.P; P.st = P.maxSt; P.state = 'roll'; P.t = 0.05; P.invuln = 0; __G.hit(30, false, __G.B.pos.clone()); return [P.st, document.getElementById('stPop').textContent]; });
+    record('手感', '满气力时不溢出且提示「气力已满」', full[0] === 100 && full[1] === '气力已满', full.join(' / '), '100 / 气力已满');
   }
 
   // ------------------------------------------------------------------

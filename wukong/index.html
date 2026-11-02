@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>黑神话：悟空 · 黑风山</title>
+<title>白神话：哪吒 · 东海陈塘关</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23140e08'/%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%23d9a441' stroke-width='4'/%3E%3Crect x='29' y='6' width='6' height='52' rx='3' fill='%23d9a441' transform='rotate(35 32 32)'/%3E%3C/svg%3E">
 <style>
   :root { --gold: #d9b36a; --gold2: #f3d9a0; --ink: #0d0b09; --red: #a8241a; --kai: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Serif SC", serif; }
@@ -25,6 +25,20 @@
   .bar.st .fill { background: linear-gradient(180deg, #f0cf7d, #b98a2e); }
   .bar.st.exhaust .fill { background: linear-gradient(180deg, #9a7a50, #5c4426); }
   .bar.st.warn { animation: warn 0.4s 2; }
+  .stWrap { position: relative; }
+  .bar.st { overflow: hidden; }
+  .bar.st .gain { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #e6fdff; opacity: 0; pointer-events: none; }
+  .bar.st .gain.show { animation: stGain 1.2s ease-out forwards; }
+  @keyframes stGain { 0% { opacity: 1; background: #ffffff; box-shadow: 0 0 10px #7ff4ff; } 40% { opacity: 1; background: #8ff0ff; } 100% { opacity: 0; } }
+  .bar.st.perfect { animation: stPulse 0.7s ease-out; }
+  @keyframes stPulse { 0% { border-color: #bff8ff; box-shadow: 0 0 18px #5ae8ff, 0 0 4px #fff; transform: scaleY(1.9); } 100% { border-color: rgba(217,179,106,0.45); box-shadow: 0 2px 10px rgba(0,0,0,0.6); transform: scaleY(1); } }
+  .bar.st.boost .fill { background: linear-gradient(180deg, #c8f6ff, #4ac8e6); }
+  .bar.st .flow { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.75) 50%, transparent 100%); background-size: 40% 100%; background-repeat: no-repeat; }
+  .bar.st.boost .flow { opacity: 1; animation: stFlow 0.8s linear infinite; }
+  @keyframes stFlow { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  .stPop { position: absolute; left: 85%; top: -9px; font-size: 17px; font-weight: bold; color: #bff8ff; letter-spacing: 2px; white-space: nowrap; text-shadow: 0 0 8px #2ac6ff, 0 1px 2px #000; opacity: 0; pointer-events: none; }
+  .stPop.show { animation: stPop 1.8s ease-out forwards; }
+  @keyframes stPop { 0% { opacity: 0; transform: translate(-6px, 6px) scale(0.8); } 15% { opacity: 1; transform: translate(0, 0) scale(1.15); } 70% { opacity: 1; transform: translate(4px, -10px) scale(1); } 100% { opacity: 0; transform: translate(6px, -18px); } }
   @keyframes warn { 50% { border-color: #ff4a2a; box-shadow: 0 0 12px #ff3a1a; } }
   #items { display: flex; gap: 14px; margin-top: 12px; }
   .item { position: relative; width: 58px; height: 58px; border: 1px solid rgba(217,179,106,0.6); background: radial-gradient(circle, rgba(40,30,20,0.85), rgba(10,8,6,0.85)); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(0,0,0,0.7) inset, 0 2px 10px rgba(0,0,0,0.6); }
@@ -178,7 +192,7 @@
   <div id="playerPanel">
     <div class="pname" id="pName">天命人</div>
     <div class="bar hp"><div class="trail" id="pHpTrail"></div><div class="fill" id="pHp"></div></div>
-    <div class="bar st"><div class="fill" id="pSt"></div></div>
+    <div class="stWrap"><div class="bar st"><div class="fill" id="pSt"></div><div class="gain" id="pStGain"></div><div class="flow"></div></div><div class="stPop" id="stPop"></div></div>
     <div id="items">
       <div class="item" id="gourd">
         <svg viewBox="0 0 40 40"><path d="M20 4c-2 0-3 1.2-3 2.6 0 1.2.6 2 .6 2.8C14 11 12.8 14 14.6 17 9 19 7 24 8.6 29c1.6 5 6.2 7.4 11.4 7.4S29.8 34 31.4 29c1.6-5-.4-10-6-12 1.8-3 .6-6-3-7.6 0-.8.6-1.6.6-2.8C23 5.2 22 4 20 4z" fill="#c8963e" stroke="#f3d9a0" stroke-width="1"/><path d="M14.4 17.2h11.2" stroke="#8a1a10" stroke-width="2"/></svg>
@@ -203,11 +217,11 @@
 </div>
 
 <div id="title" class="overlay">
-  <h1>黑神话<span>：</span><b id="titleName">悟空</b></h1>
+  <h1>白神话<span>：</span><b id="titleName">哪吒</b></h1>
   <h2>第一回 · 黑风山</h2>
   <div id="charSel">
-    <div class="charCard" data-char="wukong"><div class="cn">天命人 · 悟空</div><div class="cd">金箍棒 · 定身术<br>稳扎稳打，四段棍法</div></div>
     <div class="charCard" data-char="nezha"><div class="cn">哪吒 · 三太子</div><div class="cd">红缨枪 · 风火轮 · 混天绫<br>身法更快，跳得更高</div></div>
+    <div class="charCard" data-char="wukong"><div class="cn">天命人 · 悟空</div><div class="cd">金箍棒 · 定身术<br>稳扎稳打，四段棍法</div></div>
   </div>
   <div class="selTip">点击切换角色（或按 ← →）</div>
   <div class="keys">
