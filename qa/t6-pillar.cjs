@@ -6,7 +6,7 @@ const h = require('./harness.cjs');
   const base = process.argv[2] ?? 'http://localhost:4191/';
   const out = h.path.join(h.ROOT, 'artifacts/m1');
   const result = {};
-  for (const [route, query] of [['A', '?qa=1'], ['B2', '?dev=1&fade=glass']]) {
+  for (const [route, query] of [['B2', '?qa=1'], ['A', '?dev=1&fade=hash']]) {
     const r = (result[route] = {});
     const { browser, page, errors } = await h.launch({ lang: 'zh-CN' });
     try {
@@ -31,8 +31,8 @@ const h = require('./harness.cjs');
       const s = await h.state(page);
       const p = s.occlusion.pillars.find((x) => x.id === hit.id);
       r.occlusion = { ...hit, opacity: p.opacity, fadeToBelow04: p.fadeToBelow04, nezhaVisible200: s.occlusion.nezhaVisible200, route: s.occlusion.route };
-      r.pass = route === 'A' ? p.fadeToBelow04 !== null && p.fadeToBelow04 <= 0.2 && p.opacity <= 0.4 && s.occlusion.nezhaVisible200 >= 0.9 : undefined;
-      await h.shot(page, out, route === 'A' ? 'pillar' : 'review-pillar-glass');
+      r.pass = route === 'B2' ? p.fadeToBelow04 !== null && p.fadeToBelow04 <= 0.2 && p.opacity <= 0.4 && s.occlusion.nezhaVisible200 >= 0.9 : undefined;
+      await h.shot(page, out, route === 'B2' ? 'pillar' : 'review-pillar-dither');
       // Swing back out: the pillar must return to solid.
       await h.look(page, 250, 0, 10);
       await h.wait(600);

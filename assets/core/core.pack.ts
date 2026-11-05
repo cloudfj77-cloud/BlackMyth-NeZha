@@ -78,7 +78,7 @@ const INITIAL_FRONTEND: FrontendStatus = Object.freeze({
   pointerLocked: false,
   grey: false,
   platformInitialized: false,
-  fade: 'hash',
+  fade: 'glass',
   lab: '',
 });
 

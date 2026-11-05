@@ -78,7 +78,8 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     debugOpen: false,
     pointerLocked: false,
     grey: dev && params.get('grey') === '1',
-    fade: dev && (params.get('fade') === 'steps' || params.get('fade') === 'glass') ? (params.get('fade') as 'steps' | 'glass') : 'hash',
+    // Boss ruling (M1 review #13): pillars fade as frosted glass by default; dev can compare `?fade=hash|steps`.
+    fade: dev && (params.get('fade') === 'steps' || params.get('fade') === 'hash') ? (params.get('fade') as 'steps' | 'hash') : 'glass',
     lab: dev ? (params.get('lab') ?? '') : '',
     platformInitialized: (globalThis as { __nezhaPlatform?: { initialized?: boolean } }).__nezhaPlatform?.initialized === true,
   };
