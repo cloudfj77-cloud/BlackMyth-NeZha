@@ -88,3 +88,23 @@ export function facingPivot(shape: TargetShape, x: number, z: number): number {
   const pivot = axisPoint(shape, x, z);
   return Math.atan2(-(pivot.x - x), -(pivot.z - z));
 }
+
+/** Closest point of the body footprint to (x, z) (the point itself when inside). */
+export function closestPoint(shape: TargetShape, x: number, z: number): { readonly x: number; readonly z: number } {
+  const { u, w } = local(shape, x, z);
+  return world(shape, Math.max(-shape.length / 2, Math.min(shape.length / 2, u)), Math.max(-shape.thickness / 2, Math.min(shape.thickness / 2, w)));
+}
+
+/**
+ * Melee judgement against the body (horizontal only, design 4.2): distance from the body
+ * surface ≤ range and the closest body point within ±arc of facing (yaw, forward -Z).
+ */
+export function strikeTest(shape: TargetShape, x: number, z: number, facing: number, range: number, arcDeg: number) {
+  const point = closestPoint(shape, x, z);
+  const distance = surfaceDistance(shape, x, z);
+  const dx = point.x - x, dz = point.z - z;
+  const fx = -Math.sin(facing), fz = -Math.cos(facing);
+  const len = Math.hypot(dx, dz);
+  const angleDeg = len < 1e-6 ? 0 : (Math.acos(Math.max(-1, Math.min(1, (dx * fx + dz * fz) / len))) * 180) / Math.PI;
+  return { hit: distance <= range + 1e-9 && angleDeg <= arcDeg + 1e-9, distance, angleDeg, point };
+}

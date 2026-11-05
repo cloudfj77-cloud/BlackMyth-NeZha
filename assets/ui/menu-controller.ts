@@ -15,17 +15,21 @@ import {
   type TuningMessage,
 } from '../shared/protocol.ts';
 import { createDebugPanel, type DebugPanel } from './debug-panel.ts';
+import { createCombatAudio } from './audio.ts';
 
 type Host = Pick<GameHost, 'uiRoot' | 'controlMode' | 'port' | 'presentationPort'>;
 
-/** Control rows: key caps are language-neutral; `soon` rows belong to later milestones. */
+/** Control rows: key caps are language-neutral (`@key` caps are translated). */
 const CONTROL_ROWS: readonly { readonly keys: readonly string[]; readonly action: string; readonly soon?: boolean }[] = [
   { keys: ['W', 'A', 'S', 'D'], action: 'menu.controls.move' },
   { keys: ['Shift'], action: 'menu.controls.sprint' },
+  { keys: ['@menu.controls.keySpace'], action: 'menu.controls.roll' },
   { keys: ['@menu.controls.keyMouse'], action: 'menu.controls.camera' },
+  { keys: ['@menu.controls.keyLmb'], action: 'menu.controls.lightAttack' },
+  { keys: ['@menu.controls.keyRmb'], action: 'menu.controls.heavyAttack' },
   { keys: ['R'], action: 'menu.controls.lock' },
-  { keys: ['Shift'], action: 'menu.controls.dodge', soon: true },
-  { keys: ['@menu.controls.keyLmb'], action: 'menu.controls.attack', soon: true },
+  { keys: ['Q'], action: 'menu.controls.lotus' },
+  { keys: ['1'], action: 'menu.controls.sash' },
   { keys: ['Esc'], action: 'menu.controls.pause' },
 ];
 
@@ -65,6 +69,11 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   const tune = (message: { readonly kind: 'set'; readonly path: string; readonly value: number } | { readonly kind: 'reset' }) => port?.postMessage({ channel: TUNING_CHANNEL, ...message } as TuningMessage);
 
   let state: HudState | undefined;
+  const audio = createCombatAudio(view);
+  let lastFlash = 0;
+  let lastHurt = 0;
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
+  let hurtTimer: ReturnType<typeof setTimeout> | undefined;
   let lastHintSerial = 0;
   let hintKey: string | undefined;
   let hintTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,6 +110,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     root,
     layer: 50,
     onAction: (action) => {
+      if (action === 'start' || action === 'resume') audio.unlock();
       if (action === 'start') send('start');
       else if (action === 'resume') send('resume');
       else if (action === 'lang-zh' || action === 'lang-en') void setLanguage(action.slice(5) as GameLanguage, 'manual');
@@ -208,8 +218,42 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       showHint(next.hint.key);
     }
     if (next.tuning) panel?.update(next.tuning);
+    for (const event of next.events ?? []) audio.play(event);
+    const c = next.combat;
+    if (c) {
+      const width = (name: string, value: number, max: number) => {
+        const node = part(name);
+        if (node) node.style.width = `${Math.max(0, Math.min(100, (value / max) * 100)).toFixed(1)}%`;
+      };
+      width('hp-fill', c.hp, c.hpMax);
+      width('stamina-fill', c.stamina, c.staminaMax);
+      part('hp-value')!.textContent = `${Math.round(c.hp)}`;
+      part('stamina-value')!.textContent = `${Math.floor(c.stamina)}`;
+      part('lotus-count')!.textContent = `×${c.lotus}`;
+      part('sash-seconds')!.textContent = c.sashCd > 0 ? `${c.sashCd}` : '';
+      part('sash-cooldown')!.style.setProperty('--fx-nezha-cd', `${((c.sashCd / c.sashCdMax) * 100).toFixed(1)}%`);
+      if (c.flash !== lastFlash) {
+        lastFlash = c.flash;
+        const meter = part('stamina-meter')!;
+        meter.classList.remove('flash');
+        void meter.offsetWidth;
+        meter.classList.add('flash');
+        if (flashTimer) clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => meter.classList.remove('flash'), 900);
+      }
+      if (c.hurt !== lastHurt) {
+        lastHurt = c.hurt;
+        const vignette = part('hurt-vignette')!;
+        vignette.classList.add('on');
+        if (hurtTimer) clearTimeout(hurtTimer);
+        hurtTimer = setTimeout(() => vignette.classList.remove('on'), 30);
+      }
+    }
     // QA mirror of the Engine read projection (static preview has no inspection bridge).
-    if (next.projection !== undefined) ui.host.dataset.nezha = JSON.stringify(next.projection);
+    if (next.projection !== undefined) {
+      ui.host.dataset.nezha = JSON.stringify(next.projection);
+      ui.host.dataset.audio = JSON.stringify(audio.counts());
+    }
     if (next.phase === 'playing' && !status.debugOpen && shadow.activeElement instanceof view.HTMLElement) shadow.activeElement.blur();
   };
 
@@ -230,6 +274,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
     if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
     if (wasLocked && !locked && state?.phase === 'playing' && !status.debugOpen) send('pause');
+    if (locked) audio.unlock();
     if (locked && state?.phase === 'paused') send('resume');
     if (locked && status.debugOpen) setDebugOpen(false);
     wasLocked = locked;
@@ -261,6 +306,9 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     resourceUrl: ui.resourceUrl,
     dispose: () => {
       if (hintTimer) clearTimeout(hintTimer);
+      if (flashTimer) clearTimeout(flashTimer);
+      if (hurtTimer) clearTimeout(hurtTimer);
+      audio.dispose();
       for (const release of releases.reverse()) release();
       ui.dispose();
     },

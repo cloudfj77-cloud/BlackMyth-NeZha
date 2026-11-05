@@ -42,6 +42,39 @@
 </section>
 
 <section class="hud" data-ui-part="hud">
+  <div class="hurt-vignette" data-ui-part="hurt-vignette" aria-hidden="true"></div>
+  <div class="player-panel">
+    <div class="player-name" data-i18n="terms:hero.nezha"></div>
+    <div class="meter hp">
+      <span class="meter-label" data-i18n="hud.bar.hp"></span>
+      <div class="bar"><div class="fill" data-ui-part="hp-fill"></div></div>
+      <span class="meter-value" data-ui-part="hp-value"></span>
+    </div>
+    <div class="meter stamina" data-ui-part="stamina-meter">
+      <span class="meter-label" data-i18n="hud.bar.stamina"></span>
+      <div class="bar"><div class="fill" data-ui-part="stamina-fill"></div></div>
+      <span class="meter-value" data-ui-part="stamina-value"></span>
+    </div>
+  </div>
+  <div class="items-panel">
+    <div class="item lotus">
+      <span class="item-icon lotus-icon" aria-hidden="true"></span>
+      <span class="item-count" data-ui-part="lotus-count"></span>
+      <span class="item-label"><kbd>Q</kbd> <span data-i18n="terms:item.lotus"></span></span>
+    </div>
+    <div class="item sash">
+      <span class="item-icon sash-icon" aria-hidden="true">
+        <span class="cooldown" data-ui-part="sash-cooldown"></span>
+        <span class="sash-glyph"></span>
+      </span>
+      <span class="item-count" data-ui-part="sash-seconds"></span>
+      <span class="item-label"><kbd>1</kbd> <span data-i18n="terms:skill.sashBind"></span></span>
+    </div>
+  </div>
+  <div class="training-tip" data-ui-part="training-tip">
+    <span><kbd>T</kbd> <span data-i18n="hud.training.fakeLine"></span></span>
+    <span><kbd>Y</kbd> <span data-i18n="hud.training.fakeFan"></span></span>
+  </div>
   <div class="lock-marker" data-ui-part="lock-marker" aria-hidden="true"><span></span></div>
   <div class="hint" data-ui-part="hint" role="status" aria-live="polite"></div>
   <div class="look-tip" data-ui-part="look-tip" data-i18n="hud.tip.clickToLook"></div>

@@ -26,6 +26,8 @@ export const PACKAGE_IDS = Object.freeze({
   occlusionPlugin: definePackageId('019fb7ce-4500-7000-8000-000000000000'),
   floatFxPlugin: definePackageId('019fb7ce-4600-7000-8000-000000000000'),
   ambientPlugin: definePackageId('019fb7ce-4700-7000-8000-000000000000'),
+  combatPlugin: definePackageId('019fb7ce-4800-7000-8000-000000000000'),
+  trainingPlugin: definePackageId('019fb7ce-4900-7000-8000-000000000000'),
 });
 
 export const materialGuid = (key: string): AssetGuidType => assetGuid(PACKAGE_IDS.materials, `material/${key}`);

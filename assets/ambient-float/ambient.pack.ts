@@ -9,7 +9,7 @@ import type { MeshAsset } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import type {} from '@forgeax/engine/assets-runtime';
-import type { TelemetryService, TuningService } from '../core/core.pack.ts';
+import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import { geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { BEAM, seeded } from '../shared/layout.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
@@ -47,11 +47,13 @@ function pointCloud(count: number): MeshAsset {
  */
 export const ambient: Plugin = {
   name: 'nezha/ambient-float',
-  inject: ['world', 'gameHost', 'gameScene', 'nezhaTuning', 'nezhaTelemetry'],
+  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry'],
   async apply(ctx) {
     const world = ctx.world;
     const host = ctx.gameHost;
     const tuning = ctx.nezhaTuning as TuningService | undefined;
+    const session = ctx.nezhaSession as SessionService | undefined;
+    if (!session) throw new Error('nezha/ambient-float requires the session');
     const telemetry = ctx.nezhaTelemetry as TelemetryService | undefined;
     if (!host || !tuning || !telemetry) throw new Error('nezha/ambient-float requires core services');
     const assets = host.assets;
@@ -143,6 +145,8 @@ export const ambient: Plugin = {
       };
 
       let sample = 0;
+      // World clock: environment float follows the world time scale (hitstop stops it, slow motion slows it).
+      let worldTime = 0;
       world.addSystem(Update, {
         name: 'nezha-ambient',
         before: [PROPAGATE_TRANSFORMS_SYSTEM],
@@ -151,7 +155,9 @@ export const ambient: Plugin = {
           const a = tuning.current.ambient;
           if (Math.round(a.seaweedCanyon) !== counts.canyon || Math.round(a.seaweedEdge) !== counts.edge || Math.round(a.seaweedFar) !== counts.far) plant();
           if (Math.round(a.particles) !== particleCount) scatter();
-          const time = world.getResource(Time).elapsed;
+          const realDt = Math.min(world.getResource(Time).delta, 0.1);
+          worldTime += realDt * (session.phase() === 'playing' ? session.clock.worldScale() : 1);
+          const time = worldTime;
           const hz = Math.min(0.25, a.seaweedSwayHz);
           // One current: a common sway axis (lean toward +X/-Z and back).
           for (const clump of clumps) {

@@ -4,21 +4,43 @@
   "resources": {
     "zh": {
       "terms": {
-        "game": { "title": "白神话：哪吒" },
-        "hero": { "nezha": "哪吒" },
-        "place": { "dragonPalace": "东海龙宫", "chentang": "陈塘关" },
-        "weapon": { "spear": "火尖枪", "wheels": "风火轮", "sash": "混天绫" },
-        "boss": { "dragonKing": "东海龙王" }
+        "game": {
+          "title": "白神话：哪吒"
+        },
+        "hero": {
+          "nezha": "哪吒"
+        },
+        "place": {
+          "dragonPalace": "东海龙宫",
+          "chentang": "陈塘关"
+        },
+        "weapon": {
+          "spear": "火尖枪",
+          "wheels": "风火轮",
+          "sash": "混天绫"
+        },
+        "boss": {
+          "dragonKing": "东海龙王"
+        },
+        "item": {
+          "lotus": "莲子"
+        },
+        "skill": {
+          "sashBind": "混天绫·缚",
+          "roll": "风火轮翻滚"
+        }
       },
       "ui": {
         "menu": {
-          "common": { "language": "语言" },
+          "common": {
+            "language": "语言"
+          },
           "start": {
             "title": "$t(terms:game.title)",
             "kicker": "$t(terms:place.dragonPalace) · 前庭",
             "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，携三昧真火入海，问罪$t(terms:boss.dragonKing)。",
             "begin": "踏入龙宫",
-            "milestone": "试玩版本 M1 · 地基：悬浮、镜头、锁定"
+            "milestone": "试玩版本 M2 · 打起来爽：连招、重击、翻滚、完美闪避"
           },
           "pause": {
             "title": "暂停",
@@ -31,12 +53,17 @@
             "sprint": "按住飞驰",
             "camera": "旋转镜头",
             "lock": "锁定 / 解除锁定",
-            "dodge": "单击闪身",
-            "attack": "攻击",
             "pause": "释放鼠标并暂停",
             "soon": "后续开放",
             "keyMouse": "鼠标",
-            "keyLmb": "左键 / 右键"
+            "keyLmb": "左键",
+            "roll": "$t(terms:skill.roll)：朝移动方向，无方向时向后",
+            "lightAttack": "轻击（三段连招）",
+            "heavyAttack": "按住蓄力，松开重击",
+            "lotus": "服食莲子",
+            "sash": "$t(terms:skill.sashBind)：定住目标",
+            "keyRmb": "右键",
+            "keySpace": "空格"
           }
         },
         "hud": {
@@ -44,29 +71,64 @@
             "noTarget": "25 米内没有可锁定的目标",
             "targetLost": "目标太远，锁定解除",
             "locked": "已锁定",
-            "unlocked": "解除锁定"
+            "unlocked": "解除锁定",
+            "noStamina": "气力不足",
+            "noLotusSeeds": "莲子已尽",
+            "sashCooldown": "混天绫冷却中"
           },
-          "tip": { "clickToLook": "点击画面锁定视角" }
+          "tip": {
+            "clickToLook": "点击画面锁定视角"
+          },
+          "bar": {
+            "hp": "生命",
+            "stamina": "气力"
+          },
+          "training": {
+            "fakeLine": "训练：直线假攻击",
+            "fakeFan": "训练：扇形假攻击"
+          }
         }
       }
     },
     "en": {
       "terms": {
-        "game": { "title": "White Myth: Nezha" },
-        "hero": { "nezha": "Nezha" },
-        "place": { "dragonPalace": "Dragon Palace of the East Sea", "chentang": "Chentang Pass" },
-        "weapon": { "spear": "Fire-Tipped Spear", "wheels": "Wind-Fire Wheels", "sash": "Red Armillary Sash" },
-        "boss": { "dragonKing": "Dragon King of the East Sea" }
+        "game": {
+          "title": "White Myth: Nezha"
+        },
+        "hero": {
+          "nezha": "Nezha"
+        },
+        "place": {
+          "dragonPalace": "Dragon Palace of the East Sea",
+          "chentang": "Chentang Pass"
+        },
+        "weapon": {
+          "spear": "Fire-Tipped Spear",
+          "wheels": "Wind-Fire Wheels",
+          "sash": "Red Armillary Sash"
+        },
+        "boss": {
+          "dragonKing": "Dragon King of the East Sea"
+        },
+        "item": {
+          "lotus": "Lotus Seeds"
+        },
+        "skill": {
+          "sashBind": "Sash Bind",
+          "roll": "Wind-Fire Roll"
+        }
       },
       "ui": {
         "menu": {
-          "common": { "language": "Language" },
+          "common": {
+            "language": "Language"
+          },
           "start": {
             "title": "$t(terms:game.title)",
             "kicker": "$t(terms:place.dragonPalace) · Forecourt",
             "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) carries true fire into the sea to call the $t(terms:boss.dragonKing) to account.",
             "begin": "Enter the Palace",
-            "milestone": "Playtest M1 · Foundation: hover, camera, lock-on"
+            "milestone": "Playtest M2 · Combat: combo, heavy, roll, perfect dodge"
           },
           "pause": {
             "title": "Paused",
@@ -76,15 +138,20 @@
           "controls": {
             "title": "Controls",
             "move": "Hover",
-            "sprint": "Hold to dash",
+            "sprint": "Hold to Sprint",
             "camera": "Turn camera",
             "lock": "Lock on / release",
-            "dodge": "Tap to step",
-            "attack": "Attack",
             "pause": "Release mouse and pause",
             "soon": "Later",
             "keyMouse": "Mouse",
-            "keyLmb": "LMB / RMB"
+            "keyLmb": "LMB",
+            "roll": "$t(terms:skill.roll) (back if no direction)",
+            "lightAttack": "Light attack (3-hit combo)",
+            "heavyAttack": "Hold to charge, release to strike",
+            "lotus": "Eat a Lotus Seed",
+            "sash": "$t(terms:skill.sashBind): hold the target",
+            "keyRmb": "RMB",
+            "keySpace": "Space"
           }
         },
         "hud": {
@@ -92,9 +159,22 @@
             "noTarget": "No target within 25 m",
             "targetLost": "Target lost · too far",
             "locked": "Locked on",
-            "unlocked": "Lock released"
+            "unlocked": "Lock released",
+            "noStamina": "Not enough Stamina",
+            "noLotusSeeds": "No Lotus Seeds left",
+            "sashCooldown": "Sash Bind on cooldown"
           },
-          "tip": { "clickToLook": "Click the game to lock the camera" }
+          "tip": {
+            "clickToLook": "Click the game to lock the camera"
+          },
+          "bar": {
+            "hp": "Health",
+            "stamina": "Stamina"
+          },
+          "training": {
+            "fakeLine": "Training: line attack",
+            "fakeFan": "Training: fan attack"
+          }
         }
       }
     }

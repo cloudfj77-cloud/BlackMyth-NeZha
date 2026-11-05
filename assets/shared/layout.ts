@@ -117,3 +117,6 @@ export const BEAM = Object.freeze({
   bottomRadius: 2.4,
   swayDeg: 3,
 });
+
+/** Ground warning sizes (training fake attacks; design: Tail Sweep 5 m fan, Trident line). */
+export const WARN = Object.freeze({ lineWidth: 1.4, lineLength: 8, fanRadius: 5, fanAngleDeg: 120, edge: 0.08 });

@@ -115,7 +115,7 @@ button {
   border-radius: 3px;
 }
 .controls-card h3, .pause-panel h3 { margin: 0 0 8px; color: var(--fx-nezha-gold); font-size: 13px; letter-spacing: 0.24em; font-weight: 600; }
-.controls { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.controls { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
 .controls li { display: grid; grid-template-columns: 122px 1fr; gap: 10px; align-items: baseline; font-size: 13px; }
 .controls li.soon { opacity: 0.45; }
 .controls kbd {
@@ -205,6 +205,78 @@ button {
 }
 :host(.phase-playing:not(.pointer-locked)) .look-tip { display: block; }
 
+
+/* --- Combat HUD (M2) ----------------------------------------------------------- */
+
+.hurt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgb(6 34 40 / 70%) 100%);
+  transition: opacity 300ms ease-out;
+}
+.hurt-vignette.on { opacity: 1; transition: none; }
+
+.player-panel {
+  position: absolute;
+  left: 28px;
+  bottom: 26px;
+  width: 300px;
+  display: grid;
+  gap: 6px;
+}
+.player-name { color: var(--fx-nezha-gold); font-size: 15px; letter-spacing: 0.2em; text-shadow: 0 1px 3px #000; }
+.meter { display: grid; grid-template-columns: max-content 1fr 34px; align-items: center; gap: 8px; }
+.meter-label { min-width: 62px; }
+.meter-label { font-size: 12px; color: rgb(242 239 228 / 78%); text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.meter-value { font: 600 12px ui-monospace, Menlo, monospace; color: rgb(242 239 228 / 70%); text-align: right; }
+.bar { position: relative; height: 8px; background: rgb(0 0 0 / 55%); border: 1px solid rgb(255 255 255 / 16%); overflow: hidden; }
+.meter.hp .bar { height: 10px; }
+.fill { position: absolute; inset: 0 auto 0 0; width: 100%; transition: width 120ms linear; }
+.meter.hp .fill { background: linear-gradient(180deg, #e2574a, #9c2219); }
+.meter.stamina .fill { background: linear-gradient(180deg, #f0d27a, #b8902f); }
+.meter.stamina.flash .bar { animation: flash 0.3s steps(2) 3; }
+@keyframes flash { 50% { border-color: #ff6a50; background: rgb(150 20 10 / 60%); } }
+
+.items-panel { position: absolute; right: 30px; bottom: 26px; display: flex; gap: 18px; align-items: flex-end; }
+.item { display: grid; justify-items: center; gap: 4px; min-width: 76px; }
+.item-icon {
+  position: relative;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgb(40 70 80 / 85%), rgb(5 15 22 / 92%));
+  border: 1px solid var(--fx-nezha-gold-soft);
+  overflow: hidden;
+}
+.lotus-icon::before {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 22px; height: 16px; margin: -8px 0 0 -11px;
+  border-radius: 50% 50% 45% 45%;
+  background: radial-gradient(circle at 50% 35%, #f2c6a0, #c9873a);
+}
+.sash-glyph { position: absolute; inset: 13px; border: 3px solid #b8142a; border-radius: 50%; box-shadow: 0 0 8px rgb(231 191 106 / 60%); }
+.cooldown { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgb(0 0 0 / 70%) var(--fx-nezha-cd, 0%), transparent 0); z-index: 1; }
+.item-count { font: 700 13px ui-monospace, Menlo, monospace; color: #fbf6e8; text-shadow: 0 1px 2px #000; min-height: 16px; }
+.item-label { font-size: 12px; color: rgb(242 239 228 / 75%); white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.item-label kbd, .training-tip kbd {
+  padding: 0 5px;
+  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
+  color: #f7ecd2;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 3px;
+}
+.training-tip {
+  position: absolute;
+  left: 28px; top: 40px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: rgb(242 239 228 / 75%);
+  text-shadow: 0 1px 2px #000;
+}
 
 /* --- Development panel (dev builds only, ?dev=1; not localized) ---------------- */
 

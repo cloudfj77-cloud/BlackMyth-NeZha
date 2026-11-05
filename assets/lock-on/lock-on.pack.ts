@@ -11,9 +11,30 @@ import { PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { FLOOR_Y, LOCK_TARGET, targetThickness } from '../shared/layout.ts';
 import { HEAD_TOP_Y, NEZHA } from '../shared/nezha-shape.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
-import { axisPoint, facingPivot, keepOutside, lockedVelocity, surfaceDistance, type TargetShape } from './geometry.ts';
+import { axisPoint, closestPoint, facingPivot, keepOutside, lockedVelocity, strikeTest, surfaceDistance, type TargetShape } from './geometry.ts';
 
 type V3 = readonly [number, number, number];
+
+/** The training dummy / lock placeholder as a combat target (M2). */
+export interface TargetService {
+  readonly entity: import('@forgeax/engine/ecs').EntityHandle;
+  readonly shape: () => TargetShape;
+  readonly surfaceDistance: (x: number, z: number) => number;
+  readonly strike: (x: number, z: number, facing: number, range: number, arcDeg: number) => ReturnType<typeof strikeTest>;
+  /** Yaw toward the nearest body point when within `range` and ±90° of facing, else undefined. */
+  readonly autoTarget: (x: number, z: number, facing: number, range: number) => number | undefined;
+  readonly locked: () => boolean;
+  /** Yaw facing the body from (x, z). */
+  readonly facingFrom: (x: number, z: number) => number;
+  /** Contact distance used to stop the heavy lunge. */
+  readonly contactGap: () => number;
+}
+
+declare module '@forgeax/engine/plugin' {
+  interface EngineContextServices {
+    nezhaTarget: TargetService;
+  }
+}
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 
 /** Project a world point with the camera pose: normalised screen (0..1, top-left) and in-front flag. */
@@ -47,6 +68,7 @@ function box(points: readonly { x: number; y: number; visible: boolean }[]) {
  */
 export const lockOn: Plugin = {
   name: 'nezha/lock-on',
+  provide: 'nezhaTarget',
   inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera'],
   apply(ctx) {
     const world = ctx.world;
@@ -183,6 +205,23 @@ export const lockOn: Plugin = {
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-lock-frame').unwrap();
 
+      yield ctx.provide('nezhaTarget', {
+        entity: targetEntity,
+        shape,
+        surfaceDistance: (x, z) => surfaceDistance(shape(), x, z),
+        strike: (x, z, facing, range, arcDeg) => strikeTest(shape(), x, z, facing, range, arcDeg),
+        autoTarget: (x, z, facing, range) => {
+          const sh = shape();
+          if (surfaceDistance(sh, x, z) > range) return undefined;
+          const p = closestPoint(sh, x, z);
+          const want = Math.atan2(-(p.x - x), -(p.z - z));
+          const diff = Math.atan2(Math.sin(want - facing), Math.cos(want - facing));
+          return Math.abs(diff) <= Math.PI / 2 ? want : undefined;
+        },
+        locked: () => active,
+        facingFrom: (x, z) => facingPivot(shape(), x, z),
+        contactGap: () => margin() + 0.02,
+      } satisfies TargetService);
       yield telemetry.section('lock', () => {
         const s = shape();
         const root = player.root();

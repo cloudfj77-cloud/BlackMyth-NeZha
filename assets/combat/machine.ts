@@ -153,7 +153,8 @@ const forward = (yaw: number): V2 => ({ x: -Math.sin(yaw), z: -Math.cos(yaw) });
 const yawOf = (d: V2) => Math.atan2(-d.x, -d.z);
 const easeOut = (t: number) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 2;
 
-export function createCombat(config: CombatConfig = DEFAULT_COMBAT) {
+export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
+  let config = initial;
   let step = 0;
   let hp = config.hpMax;
   let stamina = config.staminaMax;
@@ -462,6 +463,10 @@ export function createCombat(config: CombatConfig = DEFAULT_COMBAT) {
       }
       return { type: 'hurt', damage };
     },
+    /** Live tuning: replace the configuration (timings already running keep their frame counters). */
+    setConfig(next: CombatConfig) {
+      config = next;
+    },
     snapshot() {
       const invuln = state.kind === 'roll' && state.frame >= 1 && state.frame <= config.roll.invuln;
       return {
@@ -475,3 +480,26 @@ export function createCombat(config: CombatConfig = DEFAULT_COMBAT) {
 }
 
 export type Combat = ReturnType<typeof createCombat>;
+
+/** Build the machine configuration from the live tuning `combat` group (feel knobs only). */
+export function configFromTuning(t: {
+  readonly hitstopLight1: number; readonly hitstopLight2: number; readonly hitstopLight3: number;
+  readonly hitstopHeavyMin: number; readonly hitstopHeavyMax: number;
+  readonly shakeLight3: number; readonly shakeHeavyMin: number; readonly shakeHeavyMax: number;
+  readonly slowmoSteps: number; readonly rollDistance: number; readonly lungeDistance: number;
+}): CombatConfig {
+  const d = DEFAULT_COMBAT;
+  return {
+    ...d,
+    light: [
+      { ...d.light[0]!, hitstop: t.hitstopLight1 },
+      { ...d.light[1]!, hitstop: t.hitstopLight2 },
+      { ...d.light[2]!, hitstop: t.hitstopLight3, shake: t.shakeLight3 },
+    ],
+    heavyHitstop: [t.hitstopHeavyMin, t.hitstopHeavyMax],
+    heavyShake: [t.shakeHeavyMin, t.shakeHeavyMax],
+    slowmoSteps: t.slowmoSteps,
+    lungeDistance: t.lungeDistance,
+    roll: { ...d.roll, distance: t.rollDistance },
+  };
+}

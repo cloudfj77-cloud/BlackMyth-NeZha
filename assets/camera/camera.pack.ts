@@ -66,6 +66,7 @@ export const camera: Plugin = {
       const boom = createBoom(tuning.current.camera.distance);
       let fovApplied = -1;
       let lockView: CameraLockView | undefined;
+      let shakeNow = 0, shakePeak = 0;
       let state = {
         position: [0, 0, 0] as V3,
         rotation: [0, 0, 0, 1] as readonly [number, number, number, number],
@@ -163,7 +164,17 @@ export const camera: Plugin = {
             // below the fit distance, rise further up the wall and look down at him (capped by the ceiling).
             const fitLift = locked && reach < LOCK_FIT_DISTANCE ? Math.min(LOCK_MAX_LIFT, ceiling, Math.sqrt(LOCK_FIT_DISTANCE ** 2 - reach ** 2)) : 0;
             const lift = Math.max(wallLift(reach, cam, ceiling), fitLift);
-            const position: V3 = [end[0], end[1] + lift, end[2]];
+            // Hit shake (real time, after collision so it never pushes into a wall): 25 Hz, linear decay.
+            const impulse = session.shakeImpulse();
+            const now = world.getResource(Time).elapsed;
+            const age = now - impulse.at;
+            const decay = tuning.current.combat.shakeDecay;
+            const amp = impulse.at >= 0 && age < decay ? impulse.amplitude * (1 - age / decay) : 0;
+            const phase = 2 * Math.PI * tuning.current.combat.shakeHz * Math.max(0, age);
+            const shakeOffset: V3 = [right[0] * amp * Math.sin(phase), amp * Math.cos(phase * 1.3), right[2] * amp * Math.sin(phase)];
+            shakeNow = amp;
+            shakePeak = Math.max(shakePeak, amp);
+            const position: V3 = [end[0] + shakeOffset[0], end[1] + lift + shakeOffset[1], end[2] + shakeOffset[2]];
             const toCam: V3 = [position[0] - focus[0], position[1] - focus[1], position[2] - focus[2]];
             const camDistance = Math.hypot(...toCam);
             if (camDistance > 1e-3) {
@@ -214,6 +225,8 @@ export const camera: Plugin = {
         lineClear: state.lineClear,
         wallGap: state.wallGap,
         locked: lockView !== undefined,
+        shake: r3(shakeNow),
+        shakePeak: r3(shakePeak),
       }));
       yield ctx.provide('nezhaCamera', {
         setLockView: (view) => {

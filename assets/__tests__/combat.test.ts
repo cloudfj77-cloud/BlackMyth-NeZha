@@ -246,3 +246,21 @@ describe('input buffer', () => {
     expect(r.events.map((x) => x.event.type)).toContain('swing-light');
   });
 });
+
+import { insideWarning } from '../training/training.pack.ts';
+describe('training warnings: the shape is the damage area', () => {
+  // Origin at the dummy edge, pointing -Z (yaw 0).
+  it('line: 1.4 m wide, 8 m long (+ capsule radius)', () => {
+    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0, -4, 0.35)).toBe(true);
+    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0.7 + 0.34, -4, 0.35)).toBe(true);
+    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0.7 + 0.36, -4, 0.35)).toBe(false);
+    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0, -8.4, 0.35)).toBe(false);
+  });
+  it('fan: 5 m radius, 120°', () => {
+    expect(insideWarning('fan', { x: 0, z: 0 }, 0, 0, -4.9, 0)).toBe(true);
+    expect(insideWarning('fan', { x: 0, z: 0 }, 0, 0, -5.1, 0)).toBe(false);
+    const at = (deg: number) => [Math.sin((deg * Math.PI) / 180) * 3, -Math.cos((deg * Math.PI) / 180) * 3] as const;
+    expect(insideWarning('fan', { x: 0, z: 0 }, 0, ...at(59), 0)).toBe(true);
+    expect(insideWarning('fan', { x: 0, z: 0 }, 0, ...at(61), 0)).toBe(false);
+  });
+});

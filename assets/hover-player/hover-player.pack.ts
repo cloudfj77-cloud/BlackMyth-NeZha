@@ -28,6 +28,36 @@ export interface FrameInput {
   readonly sprint: boolean;
   /** R pressed since the last Update (edge). */
   readonly lockPressed: boolean;
+  /** Right mouse held (charging). */
+  readonly heavyHeld: boolean;
+}
+
+/** Combat edges accumulated across Updates until a fixed step consumes them. */
+export interface CombatEdges {
+  readonly light: boolean;
+  readonly roll: boolean;
+  readonly lotus: boolean;
+  readonly sash: boolean;
+}
+
+/** Per-step movement control from the combat plugin (M2). */
+export interface MoveControl {
+  /** Velocity override (m/s); undefined = normal stick movement. */
+  readonly velocity: Velocity | undefined;
+  /** Facing override (yaw), applied instantly. */
+  readonly facing: number | undefined;
+  readonly speedScale: number;
+  readonly allowSprint: boolean;
+}
+
+/** Procedural action pose on the model (M2): rotation about a pivot height above the seabed. */
+export interface ActionPose {
+  readonly rotation: readonly [number, number, number, number];
+  /** Pivot height above the seabed (root-local), e.g. 1.0 m for the roll. */
+  readonly pivotY: number;
+  readonly offset: readonly [number, number, number];
+  /** Drop the speed lean while the action plays. */
+  readonly suppressLean: boolean;
 }
 
 /** Lock-on movement frame (installed by the lock-on plugin in T5). */
@@ -53,6 +83,15 @@ export interface PlayerService {
   /** Visual-only float offset written by float-fx (T4); 0 until then. */
   readonly setFloat: (offsetY: number, roll: number, pitch: number) => void;
   readonly setLock: (frame: LockFrame | undefined) => void;
+  /** Take (and clear) the combat edges collected since the last call. */
+  readonly takeEdges: () => CombatEdges;
+  /** World-space desired move direction for this step (unit or zero), camera- or lock-relative. */
+  readonly moveDirection: () => Velocity;
+  readonly setControl: (control: MoveControl | undefined) => void;
+  readonly setActionPose: (pose: ActionPose | undefined) => void;
+  /** 0..1: how much of the float / sway shows (actions fade it out). */
+  readonly setFloatGate: (gate: number) => void;
+  readonly floatGate: () => number;
   /** Always-on footprint clamp for render-only bodies (the lock-target placeholder). */
   readonly setObstacle: (clamp: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined) => void;
 }
@@ -63,8 +102,19 @@ declare module '@forgeax/engine/plugin' {
   }
 }
 
-const IDLE: FrameInput = { horizontal: 0, vertical: 0, lookX: 0, lookY: 0, sprint: false, lockPressed: false };
+const IDLE: FrameInput = { horizontal: 0, vertical: 0, lookX: 0, lookY: 0, sprint: false, lockPressed: false, heavyHeld: false };
+const NO_EDGES: CombatEdges = { light: false, roll: false, lotus: false, sash: false };
 const SAMPLE_SECONDS = 2;
+
+function rotateByQuat(q: readonly number[], v: readonly number[]): [number, number, number] {
+  const [qx, qy, qz, qw] = q as [number, number, number, number];
+  const [vx, vy, vz] = v as [number, number, number];
+  const ix = qw * vx + qy * vz - qz * vy;
+  const iy = qw * vy + qz * vx - qx * vz;
+  const iz = qw * vz + qx * vy - qy * vx;
+  const iw = -qx * vx - qy * vy - qz * vz;
+  return [ix * qw + iw * -qx + iy * -qz - iz * -qy, iy * qw + iw * -qy + iz * -qx - ix * -qz, iz * qw + iw * -qz + ix * -qy - iy * -qx];
+}
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 
 export const hoverPlayer: Plugin = {
@@ -124,6 +174,12 @@ export const hoverPlayer: Plugin = {
       let lock: LockFrame | undefined;
       let obstacle: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined;
       let taps = 0;
+      let edges: { light: boolean; roll: boolean; lotus: boolean; sash: boolean } = { ...NO_EDGES };
+      let control: MoveControl | undefined;
+      let actionPose: ActionPose | undefined;
+      let floatGate = 1;
+      let wasLocked = false;
+      const tmpQ = quat.create();
       const samples: { t: number; speed: number; yaw: number; modelY: number; capsuleY: number; x: number; z: number }[] = [];
       const delta = vec3.create();
       const rotation = quat.create();
@@ -152,6 +208,13 @@ export const hoverPlayer: Plugin = {
           }
           const locked = snapshot.mouse.pointerLocked;
           pendingLock = snapshot.keyboard.justPressedCode('KeyR');
+          // Combat edges accumulate until the next fixed step takes them (no press is lost).
+          // The click that takes pointer lock is not an attack: only clicks made while already locked count.
+          if (locked && wasLocked && snapshot.mouse.justPressed(0)) edges.light = true;
+          wasLocked = locked;
+          if (snapshot.keyboard.justPressedCode('Space')) edges.roll = true;
+          if (snapshot.keyboard.justPressedCode('KeyQ')) edges.lotus = true;
+          if (snapshot.keyboard.justPressedCode('Digit1')) edges.sash = true;
           frameInput = {
             horizontal: Number(key('KeyD', 'ArrowRight')) - Number(key('KeyA', 'ArrowLeft')),
             vertical: Number(key('KeyW', 'ArrowUp')) - Number(key('KeyS', 'ArrowDown')),
@@ -159,6 +222,7 @@ export const hoverPlayer: Plugin = {
             lookY: locked ? snapshot.mouse.movementDelta.y : 0,
             sprint: gesture.sprint,
             lockPressed: pendingLock,
+            heavyHeld: locked && snapshot.mouse.button(2),
           };
         },
       }).unwrap();
@@ -166,15 +230,17 @@ export const hoverPlayer: Plugin = {
 
       world.addSystem(FixedUpdate, {
         name: 'nezha-player-movement',
+        after: ['nezha-clock', 'nezha-combat'],
         queries: [],
         fn: () => {
-          if (!world.hasResource('PhysicsWorld') || !session.playing()) return;
+          if (!world.hasResource('PhysicsWorld') || !session.playing() || session.clock.frozen()) return;
           const physics = world.getResource<PhysicsWorld>('PhysicsWorld');
           if (!physics.hasBody(player)) return;
           const fixed = world.getResource(FixedTime);
           const dt = fixed.delta;
           const move = tuning.current.move;
-          const top = frameInput.sprint ? move.sprintSpeed : move.walkSpeed;
+          const sprinting = frameInput.sprint && (control?.allowSprint ?? true);
+          const top = (sprinting ? move.sprintSpeed : move.walkSpeed) * (control?.speedScale ?? 1);
           const position = world.get(player, Transform).unwrap().pos;
           const px = position[0] ?? 0, pz = position[2] ?? 0;
           let target: Velocity;
@@ -188,7 +254,13 @@ export const hoverPlayer: Plugin = {
             target = { x: dir.x * top, z: dir.z * top };
             if (dir.length > 0.001) desiredFacing = facingYaw(dir.x, dir.z);
           }
-          velocity = stepper.step(velocity, target, top, move, dt);
+          if (control?.velocity) {
+            // Actions (attacks, roll, lunge) own the root motion this step; the stick only aims.
+            velocity = control.velocity;
+            stepper.reset();
+            desiredFacing = undefined;
+          } else velocity = stepper.step(velocity, target, top, move, dt);
+          if (control?.facing !== undefined) facing = control.facing;
           vec3.set(delta, velocity.x * dt, 0, velocity.z * dt);
           const actual = physics.moveAndSlide(player, delta);
           let ax = actual[0] ?? 0, az = actual[2] ?? 0;
@@ -205,7 +277,7 @@ export const hoverPlayer: Plugin = {
           speed = Math.hypot(ax, az) / dt;
           // Blocked by a wall: keep velocity consistent with what actually happened.
           if (speed < Math.hypot(velocity.x, velocity.z) - 0.05) velocity = { x: ax / dt, z: az / dt };
-          mode = speed < 0.05 && !stick ? 'idle' : frameInput.sprint && stick ? 'sprint' : 'move';
+          mode = speed < 0.05 && !stick ? 'idle' : sprinting && stick ? 'sprint' : 'move';
           if (desiredFacing !== undefined) facing = turnToward(facing, desiredFacing, move.turnRate, dt);
           const turn = quat.eulerY(facing);
           world.set(player, Transform, { quat: [turn[0] ?? 0, turn[1] ?? 0, turn[2] ?? 0, turn[3] ?? 1] }).unwrap();
@@ -236,9 +308,21 @@ export const hoverPlayer: Plugin = {
         queries: [],
         fn: () => {
           const move = tuning.current.move;
-          quat.fromEuler(rotation, (-lean * Math.PI) / 180 + floatPitch, 0, floatRoll, 'YXZ');
+          const leanRad = actionPose?.suppressLean ? 0 : (-lean * Math.PI) / 180;
+          quat.fromEuler(rotation, leanRad + floatPitch, 0, floatRoll, 'YXZ');
+          const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY, 0];
+          let pos = base;
+          if (actionPose) {
+            const r = actionPose.rotation;
+            tmpQ[0] = r[0]; tmpQ[1] = r[1]; tmpQ[2] = r[2]; tmpQ[3] = r[3];
+            const pivot: [number, number, number] = [0, -CAPSULE_CENTER_Y + actionPose.pivotY, 0];
+            const rel = [base[0] + actionPose.offset[0] - pivot[0], base[1] + actionPose.offset[1] - pivot[1], base[2] + actionPose.offset[2] - pivot[2]];
+            const v = rotateByQuat(r, rel);
+            pos = [pivot[0] + v[0], pivot[1] + v[1], pivot[2] + v[2]];
+            quat.multiply(rotation, tmpQ, rotation);
+          }
           world.set(model, Transform, {
-            pos: [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY, 0],
+            pos,
             quat: [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1],
           }).unwrap();
           const grey = session.frontend().grey;
@@ -307,6 +391,28 @@ export const hoverPlayer: Plugin = {
         setObstacle: (clamp) => {
           obstacle = clamp;
         },
+        takeEdges: () => {
+          const taken = edges;
+          edges = { ...NO_EDGES };
+          return taken;
+        },
+        moveDirection: () => {
+          if (!session.playing()) return { x: 0, z: 0 };
+          const dir = cameraRelativeMove(cameraYaw, frameInput.horizontal, frameInput.vertical);
+          if (dir.length < 0.1) return { x: 0, z: 0 };
+          const n = Math.hypot(dir.x, dir.z) || 1;
+          return { x: dir.x / n, z: dir.z / n };
+        },
+        setControl: (next) => {
+          control = next;
+        },
+        setActionPose: (pose) => {
+          actionPose = pose;
+        },
+        setFloatGate: (gate) => {
+          floatGate = gate;
+        },
+        floatGate: () => floatGate,
       } satisfies PlayerService);
     }, 'nezha/hover-player');
   },

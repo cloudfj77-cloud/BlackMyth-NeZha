@@ -4,12 +4,13 @@ import { defaultTuning, overrides, readPath, TUNING_RANGES, writePath } from '..
 describe('tuning.json', () => {
   it('keeps the locked design values', () => {
     const t = defaultTuning();
-    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0.2, hoverHeight: 0.3 });
+    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0, hoverHeight: 0.3 });
     expect(t.float).toMatchObject({ idleAmp: 0.05, idleFreq: 0.8, swayDeg: 1.5, swayFreq: 0.55, swayPhase: 90, moveAmp: 0.03, sprintAmp: 0.015 });
     expect(t.lock).toMatchObject({ acquireRange: 25, breakRange: 30 });
     expect(t.camera).toMatchObject({ shoulderOffset: 0.6, minDistance: 1.2, distance: 5 });
     expect(t.ambient.seaweedCanyon + t.ambient.seaweedEdge + t.ambient.seaweedFar).toBe(480);
     expect(t.ambient.seaweedSwayHz).toBeLessThanOrEqual(0.25);
+    expect(t.combat).toMatchObject({ hitstopLight1: 3, hitstopLight3: 5, hitstopHeavyMin: 5, hitstopHeavyMax: 8, shakeHeavyMax: 0.06, slowmoSteps: 18, rollDistance: 3 });
   });
   it('every default lies inside its panel range', () => {
     const t = defaultTuning();

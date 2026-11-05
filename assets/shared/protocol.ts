@@ -52,7 +52,7 @@ export interface FrontendMessage {
 }
 
 /** Hint keys shown by the HUD; each one is a language-table key under `hud.hint.*`. */
-export type HintKey = 'noTarget' | 'targetLost' | 'locked' | 'unlocked';
+export type HintKey = 'noTarget' | 'targetLost' | 'locked' | 'unlocked' | 'noStamina' | 'noLotusSeeds' | 'sashCooldown';
 
 /** Normalised screen position (0..1, top-left origin) and whether it is in front of the camera. */
 export interface ScreenPoint {
@@ -69,6 +69,24 @@ export interface HudState {
   readonly hint?: { readonly key: HintKey; readonly serial: number };
   /** Live tuning values, mirrored for the development panel. */
   readonly tuning?: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  /** Combat HUD (M2). */
+  readonly combat?: {
+    readonly hp: number;
+    readonly hpMax: number;
+    readonly stamina: number;
+    readonly staminaMax: number;
+    /** Serial bumped when an action fails for lack of stamina (the bar flashes). */
+    readonly flash: number;
+    readonly lotus: number;
+    readonly lotusMax: number;
+    /** Sash Bind cooldown remaining / total, in seconds. */
+    readonly sashCd: number;
+    readonly sashCdMax: number;
+    /** Serial bumped on each hurt (ink-teal vignette). */
+    readonly hurt: number;
+  };
+  /** One-shot presentation events this frame (audio cues). */
+  readonly events?: readonly string[];
   /**
    * The `nezha` read projection (QA builds only, ~12 Hz). The static preview host has no
    * game inspection bridge, so acceptance reads this DOM mirror of the same data.

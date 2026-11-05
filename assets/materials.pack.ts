@@ -50,6 +50,19 @@ const GLOW = {
   fog: false,
 } as const;
 
+/** Emission-only glow material with a runtime `intensity` (afterimages, rings, warnings). */
+const glow = (color: RGB, intensity: number): MaterialRootAsset =>
+  Materials.standard({
+    surfaceModule: 'nezha::flat_glow_surface',
+    parameters: [
+      { name: 'glowColor', type: 'color' },
+      { name: 'intensity', type: 'f32' },
+    ],
+    values: { glowColor: [color[0], color[1], color[2], 1], intensity },
+    renderState: GLOW,
+    queue: RenderQueue.Transparent,
+  });
+
 const ALPHA_BLEND = {
   blend: {
     color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -131,6 +144,43 @@ export default definePack({
         // Drawn first among transparents: ground warnings (M3) layer above it.
         queue: RenderQueue.Transparent - 10,
       }),
+      // --- M2 combat ----------------------------------------------------------------
+      'material/wheel-fire-full': std([0.3, 0.1, 0.02], { roughness: 0.4, emissive: [1.0, 0.36, 0.05], emissiveIntensity: WHEEL_FULL_INTENSITY }),
+      'material/sash-live': Materials.standard({
+        surfaceModule: 'nezha::sash_surface',
+        parameters: [
+          { name: 'baseColor', type: 'color' },
+          { name: 'sashColor', type: 'color' },
+          { name: 'goldColor', type: 'color' },
+          { name: 'brightness', type: 'f32' },
+          { name: 'fill', type: 'f32' },
+          { name: 'flash', type: 'f32' },
+        ],
+        values: { baseColor: [0.5, 0.03, 0.02, 1], sashColor: [1.25, 0.11, 0.04, 1], goldColor: [1.0, 0.7, 0.2, 1], brightness: 1, fill: 0, flash: 0 },
+        renderState: { cullMode: 'none' },
+      }),
+      'material/afterimage': glow([1.0, 0.45, 0.08], 0.6),
+      'material/perfect-ring': glow([1.0, 0.5, 0.1], 1.5),
+      'material/spark': Materials.unlit([1.0, 0.35, 0.03, 1], { renderState: { ...ADDITIVE, fog: false }, queue: RenderQueue.Transparent }),
+      'material/flame': Materials.standard({
+        surfaceModule: 'nezha::flame_surface',
+        parameters: [
+          { name: 'rootColor', type: 'color' },
+          { name: 'tipColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { rootColor: [1.6, 1.25, 0.7, 1], tipColor: [1.0, 0.42, 0.06, 1], intensity: 1 },
+        renderState: GLOW,
+        queue: RenderQueue.Transparent,
+      }),
+      // Ice-cyan #7FE6F0 ground warnings with a deep-blue edge: the only things that flicker and shrink.
+      'material/warn-fill': glow([0.21, 0.79, 0.87], 0.45),
+      'material/warn-shrink': glow([0.21, 0.79, 0.87], 1.2),
+      'material/warn-edge': Materials.unlit([0.01, 0.04, 0.16, 0.9], { renderState: { ...ALPHA_BLEND, cullMode: 'none', fog: false }, queue: RenderQueue.Transparent }),
+      // Sash Bind wrap: crimson #B8142A with gold.
+      'material/bind-crimson': glow([0.48, 0.006, 0.024], 2.2),
+      'material/bind-gold': glow([1.0, 0.7, 0.2], 1.4),
+
       /** Silhouette review (dev grey mode): every Nezha part becomes one mid grey. */
       'material/grey': std([0.4, 0.4, 0.4], { roughness: 0.8 }),
     }),

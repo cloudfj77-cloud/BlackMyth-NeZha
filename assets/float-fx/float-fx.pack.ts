@@ -9,12 +9,33 @@ import type {} from '@forgeax/engine/app';
 import type {} from '@forgeax/engine/assets-runtime';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
+import type { CombatService } from '../combat/combat.pack.ts';
+import { rotate, type Q } from '../combat/poses.ts';
 import { guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { HEAD_TOP_Y, SASH_ANCHORS } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { createFloat } from './float.ts';
 
 type V3 = [number, number, number];
+
+function quatOf(m: ArrayLike<number>): Q {
+  const m00 = m[0]!, m01 = m[4]!, m02 = m[8]!, m10 = m[1]!, m11 = m[5]!, m12 = m[9]!, m20 = m[2]!, m21 = m[6]!, m22 = m[10]!;
+  const trace = m00 + m11 + m22;
+  if (trace > 0) {
+    const s = 0.5 / Math.sqrt(trace + 1);
+    return [(m21 - m12) * s, (m02 - m20) * s, (m10 - m01) * s, 0.25 / s];
+  }
+  if (m00 > m11 && m00 > m22) {
+    const s = 2 * Math.sqrt(1 + m00 - m11 - m22);
+    return [0.25 * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s];
+  }
+  if (m11 > m22) {
+    const s = 2 * Math.sqrt(1 + m11 - m00 - m22);
+    return [(m01 + m10) / s, 0.25 * s, (m12 + m21) / s, (m02 - m20) / s];
+  }
+  const s = 2 * Math.sqrt(1 + m22 - m00 - m11);
+  return [(m02 + m20) / s, (m12 + m21) / s, 0.25 * s, (m10 - m01) / s];
+}
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 
 /**
@@ -27,7 +48,7 @@ const r3 = (value: number) => Math.round(value * 1000) / 1000;
  */
 export const floatFx: Plugin = {
   name: 'nezha/float-fx',
-  inject: ['world', 'gameHost', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer'],
+  inject: ['world', 'gameHost', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCombat'],
   async apply(ctx) {
     const world = ctx.world;
     const host = ctx.gameHost;
@@ -35,9 +56,11 @@ export const floatFx: Plugin = {
     const tuning = ctx.nezhaTuning as TuningService | undefined;
     const telemetry = ctx.nezhaTelemetry as TelemetryService | undefined;
     const player = ctx.nezhaPlayer as PlayerService | undefined;
+    const combatService = ctx.nezhaCombat as CombatService | undefined;
+    if (!combatService) throw new Error('nezha/float-fx requires the combat service');
     if (!host || !session || !tuning || !telemetry || !player) throw new Error('nezha/float-fx requires core and player services');
     const assets = host.assets;
-    const material = await assets.load(guidText(materialGuid('sash')), 'material');
+    const material = await assets.load(guidText(materialGuid('sash-live')), 'material');
     if (!material.ok) throw material.error;
     const greyMat = await assets.load(guidText(materialGuid('grey')), 'material');
     if (!greyMat.ok) throw greyMat.error;
@@ -79,6 +102,11 @@ export const floatFx: Plugin = {
         assets.release(greyMat.value).unwrap();
       };
       let sashGrey = false;
+      let gate = 1;
+      let flash = 0;
+      let wasCooling = false;
+      let lastLook = { brightness: 1, fill: 0, flash: 0 };
+      let hoverY = 0, ribbonV = 0, lastY = 0;
       yield () => {
         assets.release(mesh).unwrap();
       };
@@ -109,14 +137,43 @@ export const floatFx: Plugin = {
             world.set(ribbon, MeshRenderer, { materials: [sashGrey ? greyMat.value : material.value] } as never).unwrap();
           }
           const rawDt = world.getResource(Time).delta;
-          const dt = Math.min(rawDt, 1 / 30);
+          // Nezha's clock: hitstop freezes the float and the sash together (design rule 3).
+          const nezhaScale = session.clock.nezhaScale();
+          const dt = Math.min(rawDt, 1 / 30) * nezhaScale;
           const t = tuning.current;
           const playing = session.phase() !== 'paused';
-          if (playing) floatState = float.step(player.mode(), t.float, dt);
-          player.setFloat(floatState.y, floatState.roll, 0);
+          // Sash cooldown look: dimmer, droops (20 % flutter), gold fills from the root; tip glint when ready.
+          const cd = combatService.sashCooldown();
+          const cooling = cd.left > 0;
+          if (wasCooling && !cooling) flash = 1;
+          wasCooling = cooling;
+          flash = Math.max(0, flash - rawDt / 0.15);
+          const look = { brightness: cooling ? 0.3 : 1, fill: cooling ? r3(1 - cd.left / cd.total) : 0, flash: r3(flash) };
+          if (look.brightness !== lastLook.brightness || look.fill !== lastLook.fill || look.flash !== lastLook.flash) {
+            lastLook = look;
+            assets.update(material.value, { values: look } as never).unwrap();
+          }
+          const flutter = cooling ? 0.2 : 1;
+          if (dt === 0 || !playing) {
+            hoverY = 0;
+            ribbonV = 0;
+            if (!playing) return;
+            return;
+          }
+          // Actions fade the float out over 6 steps and back in (gate from the combat plugin).
+          const gateTarget = player.floatGate();
+          gate += Math.max(-dt * 10, Math.min(dt * 10, gateTarget - gate));
+          floatState = float.step(player.mode(), t.float, dt);
+          player.setFloat(floatState.y * gate, floatState.roll * gate, 0);
+          hoverY = r3((floatState.y * gate) / Math.max(dt, 1e-6) - lastY / Math.max(dt, 1e-6));
+          lastY = floatState.y * gate;
 
           const matrix = readPresentationWorldMatrix(world, player.entity);
-          if (!matrix || !playing) return;
+          const modelMatrix = readPresentationWorldMatrix(world, player.model);
+          if (!matrix || !modelMatrix) return;
+          // The model may be turned by an action (roll): anchors follow the real shoulders.
+          const modelQ = quatOf(modelMatrix);
+          const rolled = (modelMatrix[5] ?? 1) < 0.95;
           const rx = matrix[12] ?? 0, ry = matrix[13] ?? 0, rz = matrix[14] ?? 0;
           const yaw = Math.atan2(-(matrix[2] ?? 0), matrix[0] ?? 1);
           const cos = Math.cos(yaw), sin = Math.sin(yaw);
@@ -126,7 +183,11 @@ export const floatFx: Plugin = {
             return [dx * cos - dz * sin, w[1]! - ry, dx * sin + dz * cos];
           };
           // Model space -> root-local: model origin sits hover + float above the seabed.
-          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + floatState.y;
+          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + floatState.y * gate;
+          const anchorWorld = (a: readonly number[]): V3 => {
+            const v = rotate(modelQ, [a[0]!, a[1]!, a[2]!]);
+            return [(modelMatrix[12] ?? 0) + v[0], (modelMatrix[13] ?? 0) + v[1], (modelMatrix[14] ?? 0) + v[2]];
+          };
           const headTop = modelY + HEAD_TOP_Y;
           const segLength = t.sash.length / segments;
           if (!initialised) {
@@ -148,16 +209,16 @@ export const floatFx: Plugin = {
             const anchor = SASH_ANCHORS[s % SASH_ANCHORS.length]!;
             const side = anchor[0] < 0 ? -1 : 1;
             const { p, q } = chain[s]!;
-            p[0] = toWorld([anchor[0], modelY + anchor[1], anchor[2]]);
+            p[0] = anchorWorld(anchor);
             q[0] = [...p[0]];
             for (let i = 1; i < points; i += 1) {
               const u = i / segments;
               // Rest shape (root-local): back and up, slightly outward, with a travelling flutter.
-              const wave = Math.sin(floatState.bobPhase - lag - u * 2.4 + s * 0.9);
+              const wave = flutter * Math.sin(floatState.bobPhase - lag - u * 2.4 + s * 0.9);
               const restLocal: V3 = [
                 anchor[0] + side * (0.03 + 0.07 * u) + 0.06 * u * wave,
                 // Rise in an S: up off the shoulder, then trailing back; tips settle ~0.2 m below the bun tops.
-                modelY + anchor[1] + 0.1 * Math.sin(Math.PI * Math.min(1, u * 1.4)) + 0.06 * u + 0.05 * u * Math.sin(time * 3.1 + s + u * 4),
+                modelY + anchor[1] + (cooling ? -0.25 * u : 0.1 * Math.sin(Math.PI * Math.min(1, u * 1.4)) + 0.06 * u) + 0.05 * flutter * u * Math.sin(time * 3.1 + s + u * 4),
                 anchor[2] + 0.12 + segLength * segments * 0.85 * u,
               ];
               const rest = toWorld(restLocal);
@@ -180,9 +241,13 @@ export const floatFx: Plugin = {
             }
             for (let i = 1; i < points; i += 1) {
               const l = toLocal(p[i]!);
-              // Never above the hair buns (tip margin 5 cm) and never in front of the back of the head.
-              l[1] = Math.min(l[1], headTop - 0.05);
-              l[2] = Math.max(l[2], anchor[2] + 0.06);
+              // Never above the hair buns (tip margin 5 cm) and never in front of the back of the head
+              // — except mid-roll, where the art director waived the head-top rule.
+              if (!rolled) {
+                l[1] = Math.min(l[1], headTop - 0.05);
+                l[2] = Math.max(l[2], anchor[2] + 0.06);
+              }
+              l[1] = Math.max(l[1], -CAPSULE_CENTER_Y + 0.3); // fire never touches the seabed
               p[i] = toWorld(l);
               worstAboveHead = Math.max(worstAboveHead, l[1] - headTop);
               worstAhead = Math.max(worstAhead, -(l[2] - anchor[2]));
@@ -197,12 +262,18 @@ export const floatFx: Plugin = {
               positions.set([l[0] + half * 0.45, l[1] + half, l[2]], (v + 1) * 3);
             }
           }
+          let tipSpeed = 0;
+          for (const { p, q } of chain) tipSpeed += Math.hypot(p[points - 1]![0] - q[points - 1]![0], p[points - 1]![1] - q[points - 1]![1], p[points - 1]![2] - q[points - 1]![2]) / dt;
+          ribbonV = r3(tipSpeed / Math.max(1, chain.length));
           assets.writeRange(mesh, { attribute: 'position', first: 0, values: positions }).unwrap();
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-float-fx').unwrap();
 
       yield telemetry.section('float', () => ({
+        hoverY,
+        ribbonV,
+        gate: r3(gate),
         amp: r3(floatState.amp),
         freq: tuning.current.float.idleFreq,
         roll: r3((floatState.roll * 180) / Math.PI),

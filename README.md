@@ -6,15 +6,21 @@ camera, lock-on, procedural float, and Chinese / English UI.
 
 Design sources live outside this project in `../design/` (spec, milestone M1, prep plan).
 
-## Controls (M1)
+## Controls (M2)
 
 | Input | Action |
 |:--|:--|
 | Click the game | Lock the mouse (camera look) |
-| W A S D | Hover move (camera-relative) |
-| Shift (hold > 0.2 s) | Dash (sprint); a tap is reserved for the M2 step-dodge |
+| W A S D | Hover move (camera-relative; orbit / close in while locked) |
+| Shift (hold) | Sprint (15 stamina/s) |
+| Space | Wind-Fire Roll toward the move direction (back with none); frames 1–18 invulnerable |
 | Mouse | Turn camera |
+| Left mouse | Light attack, 3-hit combo |
+| Right mouse (hold) | Charge 0.3–1.2 s, release for a heavy strike |
 | R | Lock on / release (within 25 m; breaks beyond 30 m) |
+| Q | Eat a lotus seed (3) |
+| 1 | Sash Bind (holds the target 3 s, 20 s cooldown) |
+| T / Y | Training: line / fan fake attack from the dummy |
 | Esc | Release mouse and pause |
 | F2 (`?dev=1` only) | Development tuning panel (releases the mouse) |
 
@@ -35,7 +41,7 @@ export PATH="$HOME/.local/bin:$PATH"
 pnpm test && pnpm typecheck && pnpm exec forgeax project check --json
 bash scripts/build.sh                                   # forgeax project build --html-head web/head.html
 pnpm exec forgeax project preview --port 4191 --json    # serve dist/
-node qa/m1-acceptance.cjs http://localhost:4191/        # real input through system Chrome, screenshots in artifacts/m1/
+node qa/m2-acceptance.cjs http://localhost:4191/        # real input through system Chrome, screenshots in artifacts/m2/
 pnpm exec forgeax project play scripts/playthrough.mjs --require-ui --json   # official play (run in a normal terminal)
 ```
 
@@ -64,7 +70,9 @@ pnpm exec forgeax project play scripts/playthrough.mjs --require-ui --json   # o
 | `assets/shared/tuning.ts` | Tuning types, panel ranges, clamped live copy |
 | `assets/shared/layout.ts`, `greybox.ts` | Level layout authority (meshes, colliders, placement) |
 | `assets/shared/protocol.ts` | Engine ↔ frontend messages (no player-visible text) |
-| `assets/core/core.pack.ts` | Phase, live tuning, the single QA projection `nezha` |
+| `assets/core/core.pack.ts` | Phase, live tuning, two game clocks (hitstop / slow motion), the single QA projection `nezha` |
+| `assets/combat/*` | Combat state machine (pure, step-exact), procedural poses, hit feel |
+| `assets/training/*` | Training dummy reactions, fake attacks with ground warnings, Sash Bind wrap |
 | `assets/ui/*` | Start / pause menu, HUD hints, language choice, dev panel |
 | `assets/i18n/*` | Language rules, pseudo-locale, translator context for every key |
 | `assets/runtime/zaohua-platform-init.js` | Zaohua platform SDK base `initialize` (capabilities: none) |

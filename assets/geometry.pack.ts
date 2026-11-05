@@ -1,4 +1,4 @@
-import { createBoxGeometry, createConeGeometry, createCylinderGeometry, createPlaneGeometry } from '@forgeax/engine/geometry';
+import { createBoxGeometry, createConeGeometry, createCylinderGeometry, createMeshBuilder, createPlaneGeometry, createTorusGeometry } from '@forgeax/engine/geometry';
 import { definePack } from '@forgeax/engine/pack/source';
 import type { MeshAsset } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
@@ -13,6 +13,7 @@ import {
   PILLARS,
   seeded,
   TRENCH,
+  WARN,
 } from './shared/layout.ts';
 import { axisAngle, MeshKit, yawQ } from './shared/mesh-kit.ts';
 import { canyonWallSegments, ringWallSegments, trenchSegments } from './shared/greybox.ts';
@@ -127,6 +128,25 @@ export default definePack({
       'mesh/seaweed-blade': seaweedBlade(),
       'mesh/marker': single(unwrapMesh(createConeGeometry(0.2, 0.4, 8)), 'pillar'),
       'mesh/quad': single(unwrapMesh(createPlaneGeometry(1, 1)), 'pillar'),
+      // --- M2: ground warnings (flat, y = 0, origin at the attacker edge, pointing -Z) ---
+      'mesh/warn-line-fill': flat(lineOutline(WARN.lineWidth, WARN.lineLength, 0), 'Fill', 'warn-fill'),
+      'mesh/warn-line-edge': flat(lineOutline(WARN.lineWidth, WARN.lineLength, WARN.edge), 'Edge', 'warn-edge'),
+      'mesh/warn-line-shrink': flat(lineOutline(WARN.lineWidth, WARN.lineLength, WARN.edge * 0.6), 'Shrink', 'warn-shrink'),
+      'mesh/warn-fan-fill': flat(fanOutline(WARN.fanRadius, WARN.fanAngleDeg, 0), 'Fill', 'warn-fill'),
+      'mesh/warn-fan-edge': flat(fanOutline(WARN.fanRadius, WARN.fanAngleDeg, WARN.edge), 'Edge', 'warn-edge'),
+      'mesh/warn-fan-shrink': flat(fanOutline(WARN.fanRadius, WARN.fanAngleDeg, WARN.edge * 0.6), 'Shrink', 'warn-shrink'),
+      /** Flat unit ring (radius 1) for the perfect-dodge burst and the Sash Bind wrap. */
+      'mesh/ring': (() => {
+        const kit = new MeshKit();
+        kit.add(createTorusGeometry(1, 0.035, 8, 64), { r: axisAngle([1, 0, 0], Math.PI / 2) }, 0);
+        return kit.build([slot('Ring', 'perfect-ring')]);
+      })(),
+      /** Spear-tip flame: base at y = 0, end at y = 1 (scaled to the reach at runtime). */
+      'mesh/flame': (() => {
+        const kit = new MeshKit();
+        kit.add(createConeGeometry(0.07, 1, 10), { t: [0, 0.5, 0] }, 0);
+        return kit.build([slot('Flame', 'flame')]);
+      })(),
     }),
 });
 
@@ -144,4 +164,71 @@ function seaweedBlade(): MeshAsset {
     }, 0);
   }
   return kit.build([slot('Blade', 'seaweed')]);
+}
+
+
+type Poly = readonly (readonly [number, number])[];
+
+/** Rectangle from the origin toward -Z. edge = 0 -> filled; edge > 0 -> outline band of that width. */
+function lineOutline(width: number, length: number, edge: number): { tris: number[]; pts: number[][] } {
+  const w = width / 2;
+  const outer: Poly = [[-w, 0], [w, 0], [w, -length], [-w, -length]];
+  if (edge === 0) return fillPoly(outer);
+  const inner: Poly = [[-w + edge, -edge], [w - edge, -edge], [w - edge, -length + edge], [-w + edge, -length + edge]];
+  return band(outer, inner);
+}
+
+/** Circular sector from the origin toward -Z. */
+function fanOutline(radius: number, angleDeg: number, edge: number): { tris: number[]; pts: number[][] } {
+  const steps = 32;
+  const half = (angleDeg * Math.PI) / 360;
+  const arc = (r: number) => Array.from({ length: steps + 1 }, (_, i) => {
+    const a = -half + (2 * half * i) / steps;
+    return [r * Math.sin(a), -r * Math.cos(a)] as const;
+  });
+  const outer: Poly = [[0, 0], ...arc(radius)];
+  if (edge === 0) return fillPoly(outer);
+  const inset = edge / Math.sin(half);
+  const innerArc = arc(radius - edge).map(([x, z]) => [x * (1 - inset / radius), z * (1 - inset / radius) - inset * 0] as const);
+  const inner: Poly = [[0, -inset], ...innerArc];
+  return band(outer, inner);
+}
+
+function fillPoly(poly: Poly) {
+  // Convex fan triangulation (rectangle and sector are both convex).
+  const pts = poly.map(([x, z]) => [x, z]);
+  const tris: number[] = [];
+  for (let i = 1; i < pts.length - 1; i += 1) tris.push(0, i + 1, i);
+  return { tris, pts };
+}
+
+function band(outer: Poly, inner: Poly) {
+  const pts = [...outer.map(([x, z]) => [x, z]), ...inner.map(([x, z]) => [x, z])];
+  const n = outer.length;
+  const tris: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const j = (i + 1) % n;
+    tris.push(i, n + j, j, i, n + i, n + j);
+  }
+  return { tris, pts };
+}
+
+function flat(shape: { tris: number[]; pts: number[][] }, slotName: string, material: string): MeshAsset {
+  const count = shape.pts.length;
+  const position = new Float32Array(count * 3);
+  const normal = new Float32Array(count * 3);
+  const uv = new Float32Array(count * 2);
+  shape.pts.forEach(([x, z], i) => {
+    position.set([x!, 0, z!], i * 3);
+    normal.set([0, 1, 0], i * 3);
+    uv.set([x!, z!], i * 2);
+  });
+  const built = createMeshBuilder({
+    attributes: { position, normal, uv },
+    indices: new Uint32Array(shape.tris),
+    submeshes: [{ indexOffset: 0, indexCount: shape.tris.length, vertexCount: count, topology: 'triangle-list', materialSlot: 0 }],
+    materialSlots: [slot(slotName, material)],
+  }).build();
+  if (!built.ok) throw built.error;
+  return built.value;
 }

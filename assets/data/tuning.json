@@ -5,7 +5,7 @@
     "accelTime": 0.1,
     "decelTime": 0.15,
     "turnRate": 720,
-    "sprintHoldThreshold": 0.2,
+    "sprintHoldThreshold": 0,
     "hoverHeight": 0.3,
     "leanWalk": 10,
     "leanSprint": 20,
@@ -50,13 +50,18 @@
     "damping": 6,
     "buoyancy": 2.5
   },
-  "wheel": { "emissive": 0.3 },
-  "glow": { "radius": 0.9, "intensity": 1 },
+  "wheel": {
+    "emissive": 0.3
+  },
+  "glow": {
+    "radius": 0.9,
+    "intensity": 1
+  },
   "lock": {
     "acquireRange": 25,
     "breakRange": 30,
-    "targetHeight": 5,
-    "targetLength": 12,
+    "targetHeight": 2,
+    "targetLength": 4,
     "minOrbitGap": 1.5
   },
   "ambient": {
@@ -72,5 +77,23 @@
   "occlusion": {
     "fadeOpacity": 0.35,
     "fadeTime": 0.2
+  },
+  "combat": {
+    "hitstopLight1": 3,
+    "hitstopLight2": 3,
+    "hitstopLight3": 5,
+    "hitstopHeavyMin": 5,
+    "hitstopHeavyMax": 8,
+    "shakeLight3": 0.02,
+    "shakeHeavyMin": 0.03,
+    "shakeHeavyMax": 0.06,
+    "shakeHz": 25,
+    "shakeDecay": 0.15,
+    "slowmoSteps": 18,
+    "rollDistance": 3,
+    "lungeDistance": 0.5,
+    "autoTurnRange": 3,
+    "sparkLife": 0.12,
+    "wheelRollScale": 1.4
   }
 }
