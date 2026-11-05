@@ -20,22 +20,18 @@ export interface WallSegment {
 
 const DEG = Math.PI / 180;
 
-/** Palace wall ring (宫墙) around the plaza, leaving the canyon entrance and the gate gap open. */
-export function ringWallSegments(): WallSegment[] {
+/** Invisible boundary ring keeping Nezha's root within r = 19.5 m, open at the canyon mouth. */
+export function boundarySegments(capsuleRadius = 0.35, thickness = 0.6): WallSegment[] {
   const out: WallSegment[] = [];
-  const count = ARENA.wallSegments;
+  const count = ARENA.boundarySegments;
   const step = (Math.PI * 2) / count;
-  const length = 2 * ARENA.wallRadius * Math.sin(step / 2) + 0.15;
+  const r = ARENA.boundary + capsuleRadius + thickness / 2;
+  const length = 2 * r * Math.sin(step / 2) + 0.1;
   for (let index = 0; index < count; index += 1) {
-    const angle = (index + 0.5) * step; // 0 = +Z (canyon), PI = -Z (palace)
+    const angle = (index + 0.5) * step; // 0 = +Z (canyon)
     const fromEntrance = Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle)));
-    const fromGate = Math.PI - fromEntrance;
     if (fromEntrance < ARENA.entranceHalfAngleDeg * DEG + step / 2) continue;
-    if (fromGate < ARENA.gateHalfAngleDeg * DEG) continue;
-    const x = Math.sin(angle) * (ARENA.wallRadius + ARENA.wallThickness / 2);
-    const z = Math.cos(angle) * (ARENA.wallRadius + ARENA.wallThickness / 2);
-    // Box local X tangent to the circle: tangent = (cos a, -sin a) -> yaw such that (cos yaw, -sin yaw) matches.
-    out.push({ x, z, yaw: angle, length, nx: -Math.sin(angle), nz: -Math.cos(angle) });
+    out.push({ x: Math.sin(angle) * r, z: Math.cos(angle) * r, yaw: angle, length, nx: -Math.sin(angle), nz: -Math.cos(angle) });
   }
   return out;
 }

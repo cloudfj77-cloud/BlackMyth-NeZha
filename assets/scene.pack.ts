@@ -27,8 +27,8 @@ import { ok } from '@forgeax/engine/types';
 import { WATER_HORIZON } from './environment.pack.ts';
 import { assetGuid, characterGuid, geometryGuid, guidText, PACKAGE_IDS, SUN_OUTGOING_DIRECTION } from './shared/asset-refs.ts';
 import { GROUPS } from './shared/collision.ts';
-import { canyonWallSegments, ringWallSegments } from './shared/greybox.ts';
-import { ARENA, BEAM, CANYON, canyonCenterX, canyonHalfWidth, FLOOR_Y, LOCK_TARGET, PALACE, PILLARS, SPAWN, targetThickness, type Vec3 } from './shared/layout.ts';
+import { boundarySegments, canyonWallSegments } from './shared/greybox.ts';
+import { BEAM, CANYON, canyonCenterX, canyonHalfWidth, CHECKPOINT, FLOOR_Y, PILLARS, SPAWN, type Vec3 } from './shared/layout.ts';
 import { yawQ } from './shared/mesh-kit.ts';
 import { NEZHA } from './shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y, CAPSULE_SKIN } from './shared/player-rig.ts';
@@ -97,14 +97,17 @@ function dragonPalace(): SceneAsset {
 
   // --- Level: merged visual meshes + collider-only entities.
   add('level/seabed', { Name: { value: 'Seabed' }, Transform: { pos: [0, FLOOR_Y - 0.2, 0] }, ...mesh(geometryGuid('seabed')), ...cuboid([120, 0.2, 120]) });
-  add('level/plaza', { Name: { value: 'White Jade Plaza' }, Transform: { pos: [0, FLOOR_Y + 0.006, 0] }, ...mesh(geometryGuid('plaza')) });
-  add('level/walls', { Name: { value: 'Palace And Reef Walls' }, Transform: { pos: [0, 0, 0] }, ...mesh(geometryGuid('walls')) });
+  add('level/vortex', { Name: { value: 'Vortex Floor' }, Transform: { pos: [0, FLOOR_Y + 0.02, 0] }, ...mesh(geometryGuid('vortex')) });
+  add('level/water-wall', { Name: { value: 'Water Wall' }, Transform: { pos: [0, FLOOR_Y, 0] }, ...mesh(geometryGuid('water-wall')) });
+  add('level/walls', { Name: { value: 'Reef Walls' }, Transform: { pos: [0, 0, 0] }, ...mesh(geometryGuid('walls')) });
   add('level/trench', { Name: { value: 'Far Trench' }, Transform: { pos: [0, 0, 0] }, ...mesh(geometryGuid('trench')) });
-  ringWallSegments().forEach((segment, index) => {
-    add(`collider/ring-${index}`, {
-      Name: { value: `Palace Wall ${index}` },
-      Transform: { pos: [segment.x, ARENA.wallHeight / 2, segment.z], quat: q(yawQ(segment.yaw)) },
-      ...cuboid([segment.length / 2, ARENA.wallHeight / 2, ARENA.wallThickness / 2]),
+  add('level/checkpoint', { Name: { value: 'Chentang Fishing Lamp' }, Transform: { pos: [CHECKPOINT[0] + 2.2, FLOOR_Y, CHECKPOINT[2] + 0.6] }, ...mesh(geometryGuid('lamp')) });
+  // Invisible boundary (Nezha's root stays within r = 19.5 m); never seen by the camera.
+  boundarySegments(TUNING.move.capsuleRadius).forEach((segment, index) => {
+    add(`collider/boundary-${index}`, {
+      Name: { value: `Vortex Boundary ${index}` },
+      Transform: { pos: [segment.x, 3, segment.z], quat: q(yawQ(segment.yaw)) },
+      ...cuboid([segment.length / 2, 3, 0.3], GROUPS.boundary),
     });
   });
   canyonWallSegments().forEach((segment, index) => {
@@ -114,8 +117,6 @@ function dragonPalace(): SceneAsset {
       ...cuboid([segment.length / 2 + 0.3, CANYON.wallHeight / 2, CANYON.wallThickness / 2]),
     });
   });
-  const facadeHalf = ARENA.wallRadius * Math.sin((ARENA.gateHalfAngleDeg * Math.PI) / 180) + 1.5;
-  add('collider/facade', { Name: { value: 'Palace Facade' }, Transform: { pos: [0, 4.5, PALACE.facadeZ - 0.7] }, ...cuboid([facadeHalf, 4.5, 0.7]) });
   add('collider/canyon-end', {
     Name: { value: 'Canyon Dead End' },
     Transform: { pos: [canyonCenterX(CANYON.zEnd), CANYON.wallHeight / 2, CANYON.zEnd + 1.2] },
@@ -127,22 +128,10 @@ function dragonPalace(): SceneAsset {
     add(`pillar/${pillar.id}`, {
       Name: { value: `Dragon Pillar ${pillar.id}` },
       Transform: { pos: [pillar.x, pillar.height / 2, pillar.z] },
-      ...mesh(geometryGuid(pillar.id.startsWith('plaza') ? 'pillar-plaza' : 'pillar-canyon')),
+      ...mesh(geometryGuid('pillar-canyon')),
       ...cylinder(pillar.radius, pillar.height / 2, GROUPS.pillar),
     });
   }
-
-  // --- Lock-on placeholder (render-only unit box; the hover controller keeps Nezha outside it).
-  const height = TUNING.lock.targetHeight;
-  add('lock-target', {
-    Name: { value: 'Lock Target Placeholder' },
-    Transform: {
-      pos: [LOCK_TARGET.center[0], LOCK_TARGET.center[1] + height / 2, LOCK_TARGET.center[2]],
-      quat: q(yawQ(LOCK_TARGET.yaw)),
-      scale: [TUNING.lock.targetLength, height, targetThickness(height)],
-    },
-    ...mesh(geometryGuid('lock-target')),
-  });
 
   // --- Light beam over the plaza (swayed by the ambience plugin).
   add('beam', {

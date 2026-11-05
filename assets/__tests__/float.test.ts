@@ -47,9 +47,9 @@ describe('environment float', () => {
       expect(placeSeaweed(group, count, 1.2).reduce((n, c) => n + c.blades.length, 0)).toBe(count);
     }
   });
-  it('keeps the canyon centre lane and the plaza centre clear', () => {
+  it('keeps the canyon centre lane and the vortex clear', () => {
     for (const clump of placeSeaweed('canyon', 600, 1.2)) expect(Math.abs(clump.x - canyonCenterX(clump.z))).toBeGreaterThanOrEqual(1.5 - 1e-6);
-    for (const clump of placeSeaweed('edge', 450, 1.2)) expect(Math.hypot(clump.x, clump.z)).toBeGreaterThanOrEqual(16 - 1e-6);
+    for (const clump of placeSeaweed('edge', 450, 1.2)) expect(Math.hypot(clump.x, clump.z)).toBeGreaterThanOrEqual(20.6 - 1e-6);
   });
   it('sways no faster than 0.25 Hz', () => {
     let crossings = 0;

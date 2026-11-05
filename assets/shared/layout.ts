@@ -23,29 +23,36 @@ export function seeded(seed: number): () => number {
 
 export const FLOOR_Y = 0;
 
+/**
+ * Boss field (M3, dragon redesign 17:48): a vortex at the bottom of the sea trench.
+ * 40 m vortex floor (Nezha boundary r = 19.5 m, every damage area inside it) + a 6 m band
+ * where the dragon only swims, closed by a water wall of inner diameter 52 m.
+ */
 export const ARENA = Object.freeze({
-  /** White-jade plaza: diameter 40 m. */
+  /** Vortex floor radius (diameter 40 m). */
   radius: 20,
-  /** Palace wall ring (宫墙) around the plaza. */
-  wallRadius: 21,
-  wallHeight: 4.2,
-  wallThickness: 1.2,
-  wallSegments: 28,
-  /** Entrance gap toward +Z (the canyon), half-angle in degrees. */
-  entranceHalfAngleDeg: 12,
-  /** Palace gate gap toward -Z, closed by the palace facade. */
-  gateHalfAngleDeg: 16,
-  /** No seaweed inside this radius (designer rule: the plaza centre stays clear). */
-  seaweedInnerRadius: 16,
+  /** Nezha's root may not go beyond this radius (invisible boundary, gap at the canyon mouth). */
+  boundary: 19.5,
+  /** Dragon swim band outer edge = water wall inner radius (diameter 52 m). */
+  wallRadius: 26,
+  wallHeight: 16,
+  boundarySegments: 40,
+  /** Canyon mouth toward +Z, half-angle in degrees (boundary and water wall are open here). */
+  entranceHalfAngleDeg: 13,
+  /** Dragon band patrol radius and the farthest its head may go while crossing the band. */
+  bandPatrolRadius: 21.5,
+  bandMaxHead: 22,
+  /** The dragon never crosses the canyon mouth sector (half-angle, degrees). */
+  bandForbiddenHalfAngleDeg: 20,
+  /** Band floor ring where the edge seaweed grows (static seabed, not the rotating vortex). */
+  seaweedInnerRadius: 20.6,
+  seaweedOuterRadius: 25.4,
+  /** Inner calm zone of the vortex (≤ 1°/s, low contrast) and the outer ring (2°/s). */
+  calmRadius: 14,
 });
 
-export const PALACE = Object.freeze({
-  /** Facade plane closing the gate gap, and the hall volume behind it. */
-  facadeZ: -21.6,
-  hallDepth: 12,
-  hallWidth: 26,
-  hallHeight: 14,
-});
+/** Checkpoint (Chentang fishing lamp) on the vortex edge by the canyon mouth: respawn point. */
+export const CHECKPOINT: Vec3 = [0, 0, 16.5];
 
 export const CANYON = Object.freeze({
   /** The canyon meets the plaza edge at zStart and runs ~30 m to the dead end at zEnd. */
@@ -70,7 +77,7 @@ export function canyonHalfWidth(z: number): number {
 
 export const SPAWN: Vec3 = [canyonCenterX(CANYON.spawnZ), FLOOR_Y, CANYON.spawnZ];
 
-/** Standing dragon pillars: eight around the plaza, two in the canyon (none overhead below 3 m). */
+/** Standing dragon pillars: only the two in the canyon remain (no palace; none overhead). */
 export interface PillarSpec {
   readonly id: string;
   readonly x: number;
@@ -80,26 +87,12 @@ export interface PillarSpec {
 }
 
 export const PILLARS: readonly PillarSpec[] = Object.freeze([
-  ...Array.from({ length: 8 }, (_, index): PillarSpec => {
-    const angle = ((index + 0.5) / 8) * Math.PI * 2;
-    return { id: `plaza-${index}`, x: Math.sin(angle) * 12.5, z: Math.cos(angle) * 12.5, radius: 0.85, height: 10 };
-  }),
   { id: 'canyon-0', x: canyonCenterX(28) - 1.6, z: 28, radius: 0.7, height: 8 },
   { id: 'canyon-1', x: canyonCenterX(38) + 1.4, z: 38, radius: 0.7, height: 8 },
 ]);
 
-/** Long lock-on placeholder (stands in for the serpentine dragon body). */
-export const LOCK_TARGET = Object.freeze({
-  center: [0, FLOOR_Y, -7] as Vec3,
-  /** Long axis yaw (radians); 0 = along world X. */
-  yaw: 0,
-  /** Cross-section thickness as a fraction of height, clamped to [1, 3] m. */
-  thicknessRatio: 0.45,
-});
-
-export function targetThickness(height: number): number {
-  return Math.min(3, Math.max(1, height * LOCK_TARGET.thicknessRatio));
-}
+/** Lowest overhead structure allowed above the passable area (Nezha + sash ≤ 3.45 m). */
+export const PASSABLE_CEILING = 4.5;
 
 /** Far trench terraces (远景) where the far seaweed group grows. */
 export const TRENCH = Object.freeze({

@@ -1,4 +1,4 @@
-import { createBoxGeometry, createConeGeometry, createCylinderGeometry, createMeshBuilder, createPlaneGeometry, createTorusGeometry } from '@forgeax/engine/geometry';
+import { createBoxGeometry, createConeGeometry, createCylinderGeometry, createMeshBuilder, createPlaneGeometry, createSphereGeometry, createTorusGeometry } from '@forgeax/engine/geometry';
 import { definePack } from '@forgeax/engine/pack/source';
 import type { MeshAsset } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
@@ -9,14 +9,13 @@ import {
   CANYON,
   canyonCenterX,
   canyonHalfWidth,
-  PALACE,
   PILLARS,
   seeded,
   TRENCH,
   WARN,
 } from './shared/layout.ts';
-import { axisAngle, MeshKit, yawQ } from './shared/mesh-kit.ts';
-import { canyonWallSegments, ringWallSegments, trenchSegments } from './shared/greybox.ts';
+import { axisAngle, fromTo, MeshKit, yawQ, type V3 } from './shared/mesh-kit.ts';
+import { canyonWallSegments, trenchSegments } from './shared/greybox.ts';
 
 
 const single = (mesh: MeshAsset, material: string): MeshAsset => ({ ...mesh, materialSlots: [slot('Surface', material)] });
@@ -26,30 +25,9 @@ function unwrapMesh(result: ReturnType<typeof createBoxGeometry>): MeshAsset {
   return result.value;
 }
 
-/** All palace and reef walls merged into one mesh (one draw per material); colliders are separate entities. */
+/** All reef walls merged into one mesh (one draw per material); colliders are separate entities. */
 function walls(): MeshAsset {
   const kit = new MeshKit();
-  for (const segment of ringWallSegments()) {
-    kit.add(createBoxGeometry(segment.length, ARENA.wallHeight, ARENA.wallThickness), {
-      t: [segment.x, ARENA.wallHeight / 2, segment.z],
-      r: yawQ(segment.yaw),
-    }, 0);
-    // Coping stone on top of the palace wall.
-    kit.add(createBoxGeometry(segment.length + 0.05, 0.35, ARENA.wallThickness + 0.4), {
-      t: [segment.x, ARENA.wallHeight + 0.17, segment.z],
-      r: yawQ(segment.yaw),
-    }, 2);
-  }
-  // Palace facade closing the gate gap, with a recessed gate.
-  const facadeWidth = 2 * ARENA.wallRadius * Math.sin((ARENA.gateHalfAngleDeg * Math.PI) / 180) + 3;
-  kit.add(createBoxGeometry(facadeWidth, 9, 1.4), { t: [0, 4.5, PALACE.facadeZ - 0.7] }, 0);
-  kit.add(createBoxGeometry(4.2, 6, 0.4), { t: [0, 3, PALACE.facadeZ + 0.05] }, 2);
-  kit.add(createBoxGeometry(PALACE.hallWidth, PALACE.hallHeight, PALACE.hallDepth), {
-    t: [0, PALACE.hallHeight / 2, PALACE.facadeZ - 1.4 - PALACE.hallDepth / 2],
-  }, 0);
-  kit.add(createBoxGeometry(PALACE.hallWidth + 4, 1.2, PALACE.hallDepth + 4), {
-    t: [0, PALACE.hallHeight + 0.6, PALACE.facadeZ - 1.4 - PALACE.hallDepth / 2],
-  }, 2);
   // Reef canyon walls (rough rock: segments jittered in height and depth).
   const random = seeded(17);
   for (const segment of canyonWallSegments()) {
@@ -106,7 +84,6 @@ function beamShaft(): MeshAsset {
   return kit.build([slot('Beam', 'light-beam')]);
 }
 
-const PLAZA_PILLAR = PILLARS[0]!;
 const CANYON_PILLAR = PILLARS.find((p) => p.id.startsWith('canyon'))!;
 
 export default definePack({
@@ -116,14 +93,27 @@ export default definePack({
   build: () =>
     ok({
       'mesh/seabed': single(unwrapMesh(createBoxGeometry(240, 0.4, 240)), 'seabed'),
-      'mesh/plaza': single(unwrapMesh(createCylinderGeometry(ARENA.radius + 0.4, ARENA.radius + 0.4, 0.04, 64, 1)), 'jade-plaza'),
+      'mesh/vortex': vortexDisc(),
+      'mesh/water-wall': waterWall(),
+      'mesh/lamp': chentangLamp(),
       'mesh/walls': walls(),
       'mesh/trench': trench(),
-      'mesh/pillar-plaza': pillar(PLAZA_PILLAR.radius, PLAZA_PILLAR.height),
       'mesh/pillar-canyon': pillar(CANYON_PILLAR.radius, CANYON_PILLAR.height),
-      /** Unit box: the lock target is scaled at runtime by its Transform (render only). */
-      'mesh/lock-target': single(unwrapMesh(createBoxGeometry(1, 1, 1)), 'lock-target'),
-      'mesh/beam': beamShaft(),
+      // --- M3 dragon (greybox): unit pieces placed by the dragon plugin every frame ---
+      /** Body segment: unit cylinder along +Y (length 1, radius 1), centred. */
+      'mesh/dragon-segment': (() => {
+        const kit = new MeshKit();
+        kit.add(createCylinderGeometry(1, 1, 1, 14, 1, true), {}, 0);
+        return kit.build([slot('Scale', 'dragon-front')]);
+      })(),
+      'mesh/dragon-joint': single(unwrapMesh(createSphereGeometry(1, 14, 10)), 'dragon-front'),
+      'mesh/dragon-fin': single(unwrapMesh(createConeGeometry(0.5, 1, 4)), 'dragon-ridge'),
+      'mesh/dragon-head': dragonHead(),
+      'mesh/dragon-eyes': (() => {
+        const kit = new MeshKit();
+        for (const side of [-1, 1] as const) kit.add(createSphereGeometry(0.09, 10, 8), { t: [side * 0.33, 0.18, -0.55] }, 0);
+        return kit.build([slot('Eyes', 'dragon-eye')]);
+      })(),      'mesh/beam': beamShaft(),
       /** A single seaweed blade (tapered, bent); clumps are runtime instances of it. */
       'mesh/seaweed-blade': seaweedBlade(),
       'mesh/marker': single(unwrapMesh(createConeGeometry(0.2, 0.4, 8)), 'pillar'),
@@ -231,4 +221,99 @@ function flat(shape: { tris: number[]; pts: number[][] }, slotName: string, mate
   }).build();
   if (!built.ok) throw built.error;
   return built.value;
+}
+
+/** Raw triangle mesh helper (positions / normals / uv / indices). */
+function raw(position: number[], normal: number[], uv: number[], indices: number[], slotName: string, material: string): MeshAsset {
+  const count = position.length / 3;
+  const built = createMeshBuilder({
+    attributes: { position: new Float32Array(position), normal: new Float32Array(normal), uv: new Float32Array(uv) },
+    indices: new Uint32Array(indices),
+    submeshes: [{ indexOffset: 0, indexCount: indices.length, vertexCount: count, topology: 'triangle-list', materialSlot: 0 }],
+    materialSlots: [slot(slotName, material)],
+  }).build();
+  if (!built.ok) throw built.error;
+  return built.value;
+}
+
+/** Flat polar disc of the vortex floor (r = 20 m); the shader reads positionOS for radius / angle. */
+function vortexDisc(): MeshAsset {
+  const rings = 24, sectors = 96;
+  const position: number[] = [], normal: number[] = [], uv: number[] = [], indices: number[] = [];
+  position.push(0, 0, 0); normal.push(0, 1, 0); uv.push(0.5, 0.5);
+  for (let r = 1; r <= rings; r += 1) {
+    const radius = (ARENA.radius + 0.3) * (r / rings);
+    for (let k = 0; k < sectors; k += 1) {
+      const a = (k / sectors) * Math.PI * 2;
+      position.push(Math.sin(a) * radius, 0, Math.cos(a) * radius);
+      normal.push(0, 1, 0);
+      uv.push(0.5 + (Math.sin(a) * radius) / 41, 0.5 + (Math.cos(a) * radius) / 41);
+    }
+  }
+  for (let k = 0; k < sectors; k += 1) indices.push(0, 1 + ((k + 1) % sectors), 1 + k);
+  for (let r = 1; r < rings; r += 1) {
+    const a0 = 1 + (r - 1) * sectors, a1 = 1 + r * sectors;
+    for (let k = 0; k < sectors; k += 1) {
+      const k1 = (k + 1) % sectors;
+      indices.push(a0 + k, a0 + k1, a1 + k, a0 + k1, a1 + k1, a1 + k);
+    }
+  }
+  return raw(position, normal, uv, indices, 'Vortex', 'vortex');
+}
+
+/** Inward-facing water wall (r = 26 m), open at the canyon mouth. uv.x = angle / 2π, uv.y = height. */
+function waterWall(): MeshAsset {
+  const gap = ((ARENA.entranceHalfAngleDeg + 1) * Math.PI) / 180;
+  const sectors = 120, rows = 8;
+  const position: number[] = [], normal: number[] = [], uv: number[] = [], indices: number[] = [];
+  for (let k = 0; k <= sectors; k += 1) {
+    const a = gap + (k / sectors) * (Math.PI * 2 - 2 * gap);
+    for (let j = 0; j <= rows; j += 1) {
+      const y = (j / rows) * ARENA.wallHeight;
+      position.push(Math.sin(a) * ARENA.wallRadius, y, Math.cos(a) * ARENA.wallRadius);
+      normal.push(-Math.sin(a), 0, -Math.cos(a));
+      uv.push(a / (Math.PI * 2), j / rows);
+    }
+  }
+  for (let k = 0; k < sectors; k += 1) {
+    for (let j = 0; j < rows; j += 1) {
+      const i0 = k * (rows + 1) + j, i1 = (k + 1) * (rows + 1) + j;
+      indices.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1);
+    }
+  }
+  return raw(position, normal, uv, indices, 'Water', 'water-wall');
+}
+
+/** Chentang fishing lamp (checkpoint), reusing the sea-lamp idea: post + warm lantern. */
+function chentangLamp(): MeshAsset {
+  const kit = new MeshKit();
+  kit.add(createCylinderGeometry(0.06, 0.08, 1.6, 8, 1), { t: [0, 0.8, 0] }, 0);
+  kit.add(createSphereGeometry(0.22, 12, 8), { t: [0, 1.75, 0] }, 1);
+  return kit.build([slot('Post', 'pillar'), slot('Lantern', 'lamp-glow')]);
+}
+
+/**
+ * Placeholder dragon head (frozen interface: origin at the neck joint, facing -Z, about 1.5 m
+ * wide at the neck). Snout, jaw, 1.2 m antlers and two 3 m white whiskers.
+ */
+function dragonHead(): MeshAsset {
+  const kit = new MeshKit();
+  const limb = (a: V3, b: V3, ra: number, rb: number, s: number) => {
+    const d: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const len = Math.hypot(...d);
+    kit.add(createCylinderGeometry(rb, ra, len, 8, 1), { t: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], r: fromTo([0, 1, 0], [d[0] / len, d[1] / len, d[2] / len]) }, s);
+  };
+  kit.add(createSphereGeometry(0.62, 16, 12), { t: [0, 0.05, 0], s: [1, 0.85, 1.05] }, 0);
+  kit.add(createBoxGeometry(0.72, 0.42, 1.1), { t: [0, 0.02, -0.75] }, 0);
+  kit.add(createBoxGeometry(0.62, 0.18, 1.0), { t: [0, -0.26, -0.68] }, 0);
+  kit.add(createBoxGeometry(0.8, 0.12, 0.35), { t: [0, 0.27, -0.25] }, 2);
+  for (const side of [-1, 1] as const) {
+    // Antlers: main beam back and up (1.2 m) with a forward tine.
+    limb([side * 0.22, 0.42, 0.05], [side * 0.5, 1.2, 0.75], 0.07, 0.03, 1);
+    limb([side * 0.38, 0.85, 0.42], [side * 0.62, 1.1, 0.15], 0.035, 0.015, 1);
+    // Whiskers: 3 m, drooping from the upper lip.
+    limb([side * 0.3, -0.05, -1.2], [side * 1.3, -0.6, -0.4], 0.035, 0.03, 1);
+    limb([side * 1.3, -0.6, -0.4], [side * 1.9, -1.1, 1.1], 0.03, 0.012, 1);
+  }
+  return kit.build([slot('Head', 'dragon-front'), slot('Horn', 'dragon-horn'), slot('Brow', 'dragon-ridge')]);
 }

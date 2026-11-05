@@ -1,7 +1,7 @@
 /**
  * Seaweed placement (pure, deterministic): three groups with independent counts,
  * planted in clumps. Canyon: along both reef walls, leaving ≥ 1.5 m clear each side
- * of the centre line. Plaza edge: ring 16–20 m, not in the entrance or gate gaps.
+ * of the centre line. Edge: the dragon band floor 20.6–25.4 m, not at the canyon mouth.
  * Far: trench terraces. Nothing within 2 m of a pillar (pillar QA probes).
  */
 import { ARENA, CANYON, canyonCenterX, canyonHalfWidth, PILLARS, seeded, TRENCH } from '../shared/layout.ts';
@@ -36,11 +36,12 @@ function candidate(group: SeaweedGroup, random: () => number): { x: number; y: n
     return { x: canyonCenterX(z) + side * offset, y: 0, z };
   }
   if (group === 'edge') {
+    // M3: the band floor between the vortex and the water wall (static seabed), not the rotating vortex.
     const angle = random() * Math.PI * 2;
     const fromEntrance = Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle)));
-    if (fromEntrance < (ARENA.entranceHalfAngleDeg + 4) * DEG || Math.PI - fromEntrance < (ARENA.gateHalfAngleDeg + 2) * DEG) return undefined;
-    const radius = ARENA.seaweedInnerRadius + random() * (ARENA.radius - 0.4 - ARENA.seaweedInnerRadius);
-    return { x: Math.sin(angle) * radius, y: 0.026, z: Math.cos(angle) * radius };
+    if (fromEntrance < (ARENA.entranceHalfAngleDeg + 6) * DEG) return undefined;
+    const radius = ARENA.seaweedInnerRadius + random() * (ARENA.seaweedOuterRadius - ARENA.seaweedInnerRadius);
+    return { x: Math.sin(angle) * radius, y: 0, z: Math.cos(angle) * radius };
   }
   const angle = random() * Math.PI * 2;
   if (Math.cos(angle) > 0.85) return undefined;

@@ -191,6 +191,42 @@ export default definePack({
       'material/bind-crimson': glow([0.48, 0.006, 0.024], 2.2),
       'material/bind-gold': glow([1.0, 0.7, 0.2], 1.4),
 
+      // --- M3 boss field and dragon (greybox) ------------------------------------------
+      'material/vortex': Materials.standard({
+        surfaceModule: 'nezha::vortex_surface',
+        parameters: [
+          { name: 'baseColor', type: 'color' },
+          { name: 'ta', type: 'f32' },
+          { name: 'tb', type: 'f32' },
+          { name: 'wa', type: 'f32' },
+          { name: 'innerDegPerSec', type: 'f32' },
+          { name: 'outerDegPerSec', type: 'f32' },
+          { name: 'calmRadius', type: 'f32' },
+          { name: 'calmContrast', type: 'f32' },
+          { name: 'outerContrast', type: 'f32' },
+        ],
+        values: { baseColor: [0.11, 0.14, 0.16, 1], ta: 0, tb: 0, wa: 1, innerDegPerSec: 1, outerDegPerSec: 2, calmRadius: 14, calmContrast: 0.07, outerContrast: 0.2 },
+      }),
+      'material/water-wall': Materials.standard({
+        surfaceModule: 'nezha::water_wall_surface',
+        parameters: [
+          { name: 'waterColor', type: 'color' },
+          { name: 'phase', type: 'f32' },
+        ],
+        values: { waterColor: [0.013, 0.0595, 0.117, 1], phase: 0 },
+        renderState: { ...ALPHA_BLEND, cullMode: 'none' },
+        queue: RenderQueue.Transparent + 5,
+      }),
+      'material/lamp-glow': std([1.0, 0.78, 0.45], { emissive: [1.0, 0.62, 0.28], emissiveIntensity: 3 }),
+      // Dragon body bands (#7FA295 / #587A6D / #25342E), ridge #587A6D, horns & whiskers #E6E3DA.
+      'material/dragon-front': std([0.2122, 0.3613, 0.3005], { metallic: 0.2, roughness: 0.55 }),
+      'material/dragon-mid': std([0.0976, 0.1946, 0.1529], { metallic: 0.2, roughness: 0.55 }),
+      'material/dragon-tail': std([0.0185, 0.0343, 0.0273], { metallic: 0.2, roughness: 0.6 }),
+      'material/dragon-ridge': std([0.0976, 0.1946, 0.1529], { roughness: 0.5 }),
+      'material/dragon-horn': std([0.7913, 0.7682, 0.7011], { roughness: 0.6 }),
+      /** Moon-cyan eyes #CFE7E4: steady glow at 30 % (50 % telegraph, 15 % opening, 0 closed). Never flickers. */
+      'material/dragon-eye': glow([0.624, 0.7991, 0.7758], 0.3),
+
       /** Silhouette review (dev grey mode): every Nezha part becomes one mid grey. */
       'material/grey': std([0.4, 0.4, 0.4], { roughness: 0.8 }),
     }),
