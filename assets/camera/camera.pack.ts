@@ -18,6 +18,7 @@ import { boomLimit, cameraRight, createBoom, orbitDirection, wallLift, type V3 }
 
 const DEG = Math.PI / 180;
 const PROBE_RADIUS = 0.2;
+const REVIEW_FAR = 30;
 /** Boom reach that frames Nezha whole while locked (55° FOV), and the most the camera may rise to keep it. */
 const LOCK_FIT_DISTANCE = 2.9;
 const LOCK_MAX_LIFT = 2.6;
@@ -132,7 +133,9 @@ export const camera: Plugin = {
           pitch = Math.max(cam.pitchMin * DEG, Math.min(cam.pitchMax * DEG, pitch));
           playerService.setCameraYaw(yaw);
 
-          const distance = locked ? cam.distanceLocked : cam.distance;
+          // Dev review camera (?dev=1&lab=far30): silhouette check from 30 m.
+          const far = session.frontend().lab === 'far30';
+          const distance = far ? REVIEW_FAR : locked ? cam.distanceLocked : cam.distance;
           const right = cameraRight(yaw);
           const back = orbitDirection(yaw, pitch);
           const hits: (number | undefined)[] = [];

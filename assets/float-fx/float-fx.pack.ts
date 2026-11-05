@@ -39,6 +39,8 @@ export const floatFx: Plugin = {
     const assets = host.assets;
     const material = await assets.load(guidText(materialGuid('sash')), 'material');
     if (!material.ok) throw material.error;
+    const greyMat = await assets.load(guidText(materialGuid('grey')), 'material');
+    if (!greyMat.ok) throw greyMat.error;
 
     const strands = Math.max(1, Math.round(tuning.current.sash.strands));
     const segments = Math.max(2, Math.round(tuning.current.sash.segments));
@@ -74,7 +76,9 @@ export const floatFx: Plugin = {
     await ctx.effect(function* () {
       yield () => {
         assets.release(material.value).unwrap();
+        assets.release(greyMat.value).unwrap();
       };
+      let sashGrey = false;
       yield () => {
         assets.release(mesh).unwrap();
       };
@@ -100,6 +104,10 @@ export const floatFx: Plugin = {
         before: ['nezha-player-pose', PROPAGATE_TRANSFORMS_SYSTEM],
         queries: [],
         fn: () => {
+          if (session.frontend().grey !== sashGrey) {
+            sashGrey = session.frontend().grey;
+            world.set(ribbon, MeshRenderer, { materials: [sashGrey ? greyMat.value : material.value] } as never).unwrap();
+          }
           const rawDt = world.getResource(Time).delta;
           const dt = Math.min(rawDt, 1 / 30);
           const t = tuning.current;

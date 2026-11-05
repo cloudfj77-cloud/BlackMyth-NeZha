@@ -5,12 +5,13 @@ import { quat, vec3 } from '@forgeax/engine/math';
 import type { PhysicsWorld } from '@forgeax/engine/physics';
 import type { Plugin } from '@forgeax/engine/plugin';
 import { readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
+import { MeshRenderer } from '@forgeax/engine/render';
 import type { MeshAsset } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import { cameraRelativeMove, facingYaw } from '../camera/third-person.ts';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
-import { characterGuid, guidText, PACKAGE_IDS } from '../shared/asset-refs.ts';
+import { characterGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { FLOOR_Y, SPAWN } from '../shared/layout.ts';
 import { FEET_Y } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
@@ -80,6 +81,15 @@ export const hoverPlayer: Plugin = {
     const player = resolveGameEntity(world, ctx.gameScene, 'player');
     const model = resolveGameEntity(world, ctx.gameScene, 'player/model');
     const glow = resolveGameEntity(world, ctx.gameScene, 'player/glow');
+    // Silhouette review (dev grey mode): every Nezha part takes one mid-grey material.
+    const greyParts = [
+      { entity: resolveGameEntity(world, ctx.gameScene, 'player/body'), slots: 5 },
+      { entity: resolveGameEntity(world, ctx.gameScene, 'player/spear'), slots: 3 },
+      { entity: resolveGameEntity(world, ctx.gameScene, 'player/wheels'), slots: 1 },
+    ];
+    const greyLoaded = await host.assets.load(guidText(materialGuid('grey')), 'material');
+    if (!greyLoaded.ok) throw greyLoaded.error;
+    const greyMaterial = greyLoaded.value;
 
     // Silhouette proof is measured from the cooked meshes, not from the authoring constants.
     const measure = async (key: string, axis: 'height' | 'length') => {
@@ -98,6 +108,8 @@ export const hoverPlayer: Plugin = {
     const silhouette = { height: r3(await measure('nezha-body', 'height')), spearLength: r3(await measure('nezha-spear', 'length')) };
 
     await ctx.effect(function* () {
+      yield () => host.assets.release(greyMaterial).unwrap();
+      let greyApplied = false;
       const shift = createShiftGesture();
       const stepper = createVelocityStepper();
       let frameInput: FrameInput = IDLE;
@@ -229,7 +241,14 @@ export const hoverPlayer: Plugin = {
             pos: [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY, 0],
             quat: [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1],
           }).unwrap();
-          const g = tuning.current.glow.radius;
+          const grey = session.frontend().grey;
+          if (grey !== greyApplied) {
+            greyApplied = grey;
+            for (const part of greyParts) {
+              world.set(part.entity, MeshRenderer, { materials: grey ? Array.from({ length: part.slots }, () => greyMaterial) : [] } as never).unwrap();
+            }
+          }
+          const g = grey ? 0 : tuning.current.glow.radius;
           world.set(glow, Transform, { scale: [g, 1, g] }).unwrap();
         },
       }).unwrap();
@@ -263,7 +282,7 @@ export const hoverPlayer: Plugin = {
           intensity: tuning.current.glow.intensity,
         };
       });
-      yield telemetry.section('silhouette', () => silhouette);
+      yield telemetry.section('silhouette', () => ({ ...silhouette, grey: greyApplied }));
 
       yield ctx.provide('nezhaPlayer', {
         entity: player,
