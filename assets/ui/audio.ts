@@ -91,6 +91,15 @@ export function createCombatAudio(view: Window): CombatAudio {
     },
     roll: (ctx) => whoosh(ctx, 700, 1600, 0.2, 0.18),
     hurt: (ctx) => tone(ctx, 'sine', 110, 50, 0.25, 0.5),
+    // M3: defeat (「败」) — a low, dull drop; the dragon falling — a long descending sigh.
+    defeat: (ctx) => {
+      tone(ctx, 'sine', 70, 38, 0.9, 0.55);
+      tone(ctx, 'triangle', 140, 70, 0.6, 0.15, 0.05);
+    },
+    'boss-dead': (ctx) => {
+      tone(ctx, 'sine', 220, 55, 2.2, 0.35);
+      tone(ctx, 'sine', 330, 82, 2.0, 0.12, 0.1);
+    },
     lotus: (ctx) => {
       tone(ctx, 'sine', 660, 990, 0.3, 0.15);
       tone(ctx, 'sine', 990, 1320, 0.3, 0.1, 0.12);

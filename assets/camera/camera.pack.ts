@@ -28,11 +28,15 @@ const r3 = (value: number) => Math.round(value * 1000) / 1000;
 export interface CameraLockView {
   /** World point the camera keeps in frame together with Nezha. */
   readonly target: () => V3;
+  /** M3: extra aim height (m) while the dragon head is above 5 m — the camera tilts up, never pulls back. */
+  readonly raise?: () => number;
 }
 
 export interface CameraService {
   readonly setLockView: (view: CameraLockView | undefined) => void;
   readonly pose: () => { readonly position: V3; readonly rotation: readonly [number, number, number, number]; readonly fov: number };
+  /** Hard cut behind Nezha (defeat / victory reset): yaw, default pitch, focus re-seeded. */
+  readonly snap: (yaw: number) => void;
 }
 
 declare module '@forgeax/engine/plugin' {
@@ -67,6 +71,7 @@ export const camera: Plugin = {
       let fovApplied = -1;
       let lockView: CameraLockView | undefined;
       let shakeNow = 0, shakePeak = 0;
+      let aimRaise = 0;
       let state = {
         position: [0, 0, 0] as V3,
         rotation: [0, 0, 0, 1] as readonly [number, number, number, number],
@@ -184,13 +189,16 @@ export const camera: Plugin = {
             const nearest = hits.reduce<number | undefined>((min, hit) => (hit === undefined ? min : Math.min(min ?? hit, hit)), undefined);
             if (nearest !== undefined) wallGap = r3(nearest - length);
             let lookAt: V3;
+            // Head above 5 m: raise the aim only (smoothed ~0.2 s), distance and height untouched.
+            const raiseGoal = locked ? Math.max(0, lockView!.raise?.() ?? 0) : 0;
+            aimRaise += (raiseGoal - aimRaise) * (1 - Math.exp(-dt / 0.07));
             if (locked) {
               const goal = lockView!.target();
               const free: V3 = [focus[0] + (goal[0] - focus[0]) * cam.lockLookAtRatio, focus[1], focus[2] + (goal[2] - focus[2]) * cam.lockLookAtRatio];
               // Lifted: pull the aim back onto Nezha's chest so the whole body stays in frame.
               const blend = Math.min(1, lift / 1.2);
               const chest: V3 = [focus[0], groundY + 1.0, focus[2]];
-              lookAt = [free[0] + (chest[0] - free[0]) * blend, free[1] + (chest[1] - free[1]) * blend, free[2] + (chest[2] - free[2]) * blend];
+              lookAt = [free[0] + (chest[0] - free[0]) * blend, free[1] + (chest[1] - free[1]) * blend + aimRaise, free[2] + (chest[2] - free[2]) * blend];
             } else if (lift > 0) {
               // Lifted: look down over the shoulder at the chest, so body, wheels and glow stay in frame.
               const blend = Math.min(1, lift / Math.max(0.05, cam.wallLiftMax));
@@ -222,6 +230,7 @@ export const camera: Plugin = {
         blocked: state.blocked,
         lifted: state.lift > 0,
         lift: r3(state.lift),
+        aimRaise: r3(aimRaise),
         lineClear: state.lineClear,
         wallGap: state.wallGap,
         locked: lockView !== undefined,
@@ -233,6 +242,12 @@ export const camera: Plugin = {
           lockView = view;
         },
         pose: () => ({ position: state.position, rotation: state.rotation, fov: tuning.current.camera.fovY * DEG }),
+        snap: (nextYaw) => {
+          yaw = nextYaw;
+          pitch = tuning.current.camera.pitchDefault * DEG;
+          focus = undefined;
+          playerService.setCameraYaw(yaw);
+        },
       } satisfies CameraService);
     }, 'nezha/camera');
   },

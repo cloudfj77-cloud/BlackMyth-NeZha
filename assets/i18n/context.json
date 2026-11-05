@@ -46,6 +46,5 @@
   "ui:hud.hint.sashCooldown": "Toast when Sash Bind is used during its cooldown. Budget 28 chars.",
   "ui:hud.bar.hp": "Label of the player health bar. HUD budget 22 chars.",
   "ui:hud.bar.stamina": "Label of the player stamina bar. HUD budget 22 chars.",
-  "ui:hud.training.fakeLine": "Training-ground tip next to the T key: triggers a line fake attack.",
-  "ui:hud.training.fakeFan": "Training-ground tip next to the Y key: triggers a fan fake attack."
+  "ui:hud.banner.defeat": "Defeat banner shown for 1 s in the middle of the screen when Nezha's health reaches zero; then the fight restarts. Chinese is a single calligraphic character「败」; keep it one short word."
 }

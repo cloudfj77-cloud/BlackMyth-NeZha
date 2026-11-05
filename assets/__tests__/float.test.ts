@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { placeSeaweed, swayAngle } from '../ambient-float/placement.ts';
-import { createFloat } from '../float-fx/float.ts';
+import { bobShape, createFloat } from '../float-fx/float.ts';
 import { canyonCenterX } from '../shared/layout.ts';
 import { defaultTuning } from '../shared/tuning.ts';
 
@@ -27,16 +27,25 @@ function measure(mode: 'idle' | 'move' | 'sprint', seconds = 6) {
 }
 
 describe('Nezha float', () => {
-  it('idles at ±5 cm, 0.8 Hz (±10%) with ±1.5° sway', () => {
+  it('idles at ±15 cm, 0.8 Hz (±10%) with ±3° sway (M3)', () => {
     const m = measure('idle');
-    expect(m.amp).toBeCloseTo(0.05, 3);
+    expect(m.amp).toBeCloseTo(0.15, 3);
     expect(Math.abs(m.hz - 0.8) / 0.8).toBeLessThanOrEqual(0.1);
-    expect((m.roll * 180) / Math.PI).toBeCloseTo(1.5, 1);
+    expect((m.roll * 180) / Math.PI).toBeCloseTo(3, 1);
   });
-  it('drops to ±3 cm moving and ±1.5 cm without sway when sprinting', () => {
-    expect(measure('move').amp).toBeCloseTo(0.03, 3);
+  it('rises over 35 % of each cycle and settles over the rest, without a seam', () => {
+    let rising = 0;
+    const n = 1000;
+    for (let i = 0; i < n; i += 1) if (bobShape((i + 1) / n, 0.35) > bobShape(i / n, 0.35)) rising += 1;
+    expect(rising / n).toBeCloseTo(0.35, 2);
+    for (const p of [0, 0.35, 1]) expect(Math.abs(bobShape(p - 1e-6, 0.35) - bobShape(p + 1e-6, 0.35))).toBeLessThan(1e-3);
+    // Symmetric share reproduces the M1 sine.
+    for (let p = 0; p < 1; p += 0.05) expect(bobShape(p + 0.25, 0.5)).toBeCloseTo(Math.sin(2 * Math.PI * p), 6);
+  });
+  it('drops to ±10 cm moving and ±5 cm without sway when sprinting (M3)', () => {
+    expect(measure('move').amp).toBeCloseTo(0.1, 3);
     const sprint = measure('sprint');
-    expect(sprint.amp).toBeCloseTo(0.015, 3);
+    expect(sprint.amp).toBeCloseTo(0.05, 3);
     expect(Math.abs(sprint.roll)).toBeLessThan(1e-3);
   });
 });

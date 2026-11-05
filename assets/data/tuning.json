@@ -6,7 +6,7 @@
     "decelTime": 0.15,
     "turnRate": 720,
     "sprintHoldThreshold": 0,
-    "hoverHeight": 0.3,
+    "hoverHeight": 1.15,
     "leanWalk": 10,
     "leanSprint": 20,
     "leanBlendTime": 0.15,
@@ -15,8 +15,8 @@
   },
   "camera": {
     "shoulderOffset": 0.6,
-    "focusHeight": 1.6,
-    "focusHeightLocked": 1.8,
+    "focusHeight": 2.4,
+    "focusHeightLocked": 2.4,
     "distance": 5,
     "distanceLocked": 6.5,
     "minDistance": 1.2,
@@ -32,23 +32,27 @@
     "lockLookAtRatio": 0.3
   },
   "float": {
-    "idleAmp": 0.05,
+    "idleAmp": 0.15,
     "idleFreq": 0.8,
-    "swayDeg": 1.5,
+    "riseShare": 0.35,
+    "swayDeg": 3,
     "swayFreq": 0.55,
     "swayPhase": 90,
-    "moveAmp": 0.03,
-    "sprintAmp": 0.015,
+    "moveAmp": 0.1,
+    "sprintAmp": 0.05,
     "blendTime": 0.3
   },
   "sash": {
     "lagCycles": 0.25,
     "strands": 2,
     "segments": 12,
-    "length": 1.1,
+    "length": 2.2,
     "stiffness": 40,
     "damping": 6,
-    "buoyancy": 2.5
+    "buoyancy": 2.5,
+    "tipFreq": 1.6,
+    "rollLength": 1.0,
+    "rollCap": 3.45
   },
   "wheel": {
     "emissive": 0.3

@@ -172,11 +172,24 @@ describe('roll and perfect dodge', () => {
     expect(r.states[23]).toBe('free:0');
     expect(r.events.filter((x) => x.event.type === 'swing-light').length).toBe(1);
   });
-  it('refills health in training when it drops to zero', () => {
+  it('is defeated at zero health (M3), takes no input, and reset() starts a fresh fight', () => {
     const c = createCombat();
     for (let i = 0; i < 5; i += 1) c.incoming(18);
-    expect(c.incoming(18).type).toBe('refill');
-    expect(c.snapshot().hp).toBe(100);
+    expect(c.incoming(18).type).toBe('dead');
+    expect(c.snapshot().hp).toBe(0);
+    expect(c.step(press({ roll: true }), env()).state.kind).toBe('dead');
+    c.reset();
+    expect(c.snapshot()).toMatchObject({ hp: 100, stamina: 100, lotus: 3, sashCd: 0, action: 'free' });
+  });
+  it('knocks back 3 m over the first stun steps (tail lash)', () => {
+    const c = createCombat();
+    c.incoming(18, { dir: { x: 1, z: 0 }, distance: 3 });
+    let x = 0;
+    for (let i = 0; i < 24; i += 1) {
+      const out = c.step(NONE, env());
+      if (out.velocity) x += out.velocity.x / 60;
+    }
+    expect(x).toBeCloseTo(3, 6);
   });
 });
 
@@ -251,24 +264,6 @@ describe('input buffer', () => {
   });
 });
 
-import { insideWarning } from '../training/training.pack.ts';
-describe('training warnings: the shape is the damage area', () => {
-  // Origin at the dummy edge, pointing -Z (yaw 0).
-  it('line: 1.4 m wide, 8 m long (+ capsule radius)', () => {
-    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0, -4, 0.35)).toBe(true);
-    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0.7 + 0.34, -4, 0.35)).toBe(true);
-    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0.7 + 0.36, -4, 0.35)).toBe(false);
-    expect(insideWarning('line', { x: 0, z: 0 }, 0, 0, -8.4, 0.35)).toBe(false);
-  });
-  it('fan: 5 m radius, 120°', () => {
-    expect(insideWarning('fan', { x: 0, z: 0 }, 0, 0, -4.9, 0)).toBe(true);
-    expect(insideWarning('fan', { x: 0, z: 0 }, 0, 0, -5.1, 0)).toBe(false);
-    const at = (deg: number) => [Math.sin((deg * Math.PI) / 180) * 3, -Math.cos((deg * Math.PI) / 180) * 3] as const;
-    expect(insideWarning('fan', { x: 0, z: 0 }, 0, ...at(59), 0)).toBe(true);
-    expect(insideWarning('fan', { x: 0, z: 0 }, 0, ...at(61), 0)).toBe(false);
-  });
-});
-
 describe('boss 21:55: a roll cancels anything immediately, no stiffness', () => {
   const rollNow = (c: ReturnType<typeof createCombat>) => {
     const out = c.step(press({ roll: true }), env());
@@ -328,5 +323,21 @@ describe('boss 21:55: a roll cancels anything immediately, no stiffness', () => 
       }
       expect(d).toBeCloseTo(dist, 6);
     }
+  });
+});
+
+describe('tail hits (boss 1B: ×0.3, lighter hit feel)', () => {
+  const tailEnv = env({ strike: (_r, _f, range) => ({ hit: range >= 2, distance: 2, angleDeg: 0, point: { x: 0, z: -2 }, segment: 7, tail: true }) });
+  it('deals 30 % (rounded, at least 1) with hitstop 1 / 1 / 2 and no shake', () => {
+    const c = createCombat();
+    const r = run(c, [press({ light: true }), ...idle(10), press({ light: true }), ...idle(10), press({ light: true }), ...idle(14)], tailEnv);
+    const hits = r.events.filter((x) => x.event.type === 'hit').map((x) => x.event as Extract<CombatEvent, { type: 'hit' }>);
+    expect(hits.map((h) => [h.damage, h.hitstop, h.shake, h.tail])).toEqual([[2, 1, 0, true], [3, 1, 0, true], [4, 2, 0, true]]);
+  });
+  it('full-charge heavy on the tail: 14 damage, hitstop 2', () => {
+    const c = createCombat();
+    const r = run(c, [...Array.from({ length: 72 }, () => press({ heavyHeld: true })), ...idle(20)], tailEnv);
+    const hit = r.events.find((x) => x.event.type === 'hit')!.event as Extract<CombatEvent, { type: 'hit' }>;
+    expect([hit.damage, hit.hitstop, hit.shake]).toEqual([14, 2, 0]);
   });
 });

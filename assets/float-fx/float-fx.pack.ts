@@ -93,7 +93,7 @@ export const floatFx: Plugin = {
     }).build();
     if (!built.ok) throw built.error;
     // Bounds cover the whole reachable sash volume around the root so it is never culled.
-    const ribbonAsset = { ...built.value, aabb: new Float32Array([-2, -2, -2, 2, 2.5, 2.5]) };
+    const ribbonAsset = { ...built.value, aabb: new Float32Array([-3.5, -1.5, -3.5, 3.5, 4.5, 3.5]) };
     const mesh = assets.create(ribbonAsset).unwrap();
 
     await ctx.effect(function* () {
@@ -107,6 +107,9 @@ export const floatFx: Plugin = {
       let wasCooling = false;
       let lastLook = { brightness: 1, fill: 0, flash: 0 };
       let hoverY = 0, ribbonV = 0, lastY = 0;
+      // Roll reel-in (M3 §8): 0 = full length, 1 = reeled to rollLength (in 4 steps, out over 12).
+      let reel = 0;
+      let worstTipY = -Infinity;
       yield () => {
         assets.release(mesh).unwrap();
       };
@@ -189,7 +192,12 @@ export const floatFx: Plugin = {
             return [(modelMatrix[12] ?? 0) + v[0], (modelMatrix[13] ?? 0) + v[1], (modelMatrix[14] ?? 0) + v[2]];
           };
           const headTop = modelY + HEAD_TOP_Y;
-          const segLength = t.sash.length / segments;
+          const rolling = combatService.action() === 'roll';
+          reel = rolling ? Math.min(1, reel + (dt * 60) / 4) : Math.max(0, reel - (dt * 60) / 12);
+          const length = t.sash.length + (t.sash.rollLength - t.sash.length) * reel;
+          const segLength = length / segments;
+          // Hard ceiling during the roll (above the vortex), root-local.
+          const capLocal = -CAPSULE_CENTER_Y + t.sash.rollCap;
           if (!initialised) {
             for (let s = 0; s < strands; s += 1) {
               const anchor = SASH_ANCHORS[s % SASH_ANCHORS.length]!;
@@ -205,6 +213,7 @@ export const floatFx: Plugin = {
           const damping = Math.exp(-t.sash.damping * dt);
           worstAboveHead = -Infinity;
           worstAhead = -Infinity;
+          worstTipY = -Infinity;
           for (let s = 0; s < strands; s += 1) {
             const anchor = SASH_ANCHORS[s % SASH_ANCHORS.length]!;
             const side = anchor[0] < 0 ? -1 : 1;
@@ -218,7 +227,7 @@ export const floatFx: Plugin = {
               const restLocal: V3 = [
                 anchor[0] + side * (0.03 + 0.07 * u) + 0.06 * u * wave,
                 // Rise in an S: up off the shoulder, then trailing back; tips settle ~0.2 m below the bun tops.
-                modelY + anchor[1] + (cooling ? -0.25 * u : 0.1 * Math.sin(Math.PI * Math.min(1, u * 1.4)) + 0.06 * u) + 0.05 * flutter * u * Math.sin(time * 3.1 + s + u * 4),
+                modelY + anchor[1] + (cooling ? -0.25 * u : 0.1 * Math.sin(Math.PI * Math.min(1, u * 1.4)) + 0.06 * u) + 0.08 * flutter * u * Math.sin(time * 2 * Math.PI * t.sash.tipFreq + s + u * 4),
                 anchor[2] + 0.12 + segLength * segments * 0.85 * u,
               ];
               const rest = toWorld(restLocal);
@@ -241,16 +250,15 @@ export const floatFx: Plugin = {
             }
             for (let i = 1; i < points; i += 1) {
               const l = toLocal(p[i]!);
-              // Never above the hair buns (tip margin 5 cm) and never in front of the back of the head
-              // — except mid-roll, where the art director waived the head-top rule.
-              if (!rolled) {
-                l[1] = Math.min(l[1], headTop - 0.05);
-                l[2] = Math.max(l[2], anchor[2] + 0.06);
-              }
+              // M3: no height limit any more; never in front of the back of the head (except mid-roll).
+              if (!rolled) l[2] = Math.max(l[2], anchor[2] + 0.06);
+              // Rolling (and while reeling back out): hard ceiling 3.45 m above the vortex.
+              if (rolling || reel > 0) l[1] = Math.min(l[1], capLocal);
               l[1] = Math.max(l[1], -CAPSULE_CENTER_Y + 0.3); // fire never touches the seabed
               p[i] = toWorld(l);
               worstAboveHead = Math.max(worstAboveHead, l[1] - headTop);
               worstAhead = Math.max(worstAhead, -(l[2] - anchor[2]));
+              if (rolling) worstTipY = Math.max(worstTipY, l[1] + CAPSULE_CENTER_Y);
             }
             // Ribbon vertices (root-local), tapering from 8 cm to 3 cm.
             for (let i = 0; i < points; i += 1) {
@@ -284,6 +292,9 @@ export const floatFx: Plugin = {
         segments,
         tipAboveHeadTop: r3(worstAboveHead),
         aheadOfAnchor: r3(worstAhead),
+        length: r3(tuning.current.sash.length + (tuning.current.sash.rollLength - tuning.current.sash.length) * reel),
+        reel: r3(reel),
+        rollTopY: Number.isFinite(worstTipY) ? r3(worstTipY) : null,
       }));
     }, 'nezha/float-fx');
   },

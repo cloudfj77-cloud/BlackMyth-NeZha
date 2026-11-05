@@ -44,7 +44,12 @@ const SPEAR_ABOVE_GRIP = NEZHA.spearLength - NEZHA.spearBelowGrip;
 
 export interface CombatService {
   /** An enemy hit lands now (call after the combat step). Returns what happened. */
-  readonly incoming: (damage: number) => CombatEvent;
+  readonly incoming: (damage: number, knockback?: { readonly dir: V2; readonly distance: number }) => CombatEvent;
+  /** Fresh fight: full HP / stamina / seeds, sash ready, standing free. */
+  readonly reset: () => void;
+  readonly hp: () => number;
+  /** Current action (the sash reels in during a roll). */
+  readonly action: () => string;
   /** Bumped on every landed player hit (dummy reaction). */
   readonly hitSerial: () => number;
   /** Bumped when Sash Bind takes hold. */
@@ -156,7 +161,7 @@ export const combat: Plugin = {
       const machine = createCombat(configFromTuning(tuning.current.combat));
       let configRevision = tuning.revision();
       let hitSerial = 0, bindSerial = 0, hurtSerial = 0;
-      const hitLog: { step: number; kind: string; stage: number; dmg: number; dist: number; ang: number }[] = [];
+      const hitLog: { step: number; kind: string; stage: number; dmg: number; dist: number; ang: number; segment: number; tail: boolean; hitstop: number; shake: number }[] = [];
       const incomingLog: { step: number; result: string; frame?: number; damage: number }[] = [];
       let state: CombatState = { kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: { x: 0, z: 0 } };
       let floatGate = 1;
@@ -215,6 +220,7 @@ export const combat: Plugin = {
       const sparkPos = new Float32Array(SPARKS * 3);
       const sparkVel = new Float32Array(SPARKS * 3);
       let sparkAge = -1;
+      let sparkCount = SPARKS;
       let seed = 1;
       const rand = () => {
         seed = (seed * 16807) % 2147483647;
@@ -226,7 +232,7 @@ export const combat: Plugin = {
       let poseFrame = 0;
       let blendLeft = 0;
       let blendFrom: Shown | undefined;
-      let shown: Shown = { rotation: [0, 0, 0, 1], spearQuat: spearQuat(SPEAR_REST), spearPos: SPEAR_REST.pos, offset: [0, 0, 0], pivotY: 0.9 };
+      let shown: Shown = { rotation: [0, 0, 0, 1], spearQuat: spearQuat(SPEAR_REST), spearPos: SPEAR_REST.pos, offset: [0, 0, 0], pivotY: 0.6 };
 
       const env = () => {
         const root = player.root();
@@ -238,7 +244,7 @@ export const combat: Plugin = {
           autoTarget: (at: V2, facing: number) => target.autoTarget(at.x, at.z, facing, tuning.current.combat.autoTurnRange),
           lockedFacing: () => (target.locked() ? target.facingFrom(r.x, r.z) : undefined),
           sashInRange: () => target.surfaceDistance(r.x, r.z) <= tuning.current.lock.acquireRange,
-          touching: (at: V2) => target.surfaceDistance(at.x, at.z) <= target.contactGap(),
+          touching: (at: V2) => target.touching(at.x, at.z) <= target.contactGap(),
         };
       };
 
@@ -249,15 +255,27 @@ export const combat: Plugin = {
             session.clock.hitstop(event.hitstop);
             if (event.shake > 0) session.shake(event.shake);
             session.emit('hit');
-            hitLog.push({ step: machine.snapshot().step, kind: event.kind, stage: event.stage, dmg: event.damage, dist: r3(event.strike.distance), ang: r3(event.strike.angleDeg) });
+            const segment = event.strike.segment ?? 0;
+            target.damage(event.damage, segment);
+            hitLog.push({ step: machine.snapshot().step, kind: event.kind, stage: event.stage, dmg: event.damage, dist: r3(event.strike.distance), ang: r3(event.strike.angleDeg), segment, tail: event.tail, hitstop: event.hitstop, shake: event.shake });
             while (hitLog.length > 24) hitLog.shift();
             // Sparks burst at the struck body point, chest height (real time, never paused).
+            // Tail hits (boss 1B): 30 % of the sparks, 60 % of the size.
+            const count = event.tail ? Math.round(SPARKS * 0.3) : SPARKS;
             world.set(sparks, Transform, { pos: [event.strike.point.x, FLOOR_Y + 1.1, event.strike.point.z] }).unwrap();
+            world.set(sparks, Points, { size: event.tail ? 0.11 * 0.6 : 0.11 } as never).unwrap();
             for (let i = 0; i < SPARKS; i += 1) {
+              if (i >= count) {
+                // Unused sparks sit far below the seabed (never visible).
+                sparkPos.set([0, -80, 0], i * 3);
+                sparkVel.set([0, 0, 0], i * 3);
+                continue;
+              }
               sparkPos.set([0, 0, 0], i * 3);
               const a = rand() * Math.PI * 2, e = (rand() - 0.3) * 1.2, v = 5 + rand() * 7;
               sparkVel.set([Math.cos(a) * Math.cos(e) * v, Math.sin(e) * v + 1, Math.sin(a) * Math.cos(e) * v], i * 3);
             }
+            sparkCount = count;
             sparkAge = 0;
             break;
           }
@@ -405,7 +423,7 @@ export const combat: Plugin = {
           if (sparkAge >= 0) {
             sparkAge += dt;
             const life = tuning.current.combat.sparkLife;
-            for (let i = 0; i < SPARKS; i += 1) {
+            for (let i = 0; i < sparkCount; i += 1) {
               sparkVel[i * 3 + 1] = sparkVel[i * 3 + 1]! - 6 * dt;
               for (let a = 0; a < 3; a += 1) sparkPos[i * 3 + a] = sparkPos[i * 3 + a]! + sparkVel[i * 3 + a]! * dt;
             }
@@ -500,18 +518,29 @@ export const combat: Plugin = {
       });
 
       yield ctx.provide('nezhaCombat', {
-        incoming: (damage) => {
-          const result = machine.incoming(damage);
+        incoming: (damage, knockback) => {
+          const result = machine.incoming(damage, knockback);
           incomingLog.push({ step: machine.snapshot().step, result: result.type, ...(result.type === 'perfect' || result.type === 'dodged' ? { frame: result.frame } : {}), damage });
           while (incomingLog.length > 24) incomingLog.shift();
           if (result.type === 'perfect') triggerPerfect();
-          if (result.type === 'hurt' || result.type === 'refill') {
+          if (result.type === 'hurt' || result.type === 'dead') {
             hurtSerial += 1;
             session.emit('hurt');
           }
           state = { ...state, kind: machine.snapshot().action, frame: machine.snapshot().frame };
           return result;
         },
+        reset: () => {
+          machine.reset();
+          state = { kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: { x: 0, z: 0 } };
+          for (const slot of afterimages) {
+            slot.life = 0;
+            world.set(slot.entity, Transform, { scale: [0, 0, 0] }).unwrap();
+          }
+          player.setControl(undefined);
+        },
+        hp: () => machine.snapshot().hp,
+        action: () => machine.snapshot().action,
         hitSerial: () => hitSerial,
         bindSerial: () => bindSerial,
         sashCooldown: () => ({ left: machine.snapshot().sashCd, total: DEFAULT_COMBAT.sash.cooldown }),

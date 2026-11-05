@@ -64,7 +64,11 @@ export interface ScreenPoint {
 /** Engine -> Frontend, once per frame. */
 export interface HudState {
   readonly phase: GamePhase;
-  readonly lock: { readonly active: boolean; readonly marker: ScreenPoint };
+  readonly lock: { readonly active: boolean; readonly marker: ScreenPoint; readonly opening?: boolean };
+  /** Boss bar (M3): name + health only. */
+  readonly boss?: { readonly hp: number; readonly hpMax: number; readonly visible: boolean };
+  /** Defeat banner「败」is showing. */
+  readonly defeat?: boolean;
   /** Monotonic counter per newly raised hint, so repeated hints re-animate. */
   readonly hint?: { readonly key: HintKey; readonly serial: number };
   /** Live tuning values, mirrored for the development panel. */

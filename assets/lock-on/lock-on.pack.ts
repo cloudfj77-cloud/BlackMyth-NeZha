@@ -1,26 +1,30 @@
 import { definePack } from '@forgeax/engine/pack/source';
-import { FixedUpdate, Update } from '@forgeax/engine/ecs';
+import { FixedUpdate, Time, Update } from '@forgeax/engine/ecs';
 import type { Plugin } from '@forgeax/engine/plugin';
-import { PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
+import { PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix } from '@forgeax/engine/scene';
 import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import type { CameraService } from '../camera/camera.pack.ts';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import { PACKAGE_IDS } from '../shared/asset-refs.ts';
-import { FLOOR_Y, LOCK_TARGET, targetThickness } from '../shared/layout.ts';
+import { ARENA, FLOOR_Y } from '../shared/layout.ts';
 import { HEAD_TOP_Y, NEZHA } from '../shared/nezha-shape.ts';
-import { resolveGameEntity } from '../shared/scene-refs.ts';
-import { axisPoint, closestPoint, facingPivot, keepOutside, lockedVelocity, strikeTest, surfaceDistance, type TargetShape } from './geometry.ts';
+import type { DragonService, DragonStrike } from '../dragon/dragon.pack.ts';
 
 type V3 = readonly [number, number, number];
 
-/** The training dummy / lock placeholder as a combat target (M2). */
+/** The Dragon King as a combat target (M3). */
 export interface TargetService {
-  readonly entity: import('@forgeax/engine/ecs').EntityHandle;
-  readonly shape: () => TargetShape;
+  /** Horizontal distance to the front 11 m surface (lock / sash range). */
   readonly surfaceDistance: (x: number, z: number) => number;
-  readonly strike: (x: number, z: number, facing: number, range: number, arcDeg: number) => ReturnType<typeof strikeTest>;
+  readonly strike: (x: number, z: number, facing: number, range: number, arcDeg: number) => DragonStrike;
+  /** A landed hit: damage the struck capsule. */
+  readonly damage: (amount: number, segment: number) => void;
+  /** Heavy lunge contact: horizontal distance to the nearest low body part. */
+  readonly touching: (x: number, z: number) => number;
+  /** Drop the lock (defeat / reset). */
+  readonly release: () => void;
   /** Yaw toward the nearest body point when within `range` and ±90° of facing, else undefined. */
   readonly autoTarget: (x: number, z: number, facing: number, range: number) => number | undefined;
   readonly locked: () => boolean;
@@ -62,14 +66,15 @@ function box(points: readonly { x: number; y: number; visible: boolean }[]) {
 }
 
 /**
- * Lock-on (R): acquire within `lock.acquireRange` of the body surface, break beyond
- * `lock.breakRange`. While locked, A/D orbit the body, W/S close/open, Nezha faces it,
- * the camera frames both. The placeholder's height/length follow tuning live.
+ * Lock-on (R) on the Dragon King: acquire within `lock.acquireRange` of the front 11 m surface.
+ * Inside the boss field the lock never breaks by distance (the dragon may swim to the far band).
+ * The lock point is the nearest point of the front 11 m centre line (smoothed 0.3 s, height 1.5–4 m);
+ * A/D orbit it, W/S close / open, Nezha faces it, the camera frames both.
  */
 export const lockOn: Plugin = {
   name: 'nezha/lock-on',
   provide: 'nezhaTarget',
-  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera'],
+  inject: ['world', 'gameHost', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera', 'nezhaDragon'],
   apply(ctx) {
     const world = ctx.world;
     const host = ctx.gameHost;
@@ -78,59 +83,69 @@ export const lockOn: Plugin = {
     const telemetry = ctx.nezhaTelemetry as TelemetryService | undefined;
     const player = ctx.nezhaPlayer as PlayerService | undefined;
     const camera = ctx.nezhaCamera as CameraService | undefined;
-    if (!host || !session || !tuning || !telemetry || !player || !camera) throw new Error('nezha/lock-on requires core, player and camera services');
-    const targetEntity = resolveGameEntity(world, ctx.gameScene, 'lock-target');
+    const dragon = ctx.nezhaDragon as DragonService | undefined;
+    if (!host || !session || !tuning || !telemetry || !player || !camera || !dragon) throw new Error('nezha/lock-on requires core, player, camera and dragon services');
 
     ctx.effect(function* () {
       let active = false;
       let orbitRadius = 0;
       let lastHint: string | undefined;
       let distance = Infinity;
+      let look: [number, number, number] | undefined;
       let frame = { nezha: { minX: 0, maxX: 0, minY: 0, maxY: 0, inFrame: false }, target: { minX: 0, maxX: 0, minY: 0, maxY: 0, inFrame: false } };
-      let applied = { height: -1, length: -1 };
 
-      const shape = (): TargetShape => {
-        const l = tuning.current.lock;
-        return { cx: LOCK_TARGET.center[0], cz: LOCK_TARGET.center[2], yaw: LOCK_TARGET.yaw, length: l.targetLength, thickness: targetThickness(l.targetHeight), height: l.targetHeight };
-      };
-      const lookPoint = (): V3 => {
-        const s = shape();
-        const root = player.root();
-        const p = axisPoint(s, root[0], root[2]);
-        return [p.x, FLOOR_Y + Math.min(s.height * 0.5, 2.5), p.z];
-      };
+      const pivotOf = (x: number, z: number) => dragon.frontNearest(x, z);
+      const lookPoint = (): V3 => look ?? [0, 2, 0];
       const margin = () => tuning.current.move.capsuleRadius + 0.05;
       const raise = (key: 'noTarget' | 'targetLost' | 'locked' | 'unlocked') => {
         lastHint = key;
         session.raiseHint(key);
       };
+      const facingTo = (x: number, z: number) => {
+        const p = pivotOf(x, z);
+        return Math.atan2(-(p.x - x), -(p.z - z));
+      };
       const engage = (on: boolean) => {
         active = on;
         if (on) {
           const root = player.root();
-          const s = shape();
-          const pivot = axisPoint(s, root[0], root[2]);
-          orbitRadius = Math.hypot(root[0] - pivot.x, root[2] - pivot.z);
+          const p = pivotOf(root[0], root[2]);
+          orbitRadius = Math.hypot(root[0] - p.x, root[2] - p.z);
           player.setLock({
             velocity: (x, z, h, v, speed) => {
-              const s2 = shape();
-              const velocity = lockedVelocity(s2, x, z, h, v, speed, orbitRadius, tuning.current.lock.minOrbitGap);
-              if (v !== 0) {
-                const p = axisPoint(s2, x, z);
-                orbitRadius = Math.hypot(x - p.x, z - p.z);
+              // Orbit the nearest front point; W / S change the radius (never closer than minOrbitGap).
+              const p = pivotOf(x, z);
+              let rx = x - p.x, rz = z - p.z;
+              const r = Math.hypot(rx, rz) || 1e-6;
+              rx /= r;
+              rz /= r;
+              let hh = h, vv = v;
+              const n = Math.hypot(hh, vv);
+              if (n > 1) {
+                hh /= n;
+                vv /= n;
               }
-              return velocity;
+              if (vv > 0 && dragon.frontDistance(x, z) <= tuning.current.lock.minOrbitGap) vv = 0;
+              let vx = (rz * hh - rx * vv) * speed;
+              let vz = (-rx * hh - rz * vv) * speed;
+              if (vv === 0) {
+                const correction = Math.max(-2, Math.min(2, (orbitRadius - r) * 4));
+                vx += rx * correction;
+                vz += rz * correction;
+              } else orbitRadius = r;
+              return { x: vx, z: vz };
             },
-            facing: (x, z) => facingPivot(shape(), x, z),
+            facing: facingTo,
           });
-          camera.setLockView({ target: lookPoint });
+          // Head above 5 m (bite rear-up): tilt the aim up by 0.6 m per metre, at most 1.5 m.
+          camera.setLockView({ target: lookPoint, raise: () => Math.min(1.5, Math.max(0, (dragon.points()[0]![1] - FLOOR_Y - 5) * 0.6)) });
         } else {
           player.setLock(undefined);
           camera.setLockView(undefined);
         }
       };
-      // Locked or not, Nezha cannot hover through the (render-only) placeholder body.
-      player.setObstacle((x, z) => keepOutside(shape(), x, z, margin()));
+      // Nezha cannot hover through the low parts of the body.
+      player.setObstacle((x, z) => dragon.pushOut(x, z, margin()));
       yield () => player.setObstacle(undefined);
       yield () => engage(false);
 
@@ -140,30 +155,34 @@ export const lockOn: Plugin = {
         before: ['nezha-camera', PROPAGATE_TRANSFORMS_SYSTEM],
         queries: [],
         fn: () => {
+          const dt = Math.min(world.getResource(Time).delta, 0.1);
           const l = tuning.current.lock;
-          if (applied.height !== l.targetHeight || applied.length !== l.targetLength) {
-            applied = { height: l.targetHeight, length: l.targetLength };
-            world.set(targetEntity, Transform, {
-              pos: [LOCK_TARGET.center[0], FLOOR_Y + l.targetHeight / 2, LOCK_TARGET.center[2]],
-              scale: [l.targetLength, l.targetHeight, targetThickness(l.targetHeight)],
-            }).unwrap();
-          }
           const root = player.root();
-          distance = surfaceDistance(shape(), root[0], root[2]);
+          distance = dragon.frontDistance(root[0], root[2]);
+          const p = pivotOf(root[0], root[2]);
+          const want: [number, number, number] = [p.x, FLOOR_Y + Math.min(4, Math.max(1.5, p.y)), p.z];
+          const k = 1 - Math.exp(-dt / 0.1); // ≈ 0.3 s to settle
+          look = look ? [look[0] + (want[0] - look[0]) * k, look[1] + (want[1] - look[1]) * k, look[2] + (want[2] - look[2]) * k] : want;
           if (!session.playing()) {
             if (session.phase() === 'title' && active) engage(false);
             return;
+          }
+          if (!dragon.alive() && active) {
+            engage(false);
+            raise('unlocked');
           }
           if (player.input().lockPressed) {
             if (active) {
               engage(false);
               raise('unlocked');
-            } else if (distance <= l.acquireRange) {
+            } else if (dragon.alive() && distance <= l.acquireRange) {
               engage(true);
               raise('locked');
             } else raise('noTarget');
           }
-          if (active && distance > l.breakRange) {
+          // Boss field: no automatic release by distance. Outside it the usual 30 m rule applies.
+          const inField = Math.hypot(root[0], root[2]) <= ARENA.wallRadius;
+          if (active && !inField && distance > l.breakRange) {
             engage(false);
             raise('targetLost');
           }
@@ -194,43 +213,40 @@ export const lockOn: Plugin = {
             at(-0.28, 1.3, 0), at(0.3, 1.3, 0), at(0, HEAD_TOP_Y, 0),
             at(NEZHA.grip[0], NEZHA.grip[1] + above * Math.cos(tilt), NEZHA.grip[2] - above * Math.sin(tilt)),
           ].map((p) => project(p, pose, aspect));
-          const sh = shape();
-          const hl = sh.length / 2, ht = sh.thickness / 2;
-          const corners: V3[] = [];
-          for (const u of [-hl, hl]) for (const w of [-ht, ht]) for (const y of [0, sh.height]) corners.push([sh.cx + u * Math.cos(sh.yaw) + w * Math.sin(sh.yaw), FLOOR_Y + y, sh.cz - u * Math.sin(sh.yaw) + w * Math.cos(sh.yaw)]);
-          frame = { nezha: box(nezhaPoints), target: box(corners.map((p) => project(p, pose, aspect))) };
+          const front = dragon.points().slice(0, 25).map((p) => project([p[0], p[1], p[2]], pose, aspect));
+          frame = { nezha: box(nezhaPoints), target: box(front) };
           const marker = project(lookPoint(), pose, aspect);
-          session.contribute({ lock: { active, marker } });
+          session.contribute({ lock: { active, marker, opening: active && dragon.opening() } });
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-lock-frame').unwrap();
 
       yield ctx.provide('nezhaTarget', {
-        entity: targetEntity,
-        shape,
-        surfaceDistance: (x, z) => surfaceDistance(shape(), x, z),
-        strike: (x, z, facing, range, arcDeg) => strikeTest(shape(), x, z, facing, range, arcDeg),
+        surfaceDistance: (x, z) => dragon.frontDistance(x, z),
+        strike: (x, z, facing, range, arcDeg) => dragon.strike(x, z, facing, range, arcDeg),
+        damage: (amount, segment) => dragon.damage(amount, segment),
+        touching: (x, z) => dragon.lowDistance(x, z),
+        release: () => {
+          if (active) engage(false);
+        },
         autoTarget: (x, z, facing, range) => {
-          const sh = shape();
-          if (surfaceDistance(sh, x, z) > range) return undefined;
-          const p = closestPoint(sh, x, z);
-          const want = Math.atan2(-(p.x - x), -(p.z - z));
-          const diff = Math.atan2(Math.sin(want - facing), Math.cos(want - facing));
-          return Math.abs(diff) <= Math.PI / 2 ? want : undefined;
+          const hit = dragon.strike(x, z, facing, range, 90);
+          if (!hit.hit) return undefined;
+          return Math.atan2(-(hit.point.x - x), -(hit.point.z - z));
         },
         locked: () => active,
-        facingFrom: (x, z) => facingPivot(shape(), x, z),
+        facingFrom: facingTo,
         contactGap: () => margin() + 0.02,
       } satisfies TargetService);
       yield telemetry.section('lock', () => {
-        const s = shape();
         const root = player.root();
+        const p = pivotOf(root[0], root[2]);
         return {
           active,
           distance: r3(distance),
           hint: lastHint ?? null,
-          orbitAngleDeg: r3((Math.atan2(root[0] - s.cx, root[2] - s.cz) * 180) / Math.PI),
-          target: { height: s.height, length: s.length, thickness: r3(s.thickness) },
+          orbitAngleDeg: r3((Math.atan2(root[0] - p.x, root[2] - p.z) * 180) / Math.PI),
+          lookPoint: look ? look.map(r3) : null,
           nezhaInFrame: frame.nezha.inFrame,
           nezhaBox: Object.fromEntries(Object.entries(frame.nezha).map(([k, v]) => [k, typeof v === 'number' ? r3(v) : v])),
           targetBox: Object.fromEntries(Object.entries(frame.target).map(([k, v]) => [k, typeof v === 'number' ? r3(v) : v])),

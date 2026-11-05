@@ -249,6 +249,10 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
         hurtTimer = setTimeout(() => vignette.classList.remove('on'), 30);
       }
     }
+    const boss = next.boss;
+    part('boss-panel')!.classList.toggle('show', !!boss?.visible);
+    if (boss) part('boss-fill')!.style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.hpMax) * 100)).toFixed(1)}%`;
+    part('defeat')!.classList.toggle('show', next.defeat === true);
     // QA mirror of the Engine read projection (static preview has no inspection bridge).
     if (next.projection !== undefined) {
       ui.host.dataset.nezha = JSON.stringify(next.projection);

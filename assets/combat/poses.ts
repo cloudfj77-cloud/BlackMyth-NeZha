@@ -136,6 +136,9 @@ export function rollAngleDeg(frame: number): number {
   return 360 + 8 * Math.sin(Math.PI * t) * (1 - t);
 }
 
+/** Roll centre above the wheel bottoms: 2.0 m above the vortex at the M3 hover height 1.15 m. */
+export const ROLL_PIVOT = 0.85;
+
 /** Roll hop (m): rises up to 0.38 m mid-roll and lands by frame 18 (never below the hover height). */
 export function rollHop(frame: number): number {
   if (frame <= 0 || frame >= 18) return 0;
@@ -173,7 +176,7 @@ export function toRootLocal(d: V2, facing: number): V2 {
 
 export interface ActionVisual {
   readonly spear: SpearPose & { readonly quat: Q };
-  /** Model rotation (root-local) and the pivot height above the seabed it turns about. */
+  /** Model rotation (root-local) and the pivot height above the model origin (wheel bottoms) it turns about. */
   readonly rotation: Q;
   readonly pivotY: number;
   /** Body shift (root-local metres) applied with the rotation. */
@@ -190,7 +193,7 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
   let pose: { spear: SpearPose; body: BodyPose } = { spear: SPEAR_REST, body: BODY_REST };
   let flame = false;
   let wheelsFull = false;
-  let pivotY = 0.9;
+  let pivotY = 0.6;
   let rotation: Q = [0, 0, 0, 1];
   let rollUp = 0;
   switch (state.kind) {
@@ -217,7 +220,7 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
       const d = toRootLocal(state.rollDir, facing);
       const axis: P3 = [d.z, 0, -d.x];
       rotation = axisAngle(axis, rollAngleDeg(f) * DEG);
-      pivotY = 1.0;
+      pivotY = ROLL_PIVOT;
       wheelsFull = f >= 1 && f <= 18;
       rollUp = rollHop(f);
       // Spear hugged across the chest, parallel to the roll axis.

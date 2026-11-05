@@ -4,8 +4,11 @@ import { defaultTuning, overrides, readPath, TUNING_RANGES, writePath } from '..
 describe('tuning.json', () => {
   it('keeps the locked design values', () => {
     const t = defaultTuning();
-    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0, hoverHeight: 0.3 });
-    expect(t.float).toMatchObject({ idleAmp: 0.05, idleFreq: 0.8, swayDeg: 1.5, swayFreq: 0.55, swayPhase: 90, moveAmp: 0.03, sprintAmp: 0.015 });
+    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0, hoverHeight: 1.15 });
+    // M3 §8: hover 1.15 m, ±15 cm at 0.8 Hz rising over 35 % of the cycle, ±3° sway, ±10 cm moving, ±5 cm sprinting.
+    expect(t.float).toMatchObject({ idleAmp: 0.15, idleFreq: 0.8, riseShare: 0.35, swayDeg: 3, swayFreq: 0.55, swayPhase: 90, moveAmp: 0.1, sprintAmp: 0.05 });
+    expect(t.sash).toMatchObject({ length: 2.2, tipFreq: 1.6, rollLength: 1, rollCap: 3.45 });
+    expect(t.camera.focusHeight).toBe(2.4);
     expect(t.lock).toMatchObject({ acquireRange: 25, breakRange: 30 });
     expect(t.camera).toMatchObject({ shoulderOffset: 0.6, minDistance: 1.2, distance: 5 });
     expect(t.ambient.seaweedCanyon + t.ambient.seaweedEdge + t.ambient.seaweedFar).toBe(480);

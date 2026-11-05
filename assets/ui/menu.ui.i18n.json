@@ -40,7 +40,7 @@
             "kicker": "$t(terms:place.dragonPalace) · 前庭",
             "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，携三昧真火入海，问罪$t(terms:boss.dragonKing)。",
             "begin": "踏入龙宫",
-            "milestone": "试玩版本 M2 · 打起来爽：连招、重击、翻滚、完美闪避"
+            "milestone": "试玩版本 M3 · 神龙：读预兆、翻滚躲开、破绽反击"
           },
           "pause": {
             "title": "暂停",
@@ -83,9 +83,8 @@
             "hp": "生命",
             "stamina": "气力"
           },
-          "training": {
-            "fakeLine": "训练：直线假攻击",
-            "fakeFan": "训练：扇形假攻击"
+          "banner": {
+            "defeat": "败"
           }
         }
       }
@@ -128,7 +127,7 @@
             "kicker": "$t(terms:place.dragonPalace) · Forecourt",
             "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) carries true fire into the sea to call the $t(terms:boss.dragonKing) to account.",
             "begin": "Enter the Palace",
-            "milestone": "Playtest M2 · Combat: combo, heavy, roll, perfect dodge"
+            "milestone": "Playtest M3 · The Dragon: read the tells, roll clear, punish the opening"
           },
           "pause": {
             "title": "Paused",
@@ -171,9 +170,8 @@
             "hp": "Health",
             "stamina": "Stamina"
           },
-          "training": {
-            "fakeLine": "Training: line attack",
-            "fakeFan": "Training: fan attack"
+          "banner": {
+            "defeat": "Defeated"
           }
         }
       }

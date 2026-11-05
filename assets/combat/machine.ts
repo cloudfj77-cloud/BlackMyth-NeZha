@@ -101,7 +101,14 @@ export interface StrikeResult {
   readonly distance: number;
   readonly angleDeg: number;
   readonly point: V2;
+  /** Hurt capsule index on the target (dragon), when known. */
+  readonly segment?: number;
+  /** The tail (11–18 m) was hit: ×0.3 damage and a lighter hit feel (boss 1B). */
+  readonly tail?: boolean;
 }
+
+/** Tail hits (boss 17:48, 1B): damage ×0.3 (rounded, at least 1), hitstop light 1/1/2, heavy 2, no shake. */
+export const TAIL = Object.freeze({ damageMultiplier: 0.3, lightHitstop: [1, 1, 2] as const, heavyHitstop: 2 });
 
 /** What the machine needs to know about the world this step. */
 export interface CombatEnv {
@@ -121,19 +128,21 @@ export type CombatEvent =
   | { readonly type: 'swing-light'; readonly stage: number }
   | { readonly type: 'swing-heavy'; readonly charge: number }
   | { readonly type: 'charge-full' }
-  | { readonly type: 'hit'; readonly kind: 'light' | 'heavy'; readonly stage: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly strike: StrikeResult; readonly judgeLine: V2 }
+  | { readonly type: 'hit'; readonly kind: 'light' | 'heavy'; readonly stage: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly strike: StrikeResult; readonly judgeLine: V2; readonly tail: boolean }
   | { readonly type: 'whiff'; readonly kind: 'light' | 'heavy'; readonly strike: StrikeResult; readonly judgeLine: V2 }
   | { readonly type: 'roll'; readonly dir: V2 }
   | { readonly type: 'perfect'; readonly frame: number }
   | { readonly type: 'dodged'; readonly frame: number }
   | { readonly type: 'hurt'; readonly damage: number }
-  | { readonly type: 'refill' }
+  | { readonly type: 'dead' }
   | { readonly type: 'lotus-heal'; readonly hp: number }
   | { readonly type: 'sash-bind' }
   | { readonly type: 'sash-ready' }
   | { readonly type: 'hint'; readonly key: 'noStamina' | 'noLotusSeeds' | 'sashCooldown' | 'noTarget' };
 
-export type ActionKind = 'free' | 'light' | 'charge' | 'heavy' | 'roll' | 'hurt' | 'lotus' | 'sash';
+const KNOCK_STEPS = 10;
+
+export type ActionKind = 'free' | 'light' | 'charge' | 'heavy' | 'roll' | 'hurt' | 'lotus' | 'sash' | 'dead';
 
 export interface CombatState {
   readonly kind: ActionKind;
@@ -180,6 +189,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let lastJudge: V2 | undefined;
   let lastStrike: StrikeResult | undefined;
   let events: CombatEvent[] = [];
+  let knock: { readonly dir: V2; readonly distance: number } | undefined;
 
   const enter = (kind: ActionKind, extra: Partial<typeof state> = {}) => {
     state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, ...extra };
@@ -238,13 +248,26 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
       events.push({ type: 'whiff', kind, strike, judgeLine });
       return;
     }
+    const tail = strike.tail === true;
+    const tailDamage = (d: number) => Math.max(1, Math.round(d * TAIL.damageMultiplier));
     if (kind === 'light') {
       const s = config.light[state.stage - 1]!;
-      events.push({ type: 'hit', kind, stage: state.stage, damage: s.damage, hitstop: s.hitstop, shake: s.shake, strike, judgeLine });
+      events.push({
+        type: 'hit', kind, stage: state.stage, strike, judgeLine, tail,
+        damage: tail ? tailDamage(s.damage) : s.damage,
+        hitstop: tail ? TAIL.lightHitstop[state.stage - 1]! : s.hitstop,
+        shake: tail ? 0 : s.shake,
+      });
     } else {
       const t = (state.charge - config.chargeMin) / (config.chargeMax - config.chargeMin);
       const lerp = (r: readonly [number, number]) => r[0] + (r[1] - r[0]) * t;
-      events.push({ type: 'hit', kind, stage: 0, damage: Math.round(lerp(config.heavyDamage) * 100) / 100, hitstop: Math.round(lerp(config.heavyHitstop)), shake: lerp(config.heavyShake), strike, judgeLine });
+      const damage = Math.round(lerp(config.heavyDamage) * 100) / 100;
+      events.push({
+        type: 'hit', kind, stage: 0, strike, judgeLine, tail,
+        damage: tail ? tailDamage(damage) : damage,
+        hitstop: tail ? TAIL.heavyHitstop : Math.round(lerp(config.heavyHitstop)),
+        shake: tail ? 0 : lerp(config.heavyShake),
+      });
     }
   };
 
@@ -295,7 +318,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
 
       // Boss 21:55: a roll cancels ANY action at once (own actions, the hurt stun, and a roll past frame 1).
       const rollCancellable =
-        (s.kind !== 'free' && s.kind !== 'roll' && s.kind !== 'hurt') ||
+        (s.kind !== 'free' && s.kind !== 'roll' && s.kind !== 'hurt' && s.kind !== 'dead') ||
         (s.kind === 'hurt' && s.frame > config.hurtRollFrom) ||
         (s.kind === 'roll' && s.frame >= 2);
       if (rollCancellable && buffered?.kind === 'roll' && stamina >= config.cost.roll) {
@@ -435,9 +458,21 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           break;
         }
         case 'hurt': {
-          if (s.frame >= config.hurtSteps) enter('free');
+          // Knockback (tail lash: 3 m) plays over the first steps of the stun.
+          if (knock && s.frame <= KNOCK_STEPS) {
+            const d = knock.distance * (easeOut(s.frame / KNOCK_STEPS) - easeOut((s.frame - 1) / KNOCK_STEPS));
+            velocity = { x: (knock.dir.x * d) / STEP, z: (knock.dir.z * d) / STEP };
+          }
+          if (s.frame >= config.hurtSteps) {
+            knock = undefined;
+            enter('free');
+          }
           break;
         }
+        case 'dead':
+          // Defeated: no input until the fight resets.
+          buffered = undefined;
+          break;
         case 'lotus': {
           velocity = undefined;
           speedScale = config.lotus.speedScale;
@@ -484,7 +519,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
      * An enemy hit lands this step (after `step`). Roll frames 1..invuln are immune;
      * a roll that started 0..perfect steps before the hit is a perfect dodge.
      */
-    incoming(damage: number): CombatEvent {
+    incoming(damage: number, knockback?: { readonly dir: V2; readonly distance: number }): CombatEvent {
+      if (state.kind === 'dead') return { type: 'dodged', frame: 0 };
       if (state.kind === 'roll') {
         const frame = step - state.rollStart + 1;
         if (frame >= 1 && frame <= config.roll.invuln) {
@@ -495,16 +531,32 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           return { type: 'dodged', frame };
         }
       }
-      hp -= damage;
-      enter('hurt');
+      hp = Math.max(0, hp - damage);
       comboStage = 0;
       comboWindow = 0;
       buffered = undefined;
       if (hp <= 0) {
-        hp = config.hpMax;
-        return { type: 'refill' };
+        // M3: defeat (the fight plugin shows「败」and resets everything).
+        enter('dead');
+        knock = undefined;
+        return { type: 'dead' };
       }
+      enter('hurt');
+      knock = knockback;
       return { type: 'hurt', damage };
+    },
+    /** Back to a fresh fight (defeat / victory reset). */
+    reset() {
+      hp = config.hpMax;
+      stamina = config.staminaMax;
+      lotus = config.lotus.count;
+      sashCd = 0;
+      idle = config.regenDelay;
+      comboStage = 0;
+      comboWindow = 0;
+      buffered = undefined;
+      knock = undefined;
+      enter('free');
     },
     /** Live tuning: replace the configuration (timings already running keep their frame counters). */
     setConfig(next: CombatConfig) {

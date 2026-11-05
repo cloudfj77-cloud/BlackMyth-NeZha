@@ -94,6 +94,8 @@ export interface PlayerService {
   readonly floatGate: () => number;
   /** Always-on footprint clamp for render-only bodies (the lock-target placeholder). */
   readonly setObstacle: (clamp: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined) => void;
+  /** Reset placement (defeat / victory): root at (x, z), facing `yaw`, standing still. */
+  readonly teleport: (x: number, z: number, yaw: number) => void;
 }
 
 declare module '@forgeax/engine/plugin' {
@@ -317,7 +319,7 @@ export const hoverPlayer: Plugin = {
           if (actionPose) {
             const r = actionPose.rotation;
             tmpQ[0] = r[0]; tmpQ[1] = r[1]; tmpQ[2] = r[2]; tmpQ[3] = r[3];
-            const pivot: [number, number, number] = [0, -CAPSULE_CENTER_Y + actionPose.pivotY, 0];
+            const pivot: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + actionPose.pivotY, 0];
             const rel = [base[0] + actionPose.offset[0] - pivot[0], base[1] + actionPose.offset[1] - pivot[1], base[2] + actionPose.offset[2] - pivot[2]];
             const v = rotateByQuat(r, rel);
             pos = [pivot[0] + v[0], pivot[1] + v[1], pivot[2] + v[2]];
@@ -415,6 +417,18 @@ export const hoverPlayer: Plugin = {
           floatGate = gate;
         },
         floatGate: () => floatGate,
+        teleport: (x, z, yaw) => {
+          velocity = { x: 0, z: 0 };
+          speed = 0;
+          lean = 0;
+          stepper.reset();
+          facing = yaw;
+          cameraYaw = yaw;
+          const turn = quat.eulerY(yaw);
+          const physics = world.hasResource('PhysicsWorld') ? world.getResource<PhysicsWorld>('PhysicsWorld') : undefined;
+          if (physics?.hasBody(player)) physics.teleport(player, vec3.create(x, CAPSULE_CENTER_Y, z));
+          world.set(player, Transform, { pos: [x, CAPSULE_CENTER_Y, z], quat: [turn[0] ?? 0, turn[1] ?? 0, turn[2] ?? 0, turn[3] ?? 1] }).unwrap();
+        },
       } satisfies PlayerService);
     }, 'nezha/hover-player');
   },
