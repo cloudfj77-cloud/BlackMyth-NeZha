@@ -10,6 +10,9 @@ import type {} from '@forgeax/engine/app';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import { guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { PILLAR_RAY_FILTER } from '../shared/collision.ts';
+
+/** Level geometry (group 1) + pillars (group 5): what can hide Nezha from the lens. */
+const VIEW_RAY_FILTER = 0xffff_0011 >>> 0;
 import { PILLARS } from '../shared/layout.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
 
@@ -34,6 +37,8 @@ interface PillarState {
   occluded: boolean;
   /** Game time when the current fade started (QA measures time-to-threshold from it). */
   since: number;
+  /** Game time when opacity first reached ≤ 0.4 in the current fade (undefined until then). */
+  belowAt?: number;
   /** Per-pillar material instance (Alpha Hash copy), created on first fade. */
   instance?: number;
   route?: FadeRoute;
@@ -155,10 +160,12 @@ export const occlusion: Plugin = {
             if (occluded !== pillar.occluded) {
               pillar.occluded = occluded;
               pillar.since = now;
+              pillar.belowAt = undefined;
             }
             const goal = occluded ? target : 1;
             const step = rate * dt;
             pillar.opacity = goal < pillar.opacity ? Math.max(goal, pillar.opacity - step) : Math.min(goal, pillar.opacity + step);
+            if (pillar.occluded && pillar.belowAt === undefined && pillar.opacity <= 0.4) pillar.belowAt = now;
             apply(pillar, pillar.opacity);
             if (pillar.opacity < 0.999) nowOutlined.push(pillar.entity);
           }
@@ -175,13 +182,57 @@ export const occlusion: Plugin = {
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-occlusion').unwrap();
 
+      /**
+       * Nezha's visible share from the lens: 200 rays toward points spread over his body volume
+       * (8 heights × 25 around/through a 0.22 m cylinder). A ray counts as blocked only when it first
+       * hits level geometry or a pillar that is still mostly opaque (faded pillars are see-through).
+       */
+      const visibleFraction = (): number | null => {
+        const cam = readPresentationWorldMatrix(world, camera);
+        const body = readPresentationWorldMatrix(world, player);
+        if (!cam || !body || !world.hasResource('PhysicsWorld')) return null;
+        const physics = world.getResource<PhysicsWorld>('PhysicsWorld');
+        const cx = cam[12] ?? 0, cy = cam[13] ?? 0, cz = cam[14] ?? 0;
+        const groundY = (body[13] ?? 0) - tuning.current.move.capsuleHeight / 2;
+        let clear = 0, total = 0;
+        for (let level = 0; level < 8; level += 1) {
+          const y = groundY + tuning.current.move.hoverHeight + 0.15 + (level / 7) * 1.55;
+          for (let k = 0; k < 25; k += 1) {
+            const angle = (k / 25) * Math.PI * 2;
+            const radius = 0.22 * ((k % 5) / 4);
+            const tx = (body[12] ?? 0) + Math.cos(angle) * radius, tz = (body[14] ?? 0) + Math.sin(angle) * radius;
+            const dx = tx - cx, dy = y - cy, dz = tz - cz;
+            const d = Math.hypot(dx, dy, dz);
+            total += 1;
+            if (d < 1e-3) continue;
+            vec3.set(origin, cx, cy, cz);
+            vec3.set(direction, dx / d, dy / d, dz / d);
+            let hit;
+            try {
+              hit = physics.raycast(origin, direction, d - 0.3, VIEW_RAY_FILTER);
+            } catch {
+              hit = undefined;
+            }
+            const pillar = hit ? byEntity.get(hit.entity) : undefined;
+            if (!hit || (pillar && pillar.opacity <= 0.5)) clear += 1;
+          }
+        }
+        return Math.round((clear / total) * 1000) / 1000;
+      };
       yield telemetry.section('occlusion', () => ({
         route: route(),
         outline: outlineOn.ok,
         nezhaVisibleRatio: visibleRatio,
         pillars: pillars
           .filter((pillar) => pillar.occluded || pillar.opacity < 0.999)
-          .map((pillar) => ({ id: pillar.id, opacity: Math.round(pillar.opacity * 1000) / 1000, occluded: pillar.occluded, since: pillar.since })),
+          .map((pillar) => ({
+            id: pillar.id,
+            opacity: Math.round(pillar.opacity * 1000) / 1000,
+            occluded: pillar.occluded,
+            since: pillar.since,
+            fadeToBelow04: pillar.belowAt === undefined ? null : Math.round((pillar.belowAt - pillar.since) * 1000) / 1000,
+          })),
+        nezhaVisible200: visibleFraction(),
       }));
     }, 'nezha/occlusion');
   },

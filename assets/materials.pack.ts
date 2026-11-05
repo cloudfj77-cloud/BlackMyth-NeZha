@@ -83,7 +83,7 @@ export default definePack({
           { name: 'rimWidth', type: 'f32' },
           { name: 'cellsPerMeter', type: 'f32' },
         ],
-        values: { baseColor: [PILLAR_COLOR[0], PILLAR_COLOR[1], PILLAR_COLOR[2], 1], rimColor: [0.35, 0.62, 0.72, 1], fade: 1, rimWidth: 0.22, cellsPerMeter: 36 },
+        values: { baseColor: [PILLAR_COLOR[0], PILLAR_COLOR[1], PILLAR_COLOR[2], 1], rimColor: [0.35, 0.62, 0.72, 1], fade: 1, rimWidth: 0.22, cellsPerMeter: 160 },
       }),
       /** Fallback B2: 35% blended translucency. */
       'material/pillar-glass': Materials.standard({
