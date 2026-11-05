@@ -17,7 +17,11 @@ export const STEP = 1 / 60;
 export interface CombatConfig {
   readonly hpMax: number;
   readonly staminaMax: number;
-  readonly light: readonly { readonly hit: number; readonly recover: number; readonly damage: number; readonly hitstop: number; readonly shake: number }[];
+  readonly light: readonly { readonly hit: number; readonly recover: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly lunge: number }[];
+  /** Frames after a light hit frame from which the next light press chains straight in. */
+  readonly chainFrom: number;
+  /** Hurt frames before a roll can cancel the stun (0 = immediately, boss 21:55). */
+  readonly hurtRollFrom: number;
   readonly lightRange: number;
   readonly heavyRange: number;
   readonly arcDeg: number;
@@ -47,10 +51,12 @@ export const DEFAULT_COMBAT: CombatConfig = {
   hpMax: 100,
   staminaMax: 100,
   light: [
-    { hit: 7, recover: 14, damage: 8, hitstop: 3, shake: 0 },
-    { hit: 7, recover: 16, damage: 9, hitstop: 3, shake: 0 },
-    { hit: 11, recover: 22, damage: 14, hitstop: 5, shake: 0.02 },
+    { hit: 7, recover: 14, damage: 8, hitstop: 3, shake: 0, lunge: 0.45 },
+    { hit: 7, recover: 16, damage: 9, hitstop: 3, shake: 0, lunge: 0.45 },
+    { hit: 11, recover: 22, damage: 14, hitstop: 5, shake: 0.02, lunge: 0.9 },
   ],
+  chainFrom: 4,
+  hurtRollFrom: 0,
   lightRange: 2.5,
   heavyRange: 3,
   arcDeg: 60,
@@ -285,65 +291,95 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         return true;
       };
 
-      switch (s.kind) {
-        case 'free': {
-          const moving = Math.hypot(input.move.x, input.move.z) > 0.1;
-          if (comboWindow > 0) {
-            comboWindow -= 1;
-            moveHeld = moving ? moveHeld + 1 : 0;
-            if (moveHeld >= config.breakHold || comboWindow === 0) {
-              comboWindow = 0;
-              comboStage = 0;
+      // Boss 21:55: a roll cancels ANY action at once (own actions, the hurt stun, and a roll past frame 1).
+      const rollCancellable =
+        (s.kind !== 'free' && s.kind !== 'roll' && s.kind !== 'hurt') ||
+        (s.kind === 'hurt' && s.frame > config.hurtRollFrom) ||
+        (s.kind === 'roll' && s.frame >= 2);
+      if (rollCancellable && buffered?.kind === 'roll' && stamina >= config.cost.roll) {
+        if (s.kind === 'lotus') lotus += 1; // the seed was not eaten
+        buffered = undefined;
+        startRoll(input, env);
+      }
+      let runFreeAfter = false;
+      const runFree = () => {
+            const moving = Math.hypot(input.move.x, input.move.z) > 0.1;
+            if (comboWindow > 0) {
+              comboWindow -= 1;
+              moveHeld = moving ? moveHeld + 1 : 0;
+              if (moveHeld >= config.breakHold || comboWindow === 0) {
+                comboWindow = 0;
+                comboStage = 0;
+              }
             }
-          }
-          if (take('roll') && startRoll(input, env)) break;
-          if (take('light') && startLight(input, env)) break;
-          if (heavyPressed) {
-            if (stamina >= config.cost.heavy) {
-              enter('charge');
-              facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
-              comboStage = 0;
-              comboWindow = 0;
-              break;
+            if (take('roll') && startRoll(input, env)) return;
+            if (take('light') && startLight(input, env)) return;
+            if (heavyPressed) {
+              if (stamina >= config.cost.heavy) {
+                enter('charge');
+                facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
+                comboStage = 0;
+                comboWindow = 0;
+                return;
+              }
+              flashSerial += 1;
+              events.push({ type: 'hint', key: 'noStamina' });
             }
-            flashSerial += 1;
-            events.push({ type: 'hint', key: 'noStamina' });
-          }
-          if (input.lotus) {
-            if (lotus <= 0) events.push({ type: 'hint', key: 'noLotusSeeds' });
-            else {
-              lotus -= 1;
-              enter('lotus');
-              comboStage = 0;
-              comboWindow = 0;
-              break;
+            if (input.lotus) {
+              if (lotus <= 0) events.push({ type: 'hint', key: 'noLotusSeeds' });
+              else {
+                lotus -= 1;
+                enter('lotus');
+                comboStage = 0;
+                comboWindow = 0;
+                return;
+              }
             }
-          }
-          if (input.sash) {
-            if (sashCd > 0) events.push({ type: 'hint', key: 'sashCooldown' });
-            else if (!env.sashInRange()) events.push({ type: 'hint', key: 'noTarget' });
-            else {
-              enter('sash');
-              facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
-              comboStage = 0;
-              comboWindow = 0;
-              break;
+            if (input.sash) {
+              if (sashCd > 0) events.push({ type: 'hint', key: 'sashCooldown' });
+              else if (!env.sashInRange()) events.push({ type: 'hint', key: 'noTarget' });
+              else {
+                enter('sash');
+                facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
+                comboStage = 0;
+                comboWindow = 0;
+                return;
+              }
             }
-          }
-          // In a combo gap the stick only re-aims the next stage (until held long enough to break).
-          velocity = comboWindow > 0 ? ZERO : undefined;
-          allowSprint = comboWindow === 0 && stamina > 0;
-          if (allowSprint && input.sprint && moving) {
-            stamina = Math.max(0, stamina - config.cost.sprintPerSecond * STEP);
-            idle = 0;
-          }
+            // In a combo gap the stick only re-aims the next stage (until held long enough to break).
+            velocity = comboWindow > 0 ? ZERO : undefined;
+            allowSprint = comboWindow === 0 && stamina > 0;
+            if (allowSprint && input.sprint && moving) {
+              stamina = Math.max(0, stamina - config.cost.sprintPerSecond * STEP);
+              idle = 0;
+            }
+
+      };
+
+      if (state !== s) {
+        // Rolled out this step: frame 1 displacement below.
+      } else switch (s.kind) {
+        case 'free':
+          runFree();
           break;
-        }
         case 'light': {
           const spec = config.light[s.stage - 1]!;
           if (env.lockedFacing() !== undefined) facingOverride = env.lockedFacing();
+          // Step into the strike: root lunge before the hit frame, stopped by body contact.
+          if (s.frame < spec.hit && spec.lunge > 0 && !env.touching(env.root)) {
+            const n = spec.hit - 1;
+            const d = spec.lunge * (easeOut(s.frame / n) - easeOut((s.frame - 1) / n));
+            const f = forward(env.facing);
+            velocity = { x: (f.x * d) / STEP, z: (f.z * d) / STEP };
+          }
           if (s.frame === spec.hit) resolveStrike('light', env, env.root, env.facing);
-          if (s.frame > spec.hit && take('roll') && startRoll(input, env)) break;
+          // Chain: shortly after the hit, the next press goes straight into the next stage.
+          if (s.frame >= spec.hit + config.chainFrom && buffered?.kind === 'light') {
+            comboStage = s.stage < 3 ? s.stage : 0;
+            comboWindow = s.stage < 3 ? 1 : 0;
+            buffered = undefined;
+            if (startLight(input, env)) break;
+          }
           if (s.frame >= spec.hit + spec.recover) {
             const stage = s.stage;
             enter('free');
@@ -355,7 +391,6 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         }
         case 'charge': {
           if (env.lockedFacing() !== undefined) facingOverride = env.lockedFacing();
-          if (take('roll') && startRoll(input, env)) break;
           s.charge = Math.min(config.chargeMax, s.frame);
           if (s.frame === config.chargeMax) events.push({ type: 'charge-full' });
           if (!input.heavyHeld) s.released = true;
@@ -378,18 +413,22 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
             s.lunged += d;
           }
           if (s.frame === lunge + 1) resolveStrike('heavy', env, env.root, env.facing);
-          if (s.frame > lunge + 1 && take('roll') && startRoll(input, env)) break;
           if (s.frame >= lunge + 1 + config.heavyRecover) enter('free');
           break;
         }
         case 'roll': {
           const r = config.roll;
-          velocity = rollVelocity(s.frame, s.rollDir);
           // The press step is frame 1, so the roll occupies exactly `steps` steps.
-          if (s.frame > r.steps) {
-            enter('free');
-            if (take('roll')) startRoll(input, env);
-            else if (take('light')) startLight(input, env);
+          if (s.frame <= r.moveSteps) velocity = rollVelocity(s.frame, s.rollDir);
+          else {
+            // Displacement done: no stiffness. The stick moves again (still invulnerable to frame 18),
+            // and any action press leaves the roll at once.
+            velocity = undefined;
+            allowSprint = stamina > 0;
+            if (buffered?.kind === 'light' || heavyPressed || input.lotus || input.sash || s.frame > r.steps) {
+              enter('free');
+              runFreeAfter = true;
+            }
           }
           break;
         }
@@ -417,6 +456,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         }
       }
 
+      if (runFreeAfter) runFree();
       if (state !== s && state.kind === 'roll') velocity = rollVelocity(1, state.rollDir);
 
       if (state.kind === 'free' || state.kind === 'lotus') {

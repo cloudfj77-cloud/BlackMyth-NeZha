@@ -264,3 +264,65 @@ describe('training warnings: the shape is the damage area', () => {
     expect(insideWarning('fan', { x: 0, z: 0 }, 0, ...at(61), 0)).toBe(false);
   });
 });
+
+describe('boss 21:55: a roll cancels anything immediately, no stiffness', () => {
+  const rollNow = (c: ReturnType<typeof createCombat>) => {
+    const out = c.step(press({ roll: true }), env());
+    return out.state;
+  };
+  it('cancels every action on the very step Space is pressed', () => {
+    const setups: [string, StepInput[]][] = [
+      ['light windup', [press({ light: true }), ...idle(2)]],
+      ['light recovery', [press({ light: true }), ...idle(12)]],
+      ['charge', Array.from({ length: 10 }, () => press({ heavyHeld: true }))],
+      ['heavy lunge', [...Array.from({ length: 20 }, () => press({ heavyHeld: true })), ...idle(3)]],
+      ['heavy recovery', [...Array.from({ length: 20 }, () => press({ heavyHeld: true })), ...idle(15)]],
+      ['lotus', [press({ lotus: true }), ...idle(10)]],
+      ['sash', [press({ sash: true }), ...idle(5)]],
+      ['roll', [press({ roll: true }), ...idle(3)]],
+    ];
+    for (const [name, inputs] of setups) {
+      const c = createCombat();
+      run(c, inputs);
+      expect(rollNow(c), name).toMatchObject({ kind: 'roll', frame: 1 });
+    }
+  });
+  it('cancels the hurt stun too', () => {
+    const c = createCombat();
+    c.incoming(10);
+    expect(rollNow(c)).toMatchObject({ kind: 'roll', frame: 1 });
+  });
+  it('gives the lotus seed back when the eating is cancelled', () => {
+    const c = createCombat();
+    run(c, [press({ lotus: true }), ...idle(10)]);
+    rollNow(c);
+    expect(c.snapshot().lotus).toBe(3);
+  });
+  it('frees the stick and allows attacks right after the roll displacement (frame 13)', () => {
+    const c = createCombat();
+    run(c, [press({ roll: true }), ...idle(11)]);
+    const moving = c.step(press({ move: { x: 1, z: 0 } }), env());
+    expect(moving.state.kind).toBe('roll');
+    expect(moving.velocity).toBeUndefined();
+    expect(c.snapshot().invuln).toBe(true);
+    const out = c.step(press({ light: true }), env());
+    expect(out.state.kind).toBe('light');
+  });
+  it('chains the next light 4 frames after the hit instead of waiting for the recovery', () => {
+    const c = createCombat();
+    const r = run(c, [press({ light: true }), ...idle(10), press({ light: true }), ...idle(3)]);
+    expect(r.events.filter((x) => x.event.type === 'swing-light').map((x) => (x.event as { stage: number }).stage)).toEqual([1, 2]);
+  });
+  it('steps 0.45 / 0.45 / 0.9 m into the light strikes, stopping on contact', () => {
+    for (const [stage, dist] of [[1, 0.45], [3, 0.9]] as const) {
+      const c = createCombat();
+      if (stage === 3) run(c, [press({ light: true }), ...idle(10), press({ light: true }), ...idle(10)]);
+      let d = 0;
+      for (const input of [press({ light: true }), ...idle(12)]) {
+        const out = c.step(input, env());
+        if (out.state.kind === 'light' && out.velocity) d += Math.hypot(out.velocity.x, out.velocity.z) / 60;
+      }
+      expect(d).toBeCloseTo(dist, 6);
+    }
+  });
+});

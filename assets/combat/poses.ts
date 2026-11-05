@@ -45,50 +45,50 @@ const k = (f: number, spear: Partial<SpearPose> & { pos?: P3 }, body: Partial<Bo
 
 // Each attack: anticipation (draw back, lean back) -> fast strike (ease-in) -> overshoot -> slow recovery (ease-out).
 const LIGHT: readonly (readonly Key[])[] = [
-  // 1: thrust — draw back, stab forward on frame 7 with a body lunge, overshoot, settle.
+  // 1: thrust — coil back hard, then a full-arm stab with the whole body behind it.
   [
     k(0, {}),
-    k(5, { pos: [0.26, 1.15, 0.28], rx: H }, { twist: 0.25, pitch: 0.06, fwd: -0.06 }, 'out'),
-    k(7, { pos: [0.1, 1.15, -0.5], rx: H }, { twist: -0.12, pitch: -0.16, fwd: 0.16 }, 'in'),
-    k(9, { pos: [0.08, 1.14, -0.6], rx: H - 0.03 }, { twist: -0.15, pitch: -0.2, fwd: 0.2 }, 'out'),
-    k(12, { pos: [0.1, 1.15, -0.52], rx: H }, { twist: -0.1, pitch: -0.15, fwd: 0.17 }),
+    k(5, { pos: [0.3, 1.18, 0.42], rx: H + 0.12 }, { twist: 0.5, pitch: 0.12, fwd: -0.1, up: 0.02 }, 'out'),
+    k(7, { pos: [0.05, 1.12, -0.85], rx: H }, { twist: -0.3, pitch: -0.32, fwd: 0.28, up: -0.04 }, 'in'),
+    k(9, { pos: [0.03, 1.1, -0.98], rx: H - 0.05 }, { twist: -0.36, pitch: -0.38, fwd: 0.32, up: -0.05 }, 'out'),
+    k(12, { pos: [0.06, 1.12, -0.85], rx: H }, { twist: -0.28, pitch: -0.3, fwd: 0.27, up: -0.04 }),
     k(21, {}, {}, 'out'),
   ],
-  // 2: sweep — wind far right, cut across on frame 7, follow through left, recover.
+  // 2: sweep — wind far behind the right shoulder, rip across, follow through past the left.
   [
     k(0, {}),
-    k(5, { pos: [0.32, 1.12, 0.0], rx: H, ry: 70 * DEG }, { twist: 0.8, pitch: 0.04, fwd: -0.04 }, 'out'),
-    k(7, { pos: [0.2, 1.16, -0.32], rx: H, ry: 0 }, { twist: 0, pitch: -0.1, fwd: 0.12 }, 'in'),
-    k(10, { pos: [0.05, 1.18, -0.2], rx: H, ry: -70 * DEG }, { twist: -0.85, pitch: -0.12, fwd: 0.15 }, 'out'),
-    k(14, { pos: [0.06, 1.16, -0.18], rx: H, ry: -60 * DEG }, { twist: -0.75, pitch: -0.08, fwd: 0.12 }),
+    k(5, { pos: [0.34, 1.2, 0.12], rx: H + 0.1, ry: 110 * DEG }, { twist: 1.25, pitch: 0.08, fwd: -0.06 }, 'out'),
+    k(7, { pos: [0.18, 1.14, -0.45], rx: H, ry: 0 }, { twist: 0, pitch: -0.22, fwd: 0.22, up: -0.03 }, 'in'),
+    k(10, { pos: [0.0, 1.18, -0.25], rx: H - 0.05, ry: -110 * DEG }, { twist: -1.3, pitch: -0.26, fwd: 0.26, up: -0.04 }, 'out'),
+    k(14, { pos: [0.02, 1.16, -0.22], rx: H, ry: -95 * DEG }, { twist: -1.15, pitch: -0.2, fwd: 0.22 }),
     k(23, {}, {}, 'out'),
   ],
-  // 3: spinning thrust — crouch, full turn (accelerating), stab on frame 11 with a big lunge.
+  // 3: spinning leap thrust — crouch, spin up off the wheels, drive the spear down through the target.
   [
     k(0, {}),
-    k(3, { pos: [0.24, 1.08, 0.12], rx: H + 0.2 }, { pitch: 0.1, up: -0.06, fwd: -0.04 }, 'out'),
-    k(10, { pos: [0.26, 1.15, 0.25], rx: H }, { twist: 2 * Math.PI, pitch: 0.04, up: 0.04 }, 'in'),
-    k(11, { pos: [0.06, 1.15, -0.62], rx: H }, { twist: 2 * Math.PI - 0.1, pitch: -0.22, fwd: 0.24 }, 'in'),
-    k(14, { pos: [0.04, 1.13, -0.7], rx: H - 0.04 }, { twist: 2 * Math.PI - 0.14, pitch: -0.26, fwd: 0.28 }, 'out'),
-    k(18, { pos: [0.06, 1.15, -0.62], rx: H }, { twist: 2 * Math.PI - 0.1, pitch: -0.2, fwd: 0.24 }),
+    k(3, { pos: [0.24, 1.0, 0.16], rx: H + 0.3 }, { pitch: 0.18, up: -0.1, fwd: -0.06 }, 'out'),
+    k(10, { pos: [0.28, 1.2, 0.3], rx: H + 0.1 }, { twist: 2 * Math.PI, pitch: 0.06, up: 0.28 }, 'in'),
+    k(11, { pos: [0.02, 1.1, -0.95], rx: H - 0.12 }, { twist: 2 * Math.PI - 0.15, pitch: -0.42, fwd: 0.36, up: 0.08 }, 'in'),
+    k(14, { pos: [0.0, 1.06, -1.05], rx: H - 0.18 }, { twist: 2 * Math.PI - 0.2, pitch: -0.48, fwd: 0.4, up: -0.04 }, 'out'),
+    k(18, { pos: [0.02, 1.1, -0.95], rx: H - 0.1 }, { twist: 2 * Math.PI - 0.15, pitch: -0.4, fwd: 0.34, up: -0.03 }),
     k(33, {}, { twist: 2 * Math.PI }, 'out'),
   ],
 ];
-// Charge: pull the spear back and compress; keeps tightening while held (sampled up to frame 72).
+// Charge: pull far back and compress; keeps tightening while held (sampled up to frame 72).
 const CHARGE: readonly Key[] = [
   k(0, {}),
-  k(10, { pos: [0.26, 1.1, 0.34], rx: -95 * DEG }, { pitch: -10 * DEG, twist: 0.2, fwd: -0.05 }, 'out'),
-  k(72, { pos: [0.27, 1.08, 0.42], rx: -97 * DEG }, { pitch: -14 * DEG, twist: 0.3, fwd: -0.08, up: -0.03 }),
+  k(10, { pos: [0.3, 1.1, 0.5], rx: -98 * DEG }, { pitch: -16 * DEG, twist: 0.45, fwd: -0.1, up: -0.03 }, 'out'),
+  k(72, { pos: [0.32, 1.06, 0.6], rx: -100 * DEG }, { pitch: -22 * DEG, twist: 0.6, fwd: -0.16, up: -0.07 }),
 ];
 const HEAVY: readonly Key[] = [
-  k(0, { pos: [0.27, 1.08, 0.42], rx: -97 * DEG }, { pitch: -14 * DEG, twist: 0.3, fwd: -0.08, up: -0.03 }),
+  k(0, { pos: [0.32, 1.06, 0.6], rx: -100 * DEG }, { pitch: -22 * DEG, twist: 0.6, fwd: -0.16, up: -0.07 }),
   // The heavy thrust brings the spear onto the centre line, so the tip flame runs along the judgement axis.
-  k(8, { pos: [0, 1.15, -0.55], rx: H }, { pitch: -0.24, fwd: 0.22 }, 'in'),
-  k(10, { pos: [0, 1.14, -0.62], rx: H - 0.02 }, { pitch: -0.27, fwd: 0.26 }, 'out'),
-  k(15, { pos: [0, 1.15, -0.55], rx: H }, { pitch: -0.24, fwd: 0.22 }),
+  k(8, { pos: [0, 1.15, -0.9], rx: H }, { pitch: -0.45, fwd: 0.4, up: -0.05 }, 'in'),
+  k(10, { pos: [0, 1.13, -1.0], rx: H - 0.02 }, { pitch: -0.5, fwd: 0.45, up: -0.06 }, 'out'),
+  k(15, { pos: [0, 1.15, -0.9], rx: H }, { pitch: -0.45, fwd: 0.4, up: -0.05 }),
   k(33, {}, {}, 'out'),
 ];
-const HURT: readonly Key[] = [k(0, {}), k(4, { rx: 5 * DEG }, { pitch: 8 * DEG, fwd: -0.08, up: -0.02 }, 'out'), k(24, {}, {}, 'inout')];
+const HURT: readonly Key[] = [k(0, {}), k(4, { rx: 8 * DEG }, { pitch: 14 * DEG, fwd: -0.16, up: -0.03 }, 'out'), k(24, {}, {}, 'inout')];
 const LOTUS: readonly Key[] = [
   k(0, {}),
   k(12, { pos: [0.3, 0.95, 0.05], rx: 0 }, { pitch: 5 * DEG, up: -0.02 }, 'out'),
@@ -132,10 +132,10 @@ export function rollAngleDeg(frame: number): number {
   return 360 + 10 * Math.sin(Math.PI * t) * (1 - t);
 }
 
-/** Roll hop (m): rises up to 0.22 m mid-roll and lands by frame 18 (never below the hover height). */
+/** Roll hop (m): rises up to 0.38 m mid-roll and lands by frame 18 (never below the hover height). */
 export function rollHop(frame: number): number {
   if (frame <= 0 || frame >= 18) return 0;
-  return 0.22 * Math.sin((Math.PI * frame) / 18);
+  return 0.38 * Math.sin((Math.PI * frame) / 18);
 }
 
 export function axisAngle(axis: P3, angle: number): Q {

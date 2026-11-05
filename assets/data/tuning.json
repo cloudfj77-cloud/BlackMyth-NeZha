@@ -93,7 +93,7 @@
     "rollDistance": 3,
     "lungeDistance": 0.5,
     "autoTurnRange": 3,
-    "sparkLife": 0.12,
+    "sparkLife": 0.2,
     "wheelRollScale": 1.4,
     "costLight": 6,
     "costHeavy": 15,

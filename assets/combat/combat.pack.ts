@@ -190,7 +190,7 @@ export const combat: Plugin = {
         { component: Transform, data: { pos: [0, -50, 0] } },
         { component: MeshFilter, data: { assetHandle: sparkMesh } as never },
         { component: MeshRenderer, data: { materials: [mat.spark] } as never },
-        { component: Points, data: { size: 0.06, sizeUnits: PointSizeUnitsValue.world, shape: PointShapeValue.soft } as never },
+        { component: Points, data: { size: 0.11, sizeUnits: PointSizeUnitsValue.world, shape: PointShapeValue.soft } as never },
       ).unwrap();
       spawned.push(sparks);
       const sparkPos = new Float32Array(SPARKS * 3);
@@ -230,7 +230,7 @@ export const combat: Plugin = {
             world.set(sparks, Transform, { pos: [event.strike.point.x, FLOOR_Y + 1.1, event.strike.point.z] }).unwrap();
             for (let i = 0; i < SPARKS; i += 1) {
               sparkPos.set([0, 0, 0], i * 3);
-              const a = rand() * Math.PI * 2, e = (rand() - 0.3) * 1.2, v = 3 + rand() * 4;
+              const a = rand() * Math.PI * 2, e = (rand() - 0.3) * 1.2, v = 5 + rand() * 7;
               sparkVel.set([Math.cos(a) * Math.cos(e) * v, Math.sin(e) * v + 1, Math.sin(a) * Math.cos(e) * v], i * 3);
             }
             sparkAge = 0;
