@@ -1,0 +1,24 @@
+# BEGIN FORGEAX MANAGED SKILLS
+/forgeax-engine-app
+/forgeax-engine-assets
+/forgeax-engine-audio
+/forgeax-engine-cli
+/forgeax-engine-debug
+/forgeax-engine-debug-draw
+/forgeax-engine-ecs
+/forgeax-engine-evolve
+/forgeax-engine-material
+/forgeax-engine-math
+/forgeax-engine-navigation
+/forgeax-engine-performance
+/forgeax-engine-physics
+/forgeax-engine-render-pipeline
+/forgeax-engine-rhi
+/forgeax-engine-rhi-debug
+/forgeax-engine-sdk
+/forgeax-engine-shader
+/forgeax-engine-state
+/forgeax-engine-vfx
+/forgeax-engine-wechat
+/forgeax-scriptable-pack-review
+# END FORGEAX MANAGED SKILLS
