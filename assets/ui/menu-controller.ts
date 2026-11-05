@@ -77,6 +77,8 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     qa: dev || params.get('qa') === '1',
     debugOpen: false,
     grey: dev && params.get('grey') === '1',
+    fade: dev && (params.get('fade') === 'steps' || params.get('fade') === 'glass') ? (params.get('fade') as 'steps' | 'glass') : 'hash',
+    lab: dev ? (params.get('lab') ?? '') : '',
     platformInitialized: (globalThis as { __nezhaPlatform?: { initialized?: boolean } }).__nezhaPlatform?.initialized === true,
   };
   const publishStatus = (patch: Partial<FrontendStatus> = {}) => {

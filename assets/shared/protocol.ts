@@ -37,6 +37,10 @@ export interface FrontendStatus {
   readonly debugOpen: boolean;
   readonly grey: boolean;
   readonly platformInitialized: boolean;
+  /** Pillar fade route under review (dev): Alpha Hash, quantised steps, or blended glass. */
+  readonly fade: 'hash' | 'steps' | 'glass';
+  /** Dev lab switches, e.g. `force` (fade the canyon pillar regardless of occlusion). */
+  readonly lab: string;
 }
 
 export interface FrontendMessage {

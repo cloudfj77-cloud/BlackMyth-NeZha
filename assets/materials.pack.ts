@@ -4,7 +4,7 @@ import type { MaterialRootAsset } from '@forgeax/engine/types';
 import { ok, RenderQueue } from '@forgeax/engine/types';
 import { PACKAGE_IDS } from './shared/asset-refs.ts';
 
-type RGB = readonly [number, number, number];
+import { FIRE_GOLD, PILLAR_COLOR, WHEEL_FULL_INTENSITY, type RGB } from './shared/palette.ts';
 
 /**
  * Greybox palette. Environment is cool only (deep blue, teal, slate); the
@@ -58,11 +58,6 @@ const ALPHA_BLEND = {
   depthWriteEnabled: false,
 } as const;
 
-/** Warm fire palette shared by Nezha's emissive parts (linear RGB). */
-export const FIRE_GOLD: RGB = [1.0, 0.55, 0.12];
-/** Full-brightness emissive intensity of the Wind-Fire Wheels; idle uses `wheel.emissive` of it (30%). */
-export const WHEEL_FULL_INTENSITY = 8;
-export const PILLAR_COLOR: RGB = [0.27, 0.33, 0.36];
 
 export default definePack({
   schemaVersion: '2.0.0',
@@ -79,7 +74,17 @@ export default definePack({
       'material/trench-rock': std([0.03, 0.05, 0.07], { roughness: 0.95 }),
       'material/pillar': std(PILLAR_COLOR, { roughness: 0.6 }),
       /** Dithered (Alpha Hash) twin used while a pillar fades; still opaque queue + depth writes. */
-      'material/pillar-fade': std(PILLAR_COLOR, { roughness: 0.6, alphaHash: true }),
+      'material/pillar-fade': Materials.standard({
+        surfaceModule: 'nezha::pillar_fade_surface',
+        parameters: [
+          { name: 'baseColor', type: 'color' },
+          { name: 'rimColor', type: 'color' },
+          { name: 'fade', type: 'f32' },
+          { name: 'rimWidth', type: 'f32' },
+          { name: 'cellsPerMeter', type: 'f32' },
+        ],
+        values: { baseColor: [PILLAR_COLOR[0], PILLAR_COLOR[1], PILLAR_COLOR[2], 1], rimColor: [0.35, 0.62, 0.72, 1], fade: 1, rimWidth: 0.22, cellsPerMeter: 36 },
+      }),
       /** Fallback B2: 35% blended translucency. */
       'material/pillar-glass': Materials.standard({
         baseColor: [PILLAR_COLOR[0], PILLAR_COLOR[1], PILLAR_COLOR[2], 0.35],

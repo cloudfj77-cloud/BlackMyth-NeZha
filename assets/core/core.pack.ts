@@ -77,6 +77,8 @@ const INITIAL_FRONTEND: FrontendStatus = Object.freeze({
   debugOpen: false,
   grey: false,
   platformInitialized: false,
+  fade: 'hash',
+  lab: '',
 });
 
 export const core: Plugin = {
