@@ -115,15 +115,25 @@ describe('dragon AI', () => {
     let minOverhead = Infinity;
     let maxGapToHit = 0;
     let lastOpeningEnd = 0;
+    // Nezha is pushed out of body parts below the 3.5 m clearance every step, as in the game (margin 0.4 m).
+    let pushed: { x: number; z: number } | undefined;
     for (let s = 1; s <= steps; s += 1) {
-      const n = typeof nezha === 'function' ? nezha(s) : nezha;
+      const scripted = typeof nezha === 'function' ? nezha(s) : nezha;
+      let n = pushed ? { x: pushed.x + (scripted.x - pushed.x) * 0.2, z: pushed.z + (scripted.z - pushed.z) * 0.2 } : scripted;
+      for (const [i, p] of brain.points().entries()) {
+        if (p[1] - radius(i) >= BRAIN.overheadClear) continue;
+        const dx = n.x - p[0], dz = n.z - p[2];
+        const d = Math.hypot(dx, dz), want = radius(i) + 0.4;
+        if (d < want && d > 1e-6) n = { x: p[0] + (dx / d) * want, z: p[2] + (dz / d) * want };
+      }
+      pushed = n;
       for (const e of brain.step({ nezha: n, engaged: true })) {
         if (e.type === 'telegraph') telegraphs.push({ step: s, kind: e.kind, forced: e.forced });
         if (e.type === 'opening-end') lastOpeningEnd = s;
         if (e.type === 'hit') maxGapToHit = Math.max(maxGapToHit, s - lastOpeningEnd);
       }
-      // Passing over = swimming at height (after the 90-step rise and retreat that follows an opening).
-      if (brain.snapshot().mode === 'swim' && brain.snapshot().since > BRAIN.returnAt) {
+      // Passing over = any swimming step, including the rise right after an opening.
+      if (brain.snapshot().mode === 'swim') {
         for (const [i, p] of brain.points().entries()) {
           if (Math.hypot(p[0] - n.x, p[2] - n.z) < radius(i) + 0.35) minOverhead = Math.min(minOverhead, p[1] - radius(i));
         }
@@ -142,6 +152,23 @@ describe('dragon AI', () => {
     }
     expect(maxGapToHit).toBeLessThanOrEqual(BRAIN.maxGap + ATTACKS.lash.hit);
     expect(new Set(telegraphs.map((t) => t.kind)).size).toBe(3);
+  });
+  it('keeps the gap ≤ 180 steps and ≤ 2 in a row even when only forced attacks fit (Nezha 8–12 m out)', () => {
+    for (const path of [(s: number) => ({ x: 10 * Math.sin(s / 400), z: 10 * Math.cos(s / 400) }), () => ({ x: 0, z: 15 }), () => ({ x: -11, z: -6 })]) {
+      const { brain, telegraphs } = run(path, 6000);
+      for (const entry of brain.snapshot().log) expect(entry.sinceOpening).toBeLessThanOrEqual(BRAIN.maxGap);
+      for (let i = 2; i < telegraphs.length; i += 1) {
+        expect(telegraphs[i]!.kind === telegraphs[i - 1]!.kind && telegraphs[i]!.kind === telegraphs[i - 2]!.kind).toBe(false);
+      }
+    }
+  });
+  it('does not bank waiting time while Nezha is off the vortex', () => {
+    const brain = createBrain();
+    for (let s = 0; s < 600; s += 1) brain.step({ nezha: { x: 0, z: 40 }, engaged: false });
+    let first: number | undefined;
+    for (let s = 0; s < 400 && first === undefined; s += 1) for (const e of brain.step({ nezha: { x: 0, z: 6 }, engaged: true })) if (e.type === 'telegraph') first = s;
+    expect(first).toBeDefined();
+    for (const entry of brain.snapshot().log) expect(entry.sinceOpening).toBeLessThanOrEqual(BRAIN.maxGap);
   });
   it('starts regular bites and charges facing Nezha within 30°', () => {
     const { brain } = run((s) => ({ x: 8 * Math.sin(s / 250), z: 8 * Math.cos(s / 330) }), 6000);

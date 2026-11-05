@@ -15,14 +15,17 @@ const h = require('./harness.cjs');
       const s = await h.state(page);
       if (s.combat.hp < 40) await h.hold(page, ['KeyQ'], 60);
       const d = s.dragon;
+      // Keep the camera on the dragon while waiting, so the telegraph is already in frame.
+      if (!d.telegraph) {
+        const hd = d.head, pr0 = s.player.root;
+        const want = Math.atan2(hd[0] - pr0[0], -(hd[2] - pr0[2]));
+        const diff = Math.atan2(Math.sin(want - s.camera.yaw), Math.cos(want - s.camera.yaw));
+        if (Math.abs(diff) > 0.35) await h.look(page, Math.max(-400, Math.min(400, diff / (0.1 * Math.PI / 180))), 0, 4);
+      }
       if (d.telegraph && d.kind && !done.has(d.kind) && d.k !== null && d.k < 8) {
         const kind = d.kind;
         done.add(kind);
-        // Aim at the warned area centre.
         const poly = d.polygon;
-        const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length, cz = poly.reduce((a, p) => a + p[1], 0) / poly.length;
-        const pr = s.player.root;
-        await h.faceYaw(page, Math.atan2(-(cx - pr[0]), -(cz - pr[2])));
         const shots = [];
         let last = d;
         for (let i = 0; i < 40; i += 1) {

@@ -222,6 +222,10 @@ export default definePack({
       'material/dragon-front': std([0.2122, 0.3613, 0.3005], { metallic: 0.2, roughness: 0.55 }),
       'material/dragon-mid': std([0.0976, 0.1946, 0.1529], { metallic: 0.2, roughness: 0.55 }),
       'material/dragon-tail': std([0.0185, 0.0343, 0.0273], { metallic: 0.2, roughness: 0.6 }),
+      // Camera see-through (same route as the pillars, boss 15:54「毛玻璃」): 35 % blended band colour.
+      'material/dragon-front-glass': Materials.standard({ baseColor: [0.2122, 0.3613, 0.3005, 0.35], roughness: 0.55, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
+      'material/dragon-mid-glass': Materials.standard({ baseColor: [0.0976, 0.1946, 0.1529, 0.35], roughness: 0.55, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
+      'material/dragon-tail-glass': Materials.standard({ baseColor: [0.0185, 0.0343, 0.0273, 0.35], roughness: 0.6, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
       'material/dragon-ridge': std([0.0976, 0.1946, 0.1529], { roughness: 0.5 }),
       'material/dragon-horn': std([0.7913, 0.7682, 0.7011], { roughness: 0.6 }),
       /** Moon-cyan eyes #CFE7E4: steady glow at 30 % (50 % telegraph, 15 % opening, 0 closed). Never flickers. */

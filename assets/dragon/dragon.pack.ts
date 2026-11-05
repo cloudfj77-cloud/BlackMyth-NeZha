@@ -83,6 +83,8 @@ const BAND_COLORS: readonly (readonly [number, number, number])[] = [
   [0.0185, 0.0343, 0.0273],
 ];
 const FADES = [1, 0.75, 0.5, 0.35] as const;
+/** A body part whose surface is this close to the lens is not drawn (the camera never sits inside the dragon). */
+const LENS_HIDE = 0.5;
 
 /** Flat fan mesh of a convex polygon at y = 0 (warning fill). */
 function polygonMesh(poly: Polygon, inset = 0, centre?: V2): MeshAsset {
@@ -177,6 +179,7 @@ export const dragon: Plugin = {
     };
     const mat = {
       bands: [await load(guidText(materialGuid('dragon-front')), 'material'), await load(guidText(materialGuid('dragon-mid')), 'material'), await load(guidText(materialGuid('dragon-tail')), 'material')],
+      glass: [await load(guidText(materialGuid('dragon-front-glass')), 'material'), await load(guidText(materialGuid('dragon-mid-glass')), 'material'), await load(guidText(materialGuid('dragon-tail-glass')), 'material')],
       ridge: await load(guidText(materialGuid('dragon-ridge')), 'material'),
       horn: await load(guidText(materialGuid('dragon-horn')), 'material'),
       eye: await load(guidText(materialGuid('dragon-eye')), 'material'),
@@ -194,7 +197,7 @@ export const dragon: Plugin = {
         for (const e of spawned) world.despawn(e).unwrap();
         for (const c of copies) assets.release(c as never).unwrap();
         for (const m of meshes) assets.release(m as never).unwrap();
-        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, ...mat.bands]) assets.release(h).unwrap();
+        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
       };
       const copy = (handle: never, values?: Record<string, unknown>) => {
         const c = assets.copy(handle).unwrap() as unknown as number;
@@ -211,11 +214,15 @@ export const dragon: Plugin = {
         spawned.push(e);
         return e;
       };
-      // Per band: solid material + three screen-door fade levels (shared by every segment of the band).
-      const bandMats = mat.bands.map((solid, b) => [
+      // Per band: solid, plus the see-through route. Default「毛玻璃」(35 % blended, boss 15:54, same as the
+      // pillars); ?dev=1&fade=hash keeps the screen-door levels for comparison.
+      const hashMats = mat.bands.map((solid, b) => [
         solid,
         ...FADES.slice(1).map((fade) => copy(mat.fade, { baseColor: [...BAND_COLORS[b]!, 1], rimColor: [BAND_COLORS[b]![0] * 1.4, BAND_COLORS[b]![1] * 1.4, BAND_COLORS[b]![2] * 1.4, 1], fade })),
       ]);
+      const glassMats = mat.bands.map((solid, b) => [solid, mat.glass[b]!, mat.glass[b]!, mat.glass[b]!]);
+      const routeMats = () => (session.frontend().fade === 'hash' ? hashMats : glassMats);
+      const bandMats = glassMats;
       const joints = Array.from({ length: POINTS }, (_, i) => ({ entity: spawn(mesh.joint, [bandMats[bandOf(i)]![0]!]), level: 0 }));
       const segs = Array.from({ length: POINTS - 1 }, (_, i) => ({ entity: spawn(mesh.segment, [bandMats[bandOf(i)]![0]!]), level: 0 }));
       const fins = Array.from({ length: 19 }, () => spawn(mesh.fin, [mat.ridge]));
@@ -228,7 +235,11 @@ export const dragon: Plugin = {
       const warn = { fill: spawn(mesh.joint, [fillMat]), edge: spawn(mesh.joint, [mat.edge]), shrink: spawn(mesh.joint, [shrinkMat]) };
       let warnMeshes: number[] = [];
       const clearWarning = () => {
-        for (const e of Object.values(warn)) world.set(e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+        // Point the entities back at a live mesh before releasing the warning meshes (never draw a freed one).
+        for (const e of Object.values(warn)) {
+          world.set(e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+          world.set(e, MeshFilter, { assetHandle: mesh.joint } as never).unwrap();
+        }
         for (const m of warnMeshes) assets.release(m as never).unwrap();
         warnMeshes = [];
       };
@@ -256,11 +267,14 @@ export const dragon: Plugin = {
       let queue: DragonEvent[] = [];
       let telegraphAt = 0;
       let lastPoly: Polygon | null = null;
-      let lastHit: { kind: AttackKind; step: number; polygonVertices: number } | null = null;
+      let lastHit: { kind: AttackKind; step: number; telegraphAt: number; polygonVertices: number } | null = null;
       const shake = new Map<number, number>();
       let cpuMs = 0;
       let eye = 0.3;
       let worldTime = 0;
+      let lensHidden = 0;
+      let labApplied = false;
+      let seeThrough = 0;
 
       const capsules = () => hurtCapsules(cur);
       const nezhaXZ = (): V2 => {
@@ -279,6 +293,11 @@ export const dragon: Plugin = {
         queries: [],
         fn: () => {
           if (!session.playing()) return;
+          // Dev lab (?dev=1&lab=bosslow): the dragon starts each fight with 40 HP, to verify the fall quickly.
+          if (!labApplied && session.frontend().lab === 'bosslow') {
+            labApplied = true;
+            brain.damage(BRAIN.hpMax - 40);
+          }
           const t0 = performance.now();
           const scale = session.clock.worldScale();
           worldTime += scale / 60;
@@ -302,7 +321,7 @@ export const dragon: Plugin = {
                 lastPoly = e.polygon;
               }
               if (e.type === 'hit') {
-                lastHit = { kind: e.kind, step: brain.snapshot().step, polygonVertices: e.polygon.length };
+                lastHit = { kind: e.kind, step: brain.snapshot().step, telegraphAt, polygonVertices: e.polygon.length };
                 clearWarning();
               }
               queue.push(e);
@@ -343,26 +362,39 @@ export const dragon: Plugin = {
             const len2 = lx * lx + ly * ly + lz * lz || 1;
             const t = ((p[0] - cx) * lx + (p[1] - cy) * ly + (p[2] - cz) * lz) / len2;
             const between = t > 0 && t < 1 && Math.hypot(p[0] - (cx + lx * t), p[1] - (cy + ly * t), p[2] - (cz + lz * t)) < r + 0.25;
+            // Lens inside / touching the body: that part is not drawn at all (no full-screen tint).
+            if (near < LENS_HIDE) return 4;
             return near < 2 || between ? 3 : 0;
           };
+          let hiddenParts = 0;
           for (let i = 0; i < POINTS; i += 1) {
             const p = pts[i]!, r = radius(i);
             const j = joints[i]!;
             world.set(j.entity, Transform, { pos: p, scale: [r, r, r] }).unwrap();
-            const level = fadeOf(p, r);
+            const raw = fadeOf(p, r);
+            if (raw === 4) {
+              hiddenParts += 1;
+              world.set(j.entity, Transform, { scale: [0, 0, 0] }).unwrap();
+            }
+            const level = Math.min(3, raw);
             if (level !== j.level) {
               j.level = level;
-              world.set(j.entity, MeshRenderer, { materials: [bandMats[bandOf(i)]![level]!] } as never).unwrap();
+              world.set(j.entity, MeshRenderer, { materials: [routeMats()[bandOf(i)]![level]!] } as never).unwrap();
             }
             if (i < POINTS - 1) {
               const q = pts[i + 1]!;
               const s = segs[i]!;
               const rr = (r + radius(i + 1)) / 2;
               world.set(s.entity, Transform, { pos: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], quat: segmentQuat(p, q), scale: [rr, Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]), rr] }).unwrap();
-              const sl = Math.max(level, fadeOf(q, radius(i + 1)));
+              const rawQ = fadeOf(q, radius(i + 1));
+              if (raw === 4 || rawQ === 4) {
+                hiddenParts += 1;
+                world.set(s.entity, Transform, { scale: [0, 0, 0] }).unwrap();
+              }
+              const sl = Math.min(3, Math.max(level, rawQ));
               if (sl !== s.level) {
                 s.level = sl;
-                world.set(s.entity, MeshRenderer, { materials: [bandMats[bandOf(i)]![sl]!] } as never).unwrap();
+                world.set(s.entity, MeshRenderer, { materials: [routeMats()[bandOf(i)]![sl]!] } as never).unwrap();
               }
             }
           }
@@ -392,12 +424,16 @@ export const dragon: Plugin = {
             assets.update(eyeMat, { values: { intensity: eye } } as never).unwrap();
           }
           // Warning: flickering fill, cyan edge shrinking onto the outline exactly at the hit frame.
-          if (snap.telegraph && snap.hitStep !== null && snap.k !== null) {
+          // Only while a warning is up: on the hit step the warning is already cleared (k == hit still
+          // reads as "telegraph"), and redrawing the shrink ring there left the last outline on the floor.
+          if (warnMeshes.length > 0 && snap.telegraph && snap.hitStep !== null && snap.k !== null) {
             const k = Math.min(1, (snap.k + a) / snap.hitStep);
             const s = 1.5 - 0.5 * k;
             world.set(warn.shrink, Transform, { pos: [warnCentre.x, FLOOR_Y + 0.054, warnCentre.z], scale: [s, 1, s] }).unwrap();
-            assets.update(fillMat, { values: { intensity: 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(worldTime * Math.PI * 12)) } } as never).unwrap();
+            assets.update(fillMat, { values: { intensity: 0.6 + 0.3 * (0.5 + 0.5 * Math.sin(worldTime * Math.PI * 12)) } } as never).unwrap();
           }
+          lensHidden = hiddenParts;
+          seeThrough = joints.filter((j) => j.level > 0).length;
           cpuMs += (performance.now() - t0 - cpuMs) * 0.05;
         },
       }).unwrap();
@@ -439,10 +475,16 @@ export const dragon: Plugin = {
         },
         frontNearest: (x, z) => frontNearest(cur, x, z),
         pushOut: (x, z, margin) => {
+          // The strike (hold end → hit frame) never shoves Nezha out of the warned sweep: damage is
+          // settled on the hit frame against where she chose to be (M3 §5, single-frame settlement).
+          const snap = brain.snapshot();
+          if (snap.mode === 'attack' && snap.kind && snap.k !== null && snap.k > ATTACKS[snap.kind].hold && snap.k <= ATTACKS[snap.kind].hit) return { x, z };
           let px = x, pz = z;
+          // Solid below the 3.5 m pass-over clearance (Nezha spans ≈ 1.15–3.1 m): a part is either a wall
+          // or high enough to pass over her head — never in between.
           for (let i = 0; i < POINTS; i += 1) {
             const p = cur[i]!;
-            if (p[1] - radius(i) > HURT_TOP) continue;
+            if (p[1] - radius(i) >= BRAIN.overheadClear) continue;
             const dx = px - p[0], dz = pz - p[2];
             const d = Math.hypot(dx, dz);
             const want = radius(i) + margin;
@@ -472,6 +514,7 @@ export const dragon: Plugin = {
         },
         reset: () => {
           brain = createBrain();
+          labApplied = false;
           prev = cur = brain.points();
           acc = 0;
           hold = 0;
@@ -514,6 +557,9 @@ export const dragon: Plugin = {
           deathK: s.deathK,
           head: [r3(cur[0]![0]), r3(cur[0]![1]), r3(cur[0]![2])],
           headR: r3(Math.hypot(cur[0]![0], cur[0]![2])),
+          /** Tail hurt zone sample (point 37) and its underside, for scripted tail-hit checks. */
+          tail: [r3(cur[37]![0]), r3(cur[37]![1]), r3(cur[37]![2])],
+          tailUnderside: r3(cur[37]![1] - radius(37)),
           frontDistance: r3(service.frontDistance(root[0], root[2])),
           minUnderside: r3(Math.min(...caps.map((c) => c.bottom))),
           frontUndersideMax: r3(Math.max(...caps.filter((c) => !c.tail).map((c) => c.bottom))),
@@ -523,6 +569,8 @@ export const dragon: Plugin = {
           lastHit,
           log: s.log.slice(-12),
           cpuMs: r3(cpuMs),
+          seeThrough,
+          lensHidden,
           hitSteps: { bite: ATTACKS.bite.hit, lash: ATTACKS.lash.hit, charge: ATTACKS.charge.hit },
         };
       });

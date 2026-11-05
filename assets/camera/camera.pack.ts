@@ -231,6 +231,7 @@ export const camera: Plugin = {
         lifted: state.lift > 0,
         lift: r3(state.lift),
         aimRaise: r3(aimRaise),
+        focusY: focus ? r3(focus[1] - ((readPresentationWorldMatrix(world, player)?.[13] ?? 0) - CAPSULE_CENTER_Y)) : null,
         lineClear: state.lineClear,
         wallGap: state.wallGap,
         locked: lockView !== undefined,

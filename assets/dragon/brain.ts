@@ -33,6 +33,9 @@ import {
   type V2,
 } from './body.ts';
 
+/** Nezha off the vortex: nothing to arch over. */
+const FAR: V2 = { x: 1e6, z: 1e6 };
+
 export const BRAIN = Object.freeze({
   hpMax: 800,
   speed: 4,
@@ -52,6 +55,11 @@ export const BRAIN = Object.freeze({
   lashRange: 7,
   deathSteps: 180,
   deathEyesClose: 150,
+  /** Passing over Nezha: underside ≥ 3.5 m; parts arch up at ≤ 10 m/s, fully within r + 1 m, easing from r + 4 m. */
+  overheadClear: 3.5,
+  archSpeed: 10,
+  archNear: 1,
+  archFar: 4,
 });
 
 export type Mode = 'swim' | 'attack' | 'dead';
@@ -136,7 +144,7 @@ export function createBrain(start?: { readonly head: V2; readonly dir: V2 }) {
     return { x: d.x * ARENA.bandPatrolRadius, z: d.z * ARENA.bandPatrolRadius };
   };
 
-  const swimStep = () => {
+  const swimStep = (nezha: V2) => {
     const h = head();
     let nx = h.x + heading.x * BRAIN.speed * STEP;
     let nz = h.z + heading.z * BRAIN.speed * STEP;
@@ -149,6 +157,17 @@ export function createBrain(start?: { readonly head: V2; readonly dir: V2 }) {
     const rise = 3.2 * STEP;
     for (const p of chain) p[1] += Math.max(-rise, Math.min(rise, SWIM_Y - p[1]));
     followChain(chain, [nx, chain[0]![1], nz]);
+    // Passing over Nezha (M3 §4): any part heading over her arches up early so its underside clears
+    // 3.5 m. Full lift within r + 1 m (covers the 0.6 m lateral wave), easing out by r + 4 m.
+    const archRate = BRAIN.archSpeed * STEP;
+    for (let i = 0; i < POINTS; i += 1) {
+      const p = chain[i]!;
+      const d = Math.hypot(p[0] - nezha.x, p[2] - nezha.z) - radius(i);
+      if (d >= BRAIN.archFar) continue;
+      const t = Math.min(1, Math.max(0, (BRAIN.archFar - d) / (BRAIN.archFar - BRAIN.archNear)));
+      const want = (BRAIN.overheadClear + radius(i) + 0.1) * (t * t * (3 - 2 * t)) + p[1] * (1 - t * t * (3 - 2 * t));
+      if (want > p[1]) p[1] += Math.min(archRate, want - p[1]);
+    }
     phase += 2 * Math.PI * WAVE_HZ * STEP;
     amp = Math.min(1, amp + 1 / 30);
   };
@@ -205,7 +224,10 @@ export function createBrain(start?: { readonly head: V2; readonly dir: V2 }) {
         if (since >= BRAIN.maxGap) {
           // Forced: never more than 3 s without a threat (charge if far and there is room).
           const dir = { x: (nz.x - h.x) / (dN || 1), z: (nz.z - h.z) / (dN || 1) };
-          const kind: AttackKind = dN > BRAIN.biteRange && chargeLength(h, dir) >= CHARGE_MIN ? 'charge' : 'bite';
+          const canCharge = chargeLength(h, dir) >= CHARGE_MIN;
+          let kind: AttackKind = dN > BRAIN.biteRange && canCharge ? 'charge' : 'bite';
+          // Forced attacks keep the "same attack ≤ 2 in a row" rule too.
+          if (!allowed(kind)) kind = kind === 'charge' ? 'bite' : canCharge ? 'charge' : 'lash';
           startAttack(kind, nz, true, events);
           return events;
         }
@@ -247,10 +269,12 @@ export function createBrain(start?: { readonly head: V2; readonly dir: V2 }) {
           steerTo(t.x, t.z);
         } else steerTo(nz.x, nz.z);
       } else {
+        // Nezha off the vortex: the gap clock waits (the first threat comes 0–2 s after she enters).
+        since = Math.min(since, BRAIN.minGap);
         const t = patrolTarget();
         steerTo(t.x, t.z);
       }
-      swimStep();
+      swimStep(input.engaged ? input.nezha : FAR);
       return events;
     },
     /** Rendered / hurt / lock points (with the travelling wave). */

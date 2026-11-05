@@ -243,6 +243,7 @@ export const lockOn: Plugin = {
         const p = pivotOf(root[0], root[2]);
         return {
           active,
+          opening: active && dragon.opening(),
           distance: r3(distance),
           hint: lastHint ?? null,
           orbitAngleDeg: r3((Math.atan2(root[0] - p.x, root[2] - p.z) * 180) / Math.PI),
