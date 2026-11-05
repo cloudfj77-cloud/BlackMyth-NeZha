@@ -30,6 +30,7 @@ export const TUNING_RANGES: Readonly<Partial<Record<TuningPath, readonly [number
   'camera.collisionMargin': [0.15, 0.5, 0.01],
   'camera.wallLiftMax': [0, 1.5, 0.05],
   'camera.fovY': [50, 65, 1],
+  'camera.pitchDefault': [-10, 40, 1],
   'camera.sensitivity': [0.03, 0.3, 0.01],
   'camera.returnDelay': [0, 0.3, 0.01],
   'camera.returnTime': [0.25, 0.8, 0.01],

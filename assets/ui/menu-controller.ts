@@ -76,6 +76,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     dev,
     qa: dev || params.get('qa') === '1',
     debugOpen: false,
+    pointerLocked: false,
     grey: dev && params.get('grey') === '1',
     fade: dev && (params.get('fade') === 'steps' || params.get('fade') === 'glass') ? (params.get('fade') as 'steps' | 'glass') : 'hash',
     lab: dev ? (params.get('lab') ?? '') : '',
@@ -225,6 +226,8 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     const mode = host.controlMode?.read() ?? 'pointer';
     const locked = mode === 'pointer-locked';
     ui.host.classList.toggle('pointer-locked', locked);
+    if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
+    if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
     if (wasLocked && !locked && state?.phase === 'playing' && !status.debugOpen) send('pause');
     if (locked && state?.phase === 'paused') send('resume');
     if (locked && status.debugOpen) setDebugOpen(false);

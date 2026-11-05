@@ -75,6 +75,7 @@ const INITIAL_FRONTEND: FrontendStatus = Object.freeze({
   dev: false,
   qa: false,
   debugOpen: false,
+  pointerLocked: false,
   grey: false,
   platformInitialized: false,
   fade: 'hash',
@@ -154,7 +155,7 @@ export const core: Plugin = {
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-core-publish').unwrap();
 
-      sections.set('ui', () => ({ phase, pointerLocked: host.controlMode?.read() === 'pointer-locked', debugOpen: frontend.debugOpen, dev: frontend.dev, grey: frontend.grey }));
+      sections.set('ui', () => ({ phase, pointerLocked: frontend.pointerLocked, debugOpen: frontend.debugOpen, dev: frontend.dev, grey: frontend.grey }));
       sections.set('i18n', () => ({ lang: frontend.lang, source: frontend.langSource, pseudo: frontend.lang === 'pseudo', events: frontend.langEvents }));
       sections.set('platform', () => ({ initialized: frontend.platformInitialized }));
       sections.set('tuning', () => ({ revision, overrides: overrides(tuning) }));

@@ -43,6 +43,8 @@ export default definePack({
         scene: { $asset: guidText(assetGuid(PACKAGE_IDS.scene, GAME_SCENE_SOURCE_KEY)) },
         children: [
           { $asset: pluginGuid(PACKAGE_IDS.corePlugin, 'core') },
+          { $asset: pluginGuid(PACKAGE_IDS.hoverPlayerPlugin, 'hover-player') },
+          { $asset: pluginGuid(PACKAGE_IDS.cameraPlugin, 'camera') },
           { $asset: pluginGuid(PACKAGE_IDS.occlusionPlugin, 'occlusion') },
         ],
       },

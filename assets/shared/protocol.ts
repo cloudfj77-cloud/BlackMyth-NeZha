@@ -35,6 +35,8 @@ export interface FrontendStatus {
   /** `?qa=1` (or dev): mirror the read projection into the DOM for static-preview acceptance. */
   readonly qa: boolean;
   readonly debugOpen: boolean;
+  /** Browser pointer-lock state as seen by the presentation realm. */
+  readonly pointerLocked: boolean;
   readonly grey: boolean;
   readonly platformInitialized: boolean;
   /** Pillar fade route under review (dev): Alpha Hash, quantised steps, or blended glass. */

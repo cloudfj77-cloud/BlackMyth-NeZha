@@ -31,6 +31,7 @@ import { canyonWallSegments, ringWallSegments } from './shared/greybox.ts';
 import { ARENA, BEAM, CANYON, canyonCenterX, canyonHalfWidth, FLOOR_Y, LOCK_TARGET, PALACE, PILLARS, SPAWN, targetThickness, type Vec3 } from './shared/layout.ts';
 import { yawQ } from './shared/mesh-kit.ts';
 import { NEZHA } from './shared/nezha-shape.ts';
+import { CAPSULE_CENTER_Y, CAPSULE_SKIN } from './shared/player-rig.ts';
 import { GAME_SCENE_SOURCE_KEY } from './shared/scene-refs.ts';
 import TUNING from './data/tuning.json' with { type: 'json' };
 
@@ -53,8 +54,6 @@ const mesh = (guid: AssetGuid): Components => ({
 
 const q = (value: ArrayLike<number>): [number, number, number, number] => [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0, value[3] ?? 1];
 
-/** Capsule centre height above the seabed (the player root entity is the capsule). */
-export const CAPSULE_CENTER_Y = TUNING.move.capsuleHeight / 2;
 
 function dragonPalace(): SceneAsset {
   const entities: [string, SceneEntity][] = [];
@@ -158,7 +157,7 @@ function dragonPalace(): SceneAsset {
     Collider: {
       shape: ColliderShapeValue.capsule,
       radius: capsuleRadius,
-      halfHeight: CAPSULE_CENTER_Y - capsuleRadius,
+      halfHeight: CAPSULE_CENTER_Y - CAPSULE_SKIN - capsuleRadius,
       friction: 0,
       restitution: 0,
       collisionGroups: GROUPS.player,
