@@ -114,12 +114,12 @@ export default definePack({
       'material/nezha-gold': std([0.9, 0.66, 0.26], { metallic: 1, roughness: 0.3 }),
       'material/spear-shaft': std([0.32, 0.05, 0.04], { roughness: 0.4 }),
       'material/spear-tip': std([1.0, 0.6, 0.2], { roughness: 0.3, emissive: FIRE_GOLD, emissiveIntensity: 4 }),
-      'material/wheel-fire': std([0.9, 0.45, 0.12], {
+      'material/wheel-fire': std([0.3, 0.1, 0.02], {
         roughness: 0.4,
-        emissive: FIRE_GOLD,
+        emissive: [1.0, 0.36, 0.05],
         emissiveIntensity: WHEEL_FULL_INTENSITY * 0.3,
       }),
-      'material/sash': std([0.62, 0.05, 0.03], { roughness: 0.4, twoSided: true, emissive: [1.0, 0.18, 0.06], emissiveIntensity: 1.6 }),
+      'material/sash': std([0.5, 0.03, 0.02], { roughness: 0.4, twoSided: true, emissive: [1.0, 0.09, 0.03], emissiveIntensity: 1.25 }),
       'material/contact-glow': Materials.standard({
         surfaceModule: 'nezha::contact_glow_surface',
         parameters: [

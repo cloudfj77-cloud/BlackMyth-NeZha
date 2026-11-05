@@ -45,6 +45,8 @@ export default definePack({
           { $asset: pluginGuid(PACKAGE_IDS.corePlugin, 'core') },
           { $asset: pluginGuid(PACKAGE_IDS.hoverPlayerPlugin, 'hover-player') },
           { $asset: pluginGuid(PACKAGE_IDS.cameraPlugin, 'camera') },
+          { $asset: pluginGuid(PACKAGE_IDS.floatFxPlugin, 'float-fx') },
+          { $asset: pluginGuid(PACKAGE_IDS.ambientPlugin, 'ambient') },
           { $asset: pluginGuid(PACKAGE_IDS.occlusionPlugin, 'occlusion') },
         ],
       },

@@ -204,3 +204,43 @@ async function faceYaw(page, yaw) {
   return state(page);
 }
 module.exports.faceYaw = faceYaw;
+
+/** Accumulate the fixed-step `player.samples` ring buffer across polls (game-time stamps). */
+function sampleCollector(page) {
+  const byT = new Map();
+  const extra = [];
+  let running = true;
+  let since;
+  const loop = (async () => {
+    while (running) {
+      const s = await state(page);
+      const samples = s?.player?.samples ?? [];
+      since ??= samples.at(-1)?.t ?? 0;
+      for (const sample of samples) if (sample.t >= since) byT.set(sample.t, sample);
+      if (s) extra.push({ t: s.t, ambient: s.ambient, float: s.float, sash: s.sash });
+      await wait(40);
+    }
+  })();
+  return {
+    async stop() {
+      running = false;
+      await loop;
+      return { samples: [...byT.values()].sort((a, b) => a.t - b.t), frames: extra };
+    },
+  };
+}
+
+/** Amplitude and frequency (interpolated upward zero crossings) of a sampled signal. */
+function oscillation(points) {
+  if (points.length < 3) return { amp: 0, hz: 0, mean: 0 };
+  const mean = points.reduce((a, p) => a + p.v, 0) / points.length;
+  const times = [];
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1].v - mean, b = points[i].v - mean;
+    if (a < 0 && b >= 0) times.push(points[i - 1].t + (-a / (b - a)) * (points[i].t - points[i - 1].t));
+  }
+  const vs = points.map((p) => p.v);
+  return { amp: (Math.max(...vs) - Math.min(...vs)) / 2, hz: times.length > 1 ? (times.length - 1) / (times.at(-1) - times[0]) : 0, mean, cycles: Math.max(0, times.length - 1) };
+}
+module.exports.sampleCollector = sampleCollector;
+module.exports.oscillation = oscillation;
