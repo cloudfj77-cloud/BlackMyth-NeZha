@@ -9,25 +9,13 @@ declare module '@forgeax/engine/plugin' {
     gameScene: GameScene;
   }
 }
-type GameEntityKey =
-  | 'camera'
-  | 'player'
-  | 'point-light'
-  | 'skylight'
-  | 'sky-background'
-  | 'sun'
-  | `player/joint/${string}`;
 
-const GAME_SCENE_SOURCE_KEY = 'scene/showcase' as const;
+export const GAME_SCENE_SOURCE_KEY = 'scene/dragon-palace' as const;
 
 /** Resolve an instance-relative authored binding without consulting display names. */
-export function resolveGameEntity(
-  world: World,
-  host: GameScene,
-  entityKey: GameEntityKey,
-): EntityHandle {
+export function resolveGameEntity(world: World, host: GameScene, entityKey: string): EntityHandle {
   if (host.root === undefined) {
-    throw new Error(`game-3d default scene is unavailable for entity ${entityKey}`);
+    throw new Error(`dragon palace scene is unavailable for entity ${entityKey}`);
   }
   const resolved = worldResolveSceneEntity(
     world,

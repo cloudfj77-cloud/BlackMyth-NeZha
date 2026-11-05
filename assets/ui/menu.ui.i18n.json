@@ -1,0 +1,102 @@
+{
+  "fallbackLng": "en",
+  "defaultNS": "ui",
+  "resources": {
+    "zh": {
+      "terms": {
+        "game": { "title": "白神话：哪吒" },
+        "hero": { "nezha": "哪吒" },
+        "place": { "dragonPalace": "东海龙宫", "chentang": "陈塘关" },
+        "weapon": { "spear": "火尖枪", "wheels": "风火轮", "sash": "混天绫" },
+        "boss": { "dragonKing": "东海龙王" }
+      },
+      "ui": {
+        "menu": {
+          "common": { "language": "语言" },
+          "start": {
+            "title": "$t(terms:game.title)",
+            "kicker": "$t(terms:place.dragonPalace) · 前庭",
+            "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，携三昧真火入海，问罪$t(terms:boss.dragonKing)。",
+            "begin": "踏入龙宫",
+            "milestone": "试玩版本 M1 · 地基：悬浮、镜头、锁定"
+          },
+          "pause": {
+            "title": "暂停",
+            "resume": "继续",
+            "hint": "点击画面即可继续，并重新锁定视角"
+          },
+          "controls": {
+            "title": "操作",
+            "move": "悬浮移动",
+            "sprint": "按住飞驰",
+            "camera": "旋转镜头",
+            "lock": "锁定 / 解除锁定",
+            "dodge": "单击闪身",
+            "attack": "攻击",
+            "pause": "释放鼠标并暂停",
+            "soon": "后续开放",
+            "keyMouse": "鼠标",
+            "keyLmb": "左键 / 右键"
+          }
+        },
+        "hud": {
+          "hint": {
+            "noTarget": "25 米内没有可锁定的目标",
+            "targetLost": "目标太远，锁定解除",
+            "locked": "已锁定",
+            "unlocked": "解除锁定"
+          },
+          "tip": { "clickToLook": "点击画面锁定视角" }
+        }
+      }
+    },
+    "en": {
+      "terms": {
+        "game": { "title": "White Myth: Nezha" },
+        "hero": { "nezha": "Nezha" },
+        "place": { "dragonPalace": "Dragon Palace of the East Sea", "chentang": "Chentang Pass" },
+        "weapon": { "spear": "Fire-Tipped Spear", "wheels": "Wind-Fire Wheels", "sash": "Red Armillary Sash" },
+        "boss": { "dragonKing": "Dragon King of the East Sea" }
+      },
+      "ui": {
+        "menu": {
+          "common": { "language": "Language" },
+          "start": {
+            "title": "$t(terms:game.title)",
+            "kicker": "$t(terms:place.dragonPalace) · Forecourt",
+            "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) carries true fire into the sea to call the $t(terms:boss.dragonKing) to account.",
+            "begin": "Enter the Palace",
+            "milestone": "Playtest M1 · Foundation: hover, camera, lock-on"
+          },
+          "pause": {
+            "title": "Paused",
+            "resume": "Resume",
+            "hint": "Click the game to resume and re-lock the camera"
+          },
+          "controls": {
+            "title": "Controls",
+            "move": "Hover",
+            "sprint": "Hold to dash",
+            "camera": "Turn camera",
+            "lock": "Lock on / release",
+            "dodge": "Tap to step",
+            "attack": "Attack",
+            "pause": "Release mouse and pause",
+            "soon": "Later",
+            "keyMouse": "Mouse",
+            "keyLmb": "LMB / RMB"
+          }
+        },
+        "hud": {
+          "hint": {
+            "noTarget": "No target within 25 m",
+            "targetLost": "Target lost · too far",
+            "locked": "Locked on",
+            "unlocked": "Lock released"
+          },
+          "tip": { "clickToLook": "Click the game to lock the camera" }
+        }
+      }
+    }
+  }
+}

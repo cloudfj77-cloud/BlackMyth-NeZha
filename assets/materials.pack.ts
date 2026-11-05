@@ -1,135 +1,132 @@
 import { definePack } from '@forgeax/engine/pack/source';
 import { Materials } from '@forgeax/engine/render';
-import type { MaterialAsset } from '@forgeax/engine/types';
-import { ok } from '@forgeax/engine/types';
+import type { MaterialRootAsset } from '@forgeax/engine/types';
+import { ok, RenderQueue } from '@forgeax/engine/types';
 import { PACKAGE_IDS } from './shared/asset-refs.ts';
 
-function skinned(material: MaterialAsset): MaterialAsset {
-  if (material.passes === undefined) return material;
-  const [first, ...rest] = material.passes;
-  const withSkinProgram = (pass: (typeof material.passes)[number]) =>
-    pass.name === 'shadow-caster'
-      ? pass
-      : {
-          ...pass,
-          program: { ...pass.program, module: 'forgeax::pbr-skin' },
-        };
-  return {
-    ...material,
-    passes: [withSkinProgram(first), ...rest.map(withSkinProgram)],
-  };
-}
+type RGB = readonly [number, number, number];
+
+/**
+ * Greybox palette. Environment is cool only (deep blue, teal, slate); the
+ * only warm colours belong to Nezha (wheels, sash, spear tip, contact glow).
+ */
+const std = (
+  color: RGB,
+  options: {
+    readonly metallic?: number;
+    readonly roughness?: number;
+    readonly emissive?: RGB;
+    readonly emissiveIntensity?: number;
+    readonly twoSided?: boolean;
+    readonly alphaHash?: boolean;
+  } = {},
+): MaterialRootAsset =>
+  Materials.standard({
+    baseColor: [color[0], color[1], color[2], 1],
+    metallic: options.metallic ?? 0,
+    roughness: options.roughness ?? 0.8,
+    ...(options.emissive !== undefined ? { emissive: options.emissive, emissiveIntensity: options.emissiveIntensity ?? 1 } : {}),
+    ...(options.twoSided ? { renderState: { cullMode: 'none' as const } } : {}),
+    ...(options.alphaHash ? { alphaHash: true } : {}),
+  });
+
+const ADDITIVE = {
+  blend: {
+    color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
+    alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+  },
+  depthWriteEnabled: false,
+  cullMode: 'none',
+} as const;
+
+/** Emission-only light added on top: one/one colour, alpha untouched, no fog. */
+const GLOW = {
+  blend: {
+    color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+    alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+  },
+  depthWriteEnabled: false,
+  cullMode: 'none',
+  fog: false,
+} as const;
+
+const ALPHA_BLEND = {
+  blend: {
+    color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+    alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+  },
+  depthWriteEnabled: false,
+} as const;
+
+/** Warm fire palette shared by Nezha's emissive parts (linear RGB). */
+export const FIRE_GOLD: RGB = [1.0, 0.55, 0.12];
+/** Full-brightness emissive intensity of the Wind-Fire Wheels; idle uses `wheel.emissive` of it (30%). */
+export const WHEEL_FULL_INTENSITY = 8;
+export const PILLAR_COLOR: RGB = [0.27, 0.33, 0.36];
 
 export default definePack({
   schemaVersion: '2.0.0',
   packageId: PACKAGE_IDS.materials,
-  name: 'Game 3D / Materials',
+  name: 'Nezha / Materials',
   build: () =>
     ok({
-      'material/standard-root': Materials.standard({
-        baseColor: [1, 1, 1, 1],
-        metallic: 0,
-        roughness: 0.5,
+      // --- Environment (cool only) ------------------------------------------------
+      'material/seabed': std([0.085, 0.11, 0.13], { roughness: 0.95 }),
+      'material/jade-plaza': std([0.36, 0.44, 0.45], { roughness: 0.45 }),
+      'material/reef-rock': std([0.06, 0.08, 0.1], { roughness: 0.95 }),
+      'material/palace-wall': std([0.13, 0.19, 0.23], { roughness: 0.7 }),
+      'material/palace-roof': std([0.04, 0.12, 0.16], { metallic: 0.3, roughness: 0.4 }),
+      'material/trench-rock': std([0.03, 0.05, 0.07], { roughness: 0.95 }),
+      'material/pillar': std(PILLAR_COLOR, { roughness: 0.6 }),
+      /** Dithered (Alpha Hash) twin used while a pillar fades; still opaque queue + depth writes. */
+      'material/pillar-fade': std(PILLAR_COLOR, { roughness: 0.6, alphaHash: true }),
+      /** Fallback B2: 35% blended translucency. */
+      'material/pillar-glass': Materials.standard({
+        baseColor: [PILLAR_COLOR[0], PILLAR_COLOR[1], PILLAR_COLOR[2], 0.35],
+        roughness: 0.6,
+        renderState: ALPHA_BLEND,
+        queue: RenderQueue.Transparent,
       }),
-      'material/ground': Materials.standard({
-        baseColor: [0.055, 0.075, 0.07, 1],
-        metallic: 0.06,
-        roughness: 0.82,
-      }),
-      'material/painted': Materials.standard({ staticSwitches: { clearcoat: true },
-        baseColor: [0.28, 0.035, 0.075, 1],
-        metallic: 0.12,
-        roughness: 0.18,
-        clearcoat: 0.82,
-        clearcoatRoughness: 0.08,
-      }),
-      'material/metal': Materials.standard({ staticSwitches: { clearcoat: true },
-        baseColor: [0.86, 0.9, 0.96, 1],
-        metallic: 0.98,
-        roughness: 0.06,
-        clearcoat: 0.35,
-        clearcoatRoughness: 0.04,
-      }),
-      'material/white': Materials.standard({
-        baseColor: [0.72, 0.61, 0.48, 1],
-        metallic: 0,
-        roughness: 0.62,
-      }),
-      'material/light': Materials.standard({
-        baseColor: [1, 0.46, 0.12, 1],
-        emissive: [1, 0.14, 0.018],
-        emissiveIntensity: 5,
-        metallic: 0,
-        roughness: 0.2,
-      }),
-      'material/player-body': skinned(
-        Materials.standard({ baseColor: [0.72, 0.78, 0.73, 1], metallic: 0.22, roughness: 0.36 }),
-      ),
-      'material/player-accent': skinned(
-        Materials.standard({
-          baseColor: [0.018, 0.027, 0.033, 1],
-          metallic: 0.5,
-          roughness: 0.48,
-        }),
-      ),
-      'material/player-signal': skinned(
-        Materials.standard({ baseColor: [1, 0.36, 0.035, 1], metallic: 0.5, roughness: 0.27 }),
-      ),
-      'material/fantasy-azure': Materials.standard({ staticSwitches: { clearcoat: true },
-        baseColor: [0.025, 0.48, 0.82, 1],
-        emissive: [0.01, 0.18, 0.42],
-        emissiveIntensity: 1.4,
-        metallic: 0.42,
-        roughness: 0.2,
-        clearcoat: 0.65,
-        clearcoatRoughness: 0.12,
-      }),
-      'material/fantasy-violet': Materials.standard({ staticSwitches: { clearcoat: true },
-        baseColor: [0.34, 0.045, 0.72, 1],
-        emissive: [0.16, 0.01, 0.38],
-        emissiveIntensity: 1.7,
-        metallic: 0.26,
-        roughness: 0.24,
-        clearcoat: 0.5,
-        clearcoatRoughness: 0.16,
-      }),
-      'material/fantasy-gold': Materials.standard({ staticSwitches: { clearcoat: true },
-        baseColor: [0.95, 0.48, 0.055, 1],
-        emissive: [0.72, 0.16, 0.012],
-        emissiveIntensity: 2.2,
-        metallic: 0.78,
-        roughness: 0.18,
-        clearcoat: 0.3,
-        clearcoatRoughness: 0.2,
-      }),
-      'material/obstacle': Materials.standard({
-        baseColor: [0.42, 0.23, 0.11, 1],
-        metallic: 0.04,
-        roughness: 0.72,
-      }),
-      'material/player-cloth': skinned(
-        Materials.standard({ staticSwitches: { clearcoat: true },
-          baseColor: [0.025, 0.145, 0.17, 1],
-          metallic: 0.4,
-          roughness: 0.38,
-          clearcoat: 0.04,
-          clearcoatRoughness: 0.48,
-        }),
-      ),
-      'material/rusted-iron': Materials.standard({
-        surfaceModule: 'game_3d::rusted_iron_surface',
+      'material/lock-target': std([0.07, 0.15, 0.17], { metallic: 0.4, roughness: 0.45 }),
+      'material/seaweed': std([0.04, 0.15, 0.12], { roughness: 0.7, twoSided: true }),
+      'material/particle': Materials.unlit([0.62, 0.62, 0.58, 0.35], { renderState: ADDITIVE, queue: RenderQueue.Transparent }),
+      'material/light-beam': Materials.standard({
+        surfaceModule: 'nezha::light_beam_surface',
         parameters: [
-          { name: 'ironColor', type: 'color' },
-          { name: 'rustDark', type: 'color' },
-          { name: 'rustBright', type: 'color' },
-          { name: 'noiseScale', type: 'f32' },
+          { name: 'beamColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
         ],
-        values: {
-          ironColor: [0.4, 0.45, 0.47, 1],
-          rustDark: [0.42, 0.085, 0.018, 1],
-          rustBright: [0.95, 0.34, 0.055, 1],
-          noiseScale: 1.85,
-        },
+        values: { beamColor: [0.45, 0.78, 1.0, 1], intensity: 0.35 },
+        renderState: ADDITIVE,
+        queue: RenderQueue.Transparent,
       }),
+
+      // --- Nezha placeholder ------------------------------------------------------
+      'material/nezha-skin': std([0.78, 0.6, 0.5], { roughness: 0.6 }),
+      'material/nezha-hair': std([0.03, 0.028, 0.032], { roughness: 0.5 }),
+      'material/nezha-armor': std([0.5, 0.05, 0.04], { roughness: 0.45 }),
+      'material/nezha-cloth': std([0.82, 0.8, 0.74], { roughness: 0.75 }),
+      'material/nezha-gold': std([0.9, 0.66, 0.26], { metallic: 1, roughness: 0.3 }),
+      'material/spear-shaft': std([0.32, 0.05, 0.04], { roughness: 0.4 }),
+      'material/spear-tip': std([1.0, 0.6, 0.2], { roughness: 0.3, emissive: FIRE_GOLD, emissiveIntensity: 4 }),
+      'material/wheel-fire': std([0.9, 0.45, 0.12], {
+        roughness: 0.4,
+        emissive: FIRE_GOLD,
+        emissiveIntensity: WHEEL_FULL_INTENSITY * 0.3,
+      }),
+      'material/sash': std([0.62, 0.05, 0.03], { roughness: 0.4, twoSided: true, emissive: [1.0, 0.18, 0.06], emissiveIntensity: 1.6 }),
+      'material/contact-glow': Materials.standard({
+        surfaceModule: 'nezha::contact_glow_surface',
+        parameters: [
+          { name: 'glowColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { glowColor: [FIRE_GOLD[0], FIRE_GOLD[1] * 0.85, FIRE_GOLD[2], 1], intensity: 0.9 },
+        renderState: GLOW,
+        // Drawn first among transparents: ground warnings (M3) layer above it.
+        queue: RenderQueue.Transparent - 10,
+      }),
+      /** Silhouette review (dev grey mode): every Nezha part becomes one mid grey. */
+      'material/grey': std([0.4, 0.4, 0.4], { roughness: 0.8 }),
     }),
 });

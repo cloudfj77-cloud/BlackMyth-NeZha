@@ -1,0 +1,41 @@
+<style>
+  #forgeax-status { display: none !important; }
+  #forgeax-loading { background: radial-gradient(ellipse at 50% 30%, #0b2a3a 0%, #03101a 60%, #01060b 100%) !important; }
+  #forgeax-loading-title { font-family: "Songti SC", "Noto Serif SC", Georgia, serif !important; letter-spacing: 0.12em !important; color: #fbf6e8 !important; }
+  #forgeax-loading-status, #forgeax-loading-detail { display: none !important; }
+  #forgeax-loading-fill { background: linear-gradient(90deg, #8fd3c0, #e7bf6a) !important; }
+  #forgeax-loading-subtitle { margin: 0; color: rgb(242 239 228 / 70%); font: 14px/1.6 "Songti SC", "Noto Serif SC", Georgia, serif; letter-spacing: 0.2em; }
+</style>
+<script>
+  (() => {
+    // Startup cover text follows the same rule as the menu before any game code loads:
+    // the player's saved choice (localStorage nezha.lang) wins; otherwise zh* browsers
+    // show Chinese and every other language English.
+    let saved = null;
+    try { saved = localStorage.getItem('nezha.lang'); } catch (error) { saved = null; }
+    const langs = [].concat(navigator.languages || [], navigator.language || []);
+    const zh = saved === 'zh' || (saved !== 'en' && String(langs.find((value) => value) || '').toLowerCase().startsWith('zh'));
+    const text = zh
+      ? { title: '白神话：哪吒', loading: '龙宫开启中…', slow: '仍在加载，可继续等待或重新载入。', reload: '重新载入', lang: 'zh-CN' }
+      : { title: 'White Myth: Nezha', loading: 'Opening the Dragon Palace…', slow: 'Still loading. You can keep waiting or reload.', reload: 'Reload', lang: 'en' };
+    document.title = text.title;
+    document.documentElement.lang = text.lang;
+    const apply = () => {
+      const title = document.getElementById('forgeax-loading-title');
+      if (title) title.textContent = text.title;
+      const status = document.getElementById('forgeax-loading-status');
+      if (status && !document.getElementById('forgeax-loading-subtitle')) {
+        const subtitle = document.createElement('p');
+        subtitle.id = 'forgeax-loading-subtitle';
+        subtitle.textContent = text.loading;
+        status.after(subtitle);
+      }
+      const slow = document.getElementById('forgeax-loading-slow');
+      if (slow) slow.textContent = text.slow;
+      const reload = document.getElementById('forgeax-loading-reload');
+      if (reload) reload.textContent = text.reload;
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, { once: true });
+    else apply();
+  })();
+</script>

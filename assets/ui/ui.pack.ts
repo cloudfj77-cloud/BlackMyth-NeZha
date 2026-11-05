@@ -3,23 +3,23 @@ import type { AssetRegistry } from '@forgeax/engine/assets-runtime';
 import { uiAssetContribution } from '@forgeax/engine/ui';
 import type { Plugin } from '@forgeax/engine/plugin';
 import { ok } from '@forgeax/engine/types';
-
 import type {} from '@forgeax/engine/app';
-import { createGuideUi } from './guide-controller.ts';
+import { createMenu } from './menu-controller.ts';
 
-export const ui: Plugin.Object<{ readonly guide: string }> = {
-  name: 'game-3d/ui',
+/** Frontend root: mounts the bilingual start / pause menu, HUD hints and the dev panel in the Host UI layer. */
+export const ui: Plugin.Object<{ readonly menu: string }> = {
+  name: 'nezha/ui',
   inject: ['assets', 'gameHost'],
   async apply(ctx, config) {
     const assets = ctx.get('assets') as unknown as AssetRegistry;
     await ctx.effect(async function* () {
       const lease = assets.installDecoder(uiAssetContribution.kind, uiAssetContribution.decoder);
       yield () => lease.dispose();
-      const loaded = await assets.load(config.guide, uiAssetContribution.kind);
+      const loaded = await assets.load(config.menu, uiAssetContribution.kind);
       if (!loaded.ok) throw loaded.error;
       yield () => assets.release(loaded.value).unwrap();
-      const ui = await createGuideUi(assets.read(loaded.value).unwrap(), ctx.gameHost!);
-      yield () => ui.dispose();
+      const menu = await createMenu(assets.read(loaded.value).unwrap(), ctx.gameHost!);
+      yield () => menu.dispose();
     });
   },
 };
@@ -31,7 +31,7 @@ export default definePack({
     'plugin/host': {
       kind: 'plugin',
       module: { specifier: './ui.pack.ts', export: 'ui' },
-      config: { guide: { $asset: '019fb7ce-3600-7000-8000-000000000001' } },
+      config: { menu: { $asset: '019fb7ce-3600-7000-8000-000000000002' } },
     },
   }),
 });

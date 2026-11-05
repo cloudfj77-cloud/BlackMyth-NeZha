@@ -1,0 +1,51 @@
+<div class="vignette" aria-hidden="true"></div>
+
+<section class="screen start-screen" data-ui-part="start-screen">
+  <div class="start-art" aria-hidden="true">
+    <span class="sun-ring"></span>
+    <span class="wave wave-a"></span>
+    <span class="wave wave-b"></span>
+  </div>
+  <div class="start-panel">
+    <p class="kicker" data-i18n="menu.start.kicker"></p>
+    <h1 class="game-title" data-i18n="menu.start.title"></h1>
+    <p class="subtitle" data-i18n="menu.start.subtitle"></p>
+    <div class="start-actions">
+      <button type="button" class="primary" data-ui-action="start" data-i18n="menu.start.begin"></button>
+      <div class="lang-switch" role="group" data-i18n-aria="menu.common.language">
+        <button type="button" data-ui-action="lang-zh" data-lang="zh">中文</button>
+        <span class="divider">/</span>
+        <button type="button" data-ui-action="lang-en" data-lang="en">EN</button>
+      </div>
+    </div>
+    <p class="milestone" data-i18n="menu.start.milestone"></p>
+  </div>
+  <div class="controls-card">
+    <h3 data-i18n="menu.controls.title"></h3>
+    <ul class="controls" data-ui-part="controls-start"></ul>
+  </div>
+</section>
+
+<section class="screen pause-screen" data-ui-part="pause-screen">
+  <div class="pause-panel">
+    <h2 data-i18n="menu.pause.title"></h2>
+    <button type="button" class="primary" data-ui-action="resume" data-i18n="menu.pause.resume"></button>
+    <p class="pause-hint" data-i18n="menu.pause.hint"></p>
+    <div class="lang-switch" role="group" data-i18n-aria="menu.common.language">
+      <button type="button" data-ui-action="lang-zh" data-lang="zh">中文</button>
+      <span class="divider">/</span>
+      <button type="button" data-ui-action="lang-en" data-lang="en">EN</button>
+    </div>
+    <h3 data-i18n="menu.controls.title"></h3>
+    <ul class="controls" data-ui-part="controls-pause"></ul>
+  </div>
+</section>
+
+<section class="hud" data-ui-part="hud">
+  <div class="lock-marker" data-ui-part="lock-marker" aria-hidden="true"><span></span></div>
+  <div class="hint" data-ui-part="hint" role="status" aria-live="polite"></div>
+  <div class="look-tip" data-ui-part="look-tip" data-i18n="hud.tip.clickToLook"></div>
+</section>
+
+<div class="dev-badge" data-ui-part="dev-badge">DEV · F2</div>
+<aside class="debug-panel" data-ui-part="debug-panel" lang="en"></aside>
