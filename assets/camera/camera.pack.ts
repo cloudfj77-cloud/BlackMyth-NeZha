@@ -14,7 +14,7 @@ import { PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { CAMERA_RAY_FILTER } from '../shared/collision.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
-import { boomLimit, cameraRight, createBoom, desiredBoom, orbitDirection, wallLift, type V3 } from './rig.ts';
+import { boomLimit, cameraRight, createBoom, orbitDirection, wallLift, type V3 } from './rig.ts';
 
 const DEG = Math.PI / 180;
 const PROBE_RADIUS = 0.2;
@@ -130,26 +130,30 @@ export const camera: Plugin = {
           playerService.setCameraYaw(yaw);
 
           const distance = locked ? cam.distanceLocked : cam.distance;
-          const desired = desiredBoom(focus, yaw, pitch, distance, cam.shoulderOffset);
+          const right = cameraRight(yaw);
+          const back = orbitDirection(yaw, pitch);
           const hits: (number | undefined)[] = [];
-          let ceiling = Infinity;
           let lineClear = true;
           let wallGap: number | null = null;
           if (world.hasResource('PhysicsWorld')) {
             const physics = world.getResource<PhysicsWorld>('PhysicsWorld');
-            const right = cameraRight(yaw);
+            // 1) Shoulder: probe sideways so the 0.6 m offset survives a pull-in (only a side wall shortens it).
+            const side = ray(physics, focus, right, cam.shoulderOffset + cam.collisionMargin);
+            const shoulder = Math.max(0, Math.min(cam.shoulderOffset, side === undefined ? Infinity : side - cam.collisionMargin));
+            const pivot: V3 = [focus[0] + right[0] * shoulder, focus[1], focus[2] + right[2] * shoulder];
+            // 2) Boom: probe a small bundle from the shoulder pivot straight back along the orbit.
             for (const [ox, oy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-              const from: V3 = [focus[0] + right[0] * ox * PROBE_RADIUS, focus[1] + oy * PROBE_RADIUS, focus[2] + right[2] * ox * PROBE_RADIUS];
-              hits.push(ray(physics, from, desired.unit, desired.length + 0.5));
+              const from: V3 = [pivot[0] + right[0] * ox * PROBE_RADIUS, pivot[1] + oy * PROBE_RADIUS, pivot[2] + right[2] * ox * PROBE_RADIUS];
+              hits.push(ray(physics, from, back, distance + 0.5));
             }
-            const limit = boomLimit(desired.length, hits, cam.collisionMargin);
+            const limit = boomLimit(distance, hits, cam.collisionMargin);
             const length = boom.step(limit.limit, cam, dt);
-            const end: V3 = [focus[0] + desired.unit[0] * length, focus[1] + desired.unit[1] * length, focus[2] + desired.unit[2] * length];
+            const end: V3 = [pivot[0] + back[0] * length, pivot[1] + back[1] * length, pivot[2] + back[2] * length];
+            // 3) Back to the wall: rise up the wall until the lens is ≥ minDistance from the focus.
             const up = ray(physics, end, [0, 1, 0], cam.wallLiftMax + 0.5);
-            if (up !== undefined) ceiling = Math.max(0, up - cam.collisionMargin);
-            const lift = wallLift(length, cam, ceiling);
+            const ceiling = up === undefined ? Infinity : Math.max(0, up - cam.collisionMargin);
+            const lift = wallLift(Math.hypot(shoulder, length), cam, ceiling);
             const position: V3 = [end[0], end[1] + lift, end[2]];
-            // Proof: nothing solid between Nezha's focus and the lens.
             const toCam: V3 = [position[0] - focus[0], position[1] - focus[1], position[2] - focus[2]];
             const camDistance = Math.hypot(...toCam);
             if (camDistance > 1e-3) {
@@ -158,18 +162,26 @@ export const camera: Plugin = {
             }
             const nearest = hits.reduce<number | undefined>((min, hit) => (hit === undefined ? min : Math.min(min ?? hit, hit)), undefined);
             if (nearest !== undefined) wallGap = r3(nearest - length);
-            // Look at the shoulder pivot (shrinks with the boom so Nezha stays framed when pulled in).
-            const shoulder = cam.shoulderOffset * Math.min(1, length / desired.length);
-            const lookAt: V3 = locked
-              ? [focus[0] + (lockView!.target()[0] - focus[0]) * cam.lockLookAtRatio, focus[1], focus[2] + (lockView!.target()[2] - focus[2]) * cam.lockLookAtRatio]
-              : [focus[0] + right[0] * shoulder - desired.unit[0] * 0.01, focus[1], focus[2] + right[2] * shoulder];
-            // Free camera looks parallel to the orbit (Nezha left of centre); a lifted camera looks down at him.
-            const back = orbitDirection(yaw, pitch);
-            const forwardLook: V3 = lift > 0 ? lookAt : [position[0] - back[0], position[1] - back[1], position[2] - back[2]];
-            quat.fromLookAt(rotation, position, locked ? lookAt : forwardLook, [0, 1, 0]);
+            let lookAt: V3;
+            if (locked) {
+              const goal = lockView!.target();
+              lookAt = [focus[0] + (goal[0] - focus[0]) * cam.lockLookAtRatio, focus[1], focus[2] + (goal[2] - focus[2]) * cam.lockLookAtRatio];
+            } else if (lift > 0) {
+              // Lifted: look down over the shoulder at the chest, so body, wheels and glow stay in frame.
+              const blend = Math.min(1, lift / Math.max(0.05, cam.wallLiftMax));
+              const chest = groundY + 0.9;
+              const ahead = 0.6 * blend;
+              const fwd: V3 = [-back[0], 0, -back[2]];
+              const n = Math.hypot(fwd[0], fwd[2]) || 1;
+              lookAt = [focus[0] + (fwd[0] / n) * ahead, focus[1] + (chest - focus[1]) * blend, focus[2] + (fwd[2] / n) * ahead];
+            } else {
+              // Free camera looks parallel to the orbit, Nezha left of centre.
+              lookAt = [position[0] - back[0], position[1] - back[1], position[2] - back[2]];
+            }
+            quat.fromLookAt(rotation, position, lookAt, [0, 1, 0]);
             const q = [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1] as const;
             world.set(cameraEntity, Transform, { pos: [position[0], position[1], position[2]], quat: [q[0], q[1], q[2], q[3]] }).unwrap();
-            state = { position, rotation: q, distance: camDistance, desired: desired.length, blocked: limit.blocked, lift, lineClear, wallGap };
+            state = { position, rotation: q, distance: camDistance, desired: Math.hypot(cam.shoulderOffset, distance), blocked: limit.blocked, lift, lineClear, wallGap };
           }
         },
       }).unwrap();

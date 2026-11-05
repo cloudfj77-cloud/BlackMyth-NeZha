@@ -108,13 +108,20 @@ async function hold(page, codes, ms) {
   for (const code of [...codes].reverse()) await page.keyboard.up(code);
 }
 
-/** Relative mouse look while pointer-locked. */
+/**
+ * Relative mouse look while pointer-locked. The page only sees movement deltas, so the
+ * virtual cursor is tracked without re-centring (re-centring would emit the opposite delta).
+ */
+const cursors = new WeakMap();
 async function look(page, dx, dy, steps = 12) {
   const view = page.viewport();
-  const cx = view.width / 2, cy = view.height / 2;
-  await page.mouse.move(cx, cy);
+  const cursor = cursors.get(page) ?? { x: view.width / 2, y: view.height / 2 };
+  cursors.set(page, cursor);
+  const x0 = cursor.x, y0 = cursor.y;
   for (let index = 1; index <= steps; index += 1) {
-    await page.mouse.move(cx + (dx * index) / steps, cy + (dy * index) / steps);
+    cursor.x = x0 + (dx * index) / steps;
+    cursor.y = y0 + (dy * index) / steps;
+    await page.mouse.move(cursor.x, cursor.y);
     await wait(16);
   }
 }
@@ -153,3 +160,47 @@ async function shot(page, dir, name) {
 }
 
 module.exports = { wait, launch, open, state, waitState, uiPoint, click, startPlaying, hold, look, visibleTexts, ensureDir, shot, ROOT, path, fs };
+
+/**
+ * Fly to (x, z) with real input: hold W (and Shift to sprint) and steer the camera
+ * with relative mouse moves toward the waypoint. Returns the final state.
+ */
+async function goTo(page, x, z, { sprint = false, tolerance = 0.8, timeout = 20000 } = {}) {
+  const end = Date.now() + timeout;
+  let s = await state(page);
+  await page.keyboard.down('KeyW');
+  if (sprint) await page.keyboard.down('ShiftLeft');
+  try {
+    while (Date.now() < end) {
+      s = await state(page);
+      const [px, , pz] = s.player.root;
+      const dx = x - px, dz = z - pz;
+      if (Math.hypot(dx, dz) < tolerance) break;
+      const want = Math.atan2(dx, -dz);
+      const diff = Math.atan2(Math.sin(want - s.camera.yaw), Math.cos(want - s.camera.yaw));
+      const px2 = Math.max(-300, Math.min(300, diff / ((0.1 * Math.PI) / 180)));
+      if (Math.abs(px2) > 2) await look(page, px2, 0, 3);
+      await wait(60);
+    }
+  } finally {
+    if (sprint) await page.keyboard.up('ShiftLeft');
+    await page.keyboard.up('KeyW');
+  }
+  await wait(250);
+  return state(page);
+}
+module.exports.goTo = goTo;
+
+/** Turn the camera to an absolute yaw (radians) with relative mouse moves. */
+async function faceYaw(page, yaw) {
+  for (let i = 0; i < 6; i += 1) {
+    const s = await state(page);
+    const diff = Math.atan2(Math.sin(yaw - s.camera.yaw), Math.cos(yaw - s.camera.yaw));
+    if (Math.abs(diff) < 0.01) return s;
+    const px = diff / ((0.1 * Math.PI) / 180);
+    await look(page, Math.max(-400, Math.min(400, px)), 0, 6);
+    await wait(120);
+  }
+  return state(page);
+}
+module.exports.faceYaw = faceYaw;

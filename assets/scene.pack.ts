@@ -55,6 +55,9 @@ const mesh = (guid: AssetGuid): Components => ({
 const q = (value: ArrayLike<number>): [number, number, number, number] => [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0, value[3] ?? 1];
 
 
+/** Contact glow height: above the plaza slab top (0.026 m) so it shows on the seabed and the plaza alike. */
+const GLOW_Y = 0.04;
+
 function dragonPalace(): SceneAsset {
   const entities: [string, SceneEntity][] = [];
   const add = (key: string, components: Components) => entities.push([key, { components }]);
@@ -179,7 +182,7 @@ function dragonPalace(): SceneAsset {
   add('player/wheels', { Name: { value: 'Wind-Fire Wheels' }, Transform: { pos: [0, 0, 0] }, ChildOf: { parent: 'player/model' }, ...mesh(characterGuid('nezha-wheels')) });
   add('player/glow', {
     Name: { value: 'Contact Glow' },
-    Transform: { pos: [0, -CAPSULE_CENTER_Y + 0.015, 0], scale: [TUNING.glow.radius, 1, TUNING.glow.radius] },
+    Transform: { pos: [0, -CAPSULE_CENTER_Y + GLOW_Y, 0], scale: [TUNING.glow.radius, 1, TUNING.glow.radius] },
     ChildOf: { parent: 'player' },
     ...mesh(characterGuid('contact-glow')),
   });
