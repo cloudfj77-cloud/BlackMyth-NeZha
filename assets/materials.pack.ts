@@ -159,7 +159,17 @@ export default definePack({
         values: { baseColor: [0.5, 0.03, 0.02, 1], sashColor: [1.25, 0.11, 0.04, 1], goldColor: [1.0, 0.7, 0.2, 1], brightness: 1, fill: 0, flash: 0 },
         renderState: { cullMode: 'none' },
       }),
-      'material/afterimage': glow([1.0, 0.45, 0.08], 0.6),
+      'material/afterimage': Materials.standard({
+        surfaceModule: 'nezha::ghost_surface',
+        parameters: [
+          { name: 'coreColor', type: 'color' },
+          { name: 'rimColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { coreColor: [0.95, 0.22, 0.03, 1], rimColor: [1.0, 0.62, 0.12, 1], intensity: 0.7 },
+        renderState: { ...ALPHA_BLEND, cullMode: 'none', fog: false },
+        queue: RenderQueue.Transparent,
+      }),
       'material/perfect-ring': glow([1.0, 0.5, 0.1], 1.5),
       'material/spark': Materials.unlit([1.0, 0.35, 0.03, 1], { renderState: { ...ADDITIVE, fog: false }, queue: RenderQueue.Transparent }),
       'material/flame': Materials.standard({

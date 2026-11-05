@@ -18,7 +18,25 @@ import { NEZHA } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
 import { configFromTuning, createCombat, DEFAULT_COMBAT, type CombatEvent, type CombatState, type V2 } from './machine.ts';
-import { actionVisual, SPEAR_REST, type P3 } from './poses.ts';
+import { actionVisual, spearQuat, SPEAR_REST, type P3, type Q } from './poses.ts';
+
+interface Shown {
+  readonly rotation: Q;
+  readonly spearQuat: Q;
+  readonly spearPos: P3;
+  readonly offset: P3;
+  readonly pivotY: number;
+}
+function nlerp(a: Q, b: Q, t: number): Q {
+  const sign = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
+  const q: Q = [a[0] + (b[0] * sign - a[0]) * t, a[1] + (b[1] * sign - a[1]) * t, a[2] + (b[2] * sign - a[2]) * t, a[3] + (b[3] * sign - a[3]) * t];
+  const n = Math.hypot(...q) || 1;
+  return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
+}
+const mix3 = (a: P3, b: P3, t: number): P3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+function mixShown(a: Shown, b: Shown, t: number): Shown {
+  return { rotation: nlerp(a.rotation, b.rotation, t), spearQuat: nlerp(a.spearQuat, b.spearQuat, t), spearPos: mix3(a.spearPos, b.spearPos, t), offset: mix3(a.offset, b.offset, t), pivotY: a.pivotY + (b.pivotY - a.pivotY) * t };
+}
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 const SPARKS = 16;
@@ -164,7 +182,8 @@ export const combat: Plugin = {
         { component: MeshRenderer, data: { materials: [mat.flame] } as never },
       ).unwrap();
       spawned.push(flame);
-      const afterimages = [0, 1, 2].map(() => {
+      const AFTER_FRAMES = [1, 4, 7, 10, 13];
+      const afterimages = AFTER_FRAMES.map(() => {
         const instance = copy(mat.afterimage);
         const entity = world.spawn(
           { component: Transform, data: { pos: [0, -50, 0], scale: [0, 0, 0] } },
@@ -202,6 +221,12 @@ export const combat: Plugin = {
         return seed / 2147483647;
       };
       let slowLight = 0;
+      let wheelScale = 1;
+      let poseKey = 'free:0';
+      let poseFrame = 0;
+      let blendLeft = 0;
+      let blendFrom: Shown | undefined;
+      let shown: Shown = { rotation: [0, 0, 0, 1], spearQuat: spearQuat(SPEAR_REST), spearPos: SPEAR_REST.pos, offset: [0, 0, 0], pivotY: 0.9 };
 
       const env = () => {
         const root = player.root();
@@ -291,9 +316,10 @@ export const combat: Plugin = {
           state = out.state;
           for (const event of out.events) onEvent(event);
           player.setControl({ velocity: out.velocity, facing: out.facing, speedScale: out.speedScale, allowSprint: out.allowSprint });
-          // Afterimages on roll frames 1 / 6 / 12.
-          if (state.kind === 'roll' && (state.frame === 1 || state.frame === 6 || state.frame === 12)) {
-            const slot = afterimages[state.frame === 1 ? 0 : state.frame === 6 ? 1 : 2]!;
+          // Fire afterimages along the roll (boss 22:12: more of them, lingering ~1.1 s).
+          const afterIndex = state.kind === 'roll' ? AFTER_FRAMES.indexOf(state.frame) : -1;
+          if (afterIndex >= 0) {
+            const slot = afterimages[afterIndex]!;
             const m = readPresentationWorldMatrix(world, player.model);
             if (m) {
               world.set(slot.entity, Transform, { pos: [m[12] ?? 0, m[13] ?? 0, m[14] ?? 0], quat: quatFromMatrix(m), scale: [1, 1, 1] }).unwrap();
@@ -304,8 +330,10 @@ export const combat: Plugin = {
             if (slot.life <= 0) continue;
             slot.life -= 1;
             // Boss 17:46: afterimages linger (0.5 s default) and fade out smoothly.
+            // Stay bright most of their life, then fade out smoothly.
             const left = slot.life / Math.max(1, tuning.current.combat.afterimageLife);
-            assets.update(slot.instance, { values: { intensity: tuning.current.combat.afterimageIntensity * left * left } } as never).unwrap();
+            const glow = left > 0.5 ? 1 : (left / 0.5) ** 1.5;
+            assets.update(slot.instance, { values: { intensity: tuning.current.combat.afterimageIntensity * glow } } as never).unwrap();
             if (slot.life === 0) world.set(slot.entity, Transform, { scale: [0, 0, 0] }).unwrap();
           }
         },
@@ -324,17 +352,32 @@ export const combat: Plugin = {
           const fixed = world.getResource(FixedTime);
           const alpha = session.clock.frozen() || state.kind === 'free' ? 0 : Math.min(1, Math.max(0, fixed.overstep / Math.max(1e-6, fixed.delta)));
           const visual = actionVisual({ ...state, frame: state.frame + alpha }, player.facing());
-          const active = state.kind !== 'free';
-          player.setActionPose(active ? { rotation: visual.rotation, pivotY: visual.pivotY, offset: visual.offset, suppressLean: true } : undefined);
+          // Crossfade every action change (cancel, chain, roll-out): the pose never snaps.
+          const key = `${state.kind}:${state.stage}`;
+          if (key !== poseKey || state.frame + alpha < poseFrame - 0.5) {
+            poseKey = key;
+            blendFrom = shown;
+            blendLeft = tuning.current.combat.poseBlend;
+          }
+          poseFrame = state.frame + alpha;
+          const blendTotal = Math.max(1e-4, tuning.current.combat.poseBlend);
+          if (!session.clock.frozen()) blendLeft = Math.max(0, blendLeft - dt);
+          const w0 = blendFrom && blendLeft > 0 ? 1 - blendLeft / blendTotal : 1;
+          const w = w0 * w0 * (3 - 2 * w0);
+          const target: Shown = { rotation: visual.rotation, spearQuat: visual.spear.quat, spearPos: visual.spear.pos, offset: visual.offset, pivotY: visual.pivotY };
+          shown = w >= 1 || !blendFrom ? target : mixShown(blendFrom, target, w);
+          const active = state.kind !== 'free' || w < 1;
+          player.setActionPose(active ? { rotation: shown.rotation, pivotY: shown.pivotY, offset: shown.offset, suppressLean: state.kind !== 'free' } : undefined);
           floatGate = visual.floatGate;
           player.setFloatGate(floatGate);
-          world.set(spear, Transform, { pos: visual.spear.pos, quat: visual.spear.quat }).unwrap();
+          world.set(spear, Transform, { pos: shown.spearPos, quat: shown.spearQuat }).unwrap();
           if (visual.wheelsFull !== wheelsFull) {
             wheelsFull = visual.wheelsFull;
             world.set(wheels, MeshRenderer, { materials: [wheelsFull ? mat.wheelFull : mat.wheel] } as never).unwrap();
           }
-          const ws = wheelsFull ? tuning.current.combat.wheelRollScale : 1;
-          world.set(wheels, Transform, { scale: [ws, 1, ws] }).unwrap();
+          const wsTarget = wheelsFull ? tuning.current.combat.wheelRollScale : 1;
+          wheelScale += (wsTarget - wheelScale) * (1 - Math.exp(-dt * 30));
+          world.set(wheels, Transform, { scale: [wheelScale, 1, wheelScale] }).unwrap();
           // Spear-tip flame: its end reaches the heavy range (3 m) ahead of the root.
           if (visual.flame) {
             // Measured on the presented spear (includes the body pitch and float): the flame runs from

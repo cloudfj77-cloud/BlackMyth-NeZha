@@ -53,14 +53,18 @@ describe('light combo', () => {
     const r = run(c, [press({ light: true }), ...idle(21), ...Array.from({ length: 9 }, () => move), press({ light: true }), ...idle(5)]);
     expect(r.events.filter((x) => x.event.type === 'swing-light').map((x) => (x.event as { stage: number }).stage)).toEqual([1, 1]);
   });
-  it('does not attack without stamina and flashes the hint', () => {
+  it('attacks cost no stamina (boss 22:12); a roll is refused without stamina and flashes the hint', () => {
     const c = createCombat();
     const presses: StepInput[] = [];
-    for (let i = 0; i < 17; i += 1) presses.push(press({ light: true }), ...idle(34));
+    for (let i = 0; i < 20; i += 1) presses.push(press({ light: true }), ...idle(34));
     const r = run(c, presses);
-    expect(r.events.filter((x) => x.event.type === 'swing-light').length).toBe(16); // 16 × 6 = 96 ≤ 100
-    expect(r.events.some((x) => x.event.type === 'hint' && (x.event as { key: string }).key === 'noStamina')).toBe(true);
-    expect(c.snapshot().flashSerial).toBeGreaterThan(0);
+    expect(r.events.filter((x) => x.event.type === 'swing-light').length).toBe(20);
+    expect(c.snapshot().stamina).toBe(100);
+    const c2 = createCombat();
+    const rolls = run(c2, Array.from({ length: 6 }, () => [press({ roll: true }), ...idle(27)]).flat());
+    expect(rolls.events.filter((x) => x.event.type === 'roll').length).toBe(5); // 5 × 20 = 100
+    expect(rolls.events.some((x) => x.event.type === 'hint' && (x.event as { key: string }).key === 'noStamina')).toBe(true);
+    expect(c2.snapshot().flashSerial).toBeGreaterThan(0);
   });
   it('whiffs out of range without a hit event', () => {
     const c = createCombat();
@@ -177,10 +181,10 @@ describe('roll and perfect dodge', () => {
 });
 
 describe('stamina', () => {
-  it('costs 6 / 15 / 20 (boss: attacks halved) and recovers 25/s after 48 idle steps', () => {
+  it('costs 0 / 0 / 20 (boss 22:12: attacks free) and recovers 25/s after 48 idle steps', () => {
     const c = createCombat();
     run(c, [press({ light: true }), ...idle(21)]);
-    expect(c.snapshot().stamina).toBe(94);
+    expect(c.snapshot().stamina).toBe(100);
     const c2 = createCombat();
     run(c2, [press({ roll: true }), ...idle(26), press({ roll: true }), ...idle(26), press({ roll: true })]);
     expect(c2.snapshot().stamina).toBe(40);
@@ -191,7 +195,7 @@ describe('stamina', () => {
     expect(c2.snapshot().stamina).toBeCloseTo(65, 6);
     const c3 = createCombat();
     run(c3, [...Array.from({ length: 20 }, () => press({ heavyHeld: true })), ...idle(2)]); // spent on release
-    expect(c3.snapshot().stamina).toBe(85);
+    expect(c3.snapshot().stamina).toBe(100);
   });
 });
 

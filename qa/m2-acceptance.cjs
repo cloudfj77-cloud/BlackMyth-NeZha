@@ -133,10 +133,11 @@ async function session(name, url, lang, run) {
     r.costs = costs;
     const flash0 = s.combat.hudFlash;
     let lastSpend = 0;
-    for (let i = 0; i < 12; i += 1) {
+    // Attacks are free (boss 22:12): drain stamina with rolls instead.
+    for (let i = 0; i < 7; i += 1) {
       const pre = (await h.state(page)).combat.stamina;
-      await click(page);
-      await h.wait(380);
+      await h.hold(page, ['Space'], 30);
+      await h.wait(420);
       const x = await h.state(page);
       if (x.combat.stamina < pre - 1) lastSpend = x.t - 0.38;
     }
@@ -153,8 +154,8 @@ async function session(name, url, lang, run) {
     const startV = trace[0][1];
     const rising = trace.find((p) => p[1] > startV + 0.05);
     const later = trace.find((p) => rising && p[0] >= rising[0] + 0.8);
-    // Light attack lasts 21 steps (0.35 s); recovery starts 0.8 s after it ends.
-    r.regen = { riseAfterLastAttackPress: rising ? +(rising[0] - lastSpend).toFixed(2) : null, expected: 0.35 + 0.8, ratePerSecond: rising && later ? +((later[1] - rising[1]) / (later[0] - rising[0])).toFixed(1) : null };
+    // A roll lasts 27 steps (0.45 s); recovery starts 0.8 s after it ends.
+    r.regen = { riseAfterLastRollPress: rising ? +(rising[0] - lastSpend).toFixed(2) : null, expected: 0.45 + 0.8, ratePerSecond: rising && later ? +((later[1] - rising[1]) / (later[0] - rising[0])).toFixed(1) : null };
   });
 
   // ---- B: hurt, roll invulnerability, perfect dodge, plain dodge ---------------------------
@@ -264,10 +265,10 @@ async function session(name, url, lang, run) {
   for (const [key, url, lang, shot] of [['D-en', `${base}?qa=1`, 'en-US', 'hint-en'], ['D-pseudo', `${base}?dev=1&lang=pseudo`, 'en-US', 'hint-pseudo']]) {
     result[key] = await session(key, url, lang, async (page, r) => {
       await h.wait(300);
-      // Keep attacking until stamina runs out and the hint shows.
-      for (let i = 0; i < 24; i += 1) {
-        await click(page);
-        await h.wait(420);
+      // Keep rolling until stamina runs out and the hint shows (attacks are free).
+      for (let i = 0; i < 12; i += 1) {
+        await h.hold(page, ['Space'], 30);
+        await h.wait(300);
         const hint = await page.evaluate(() => {
           const host = [...document.querySelectorAll('#game-ui *')].find((e) => e.shadowRoot?.querySelector('[data-ui-part="hud"]'));
           const node = host?.shadowRoot?.querySelector('[data-ui-part="hint"]');

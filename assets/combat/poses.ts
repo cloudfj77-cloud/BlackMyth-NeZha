@@ -121,15 +121,19 @@ function sample(keys: readonly Key[], frame: number): { spear: SpearPose; body: 
 }
 
 /**
- * Roll angle (degrees) at a (fractional) roll frame: a smooth sine ease through one full turn by
- * frame 17 (fast in the middle, no dead stop), then a small settle (overshoot and back) to frame 27.
+ * Roll angle (degrees) at a (fractional) roll frame: starts turning at once (matching the burst of
+ * displacement), keeps a steady tumble and eases into one full turn by frame 18 without a dead stop,
+ * then a small settle to frame 27.
  */
 export function rollAngleDeg(frame: number): number {
   if (frame <= 0) return 0;
-  const turn = 17;
-  if (frame <= turn) return 360 * (0.5 - 0.5 * Math.cos((Math.PI * frame) / turn));
-  const t = Math.min(1, (frame - turn) / 10);
-  return 360 + 10 * Math.sin(Math.PI * t) * (1 - t);
+  const turn = 18;
+  if (frame <= turn) {
+    const t = frame / turn;
+    return 360 * (0.55 * t + 0.45 * (1 - (1 - t) ** 2));
+  }
+  const t = Math.min(1, (frame - turn) / 9);
+  return 360 + 8 * Math.sin(Math.PI * t) * (1 - t);
 }
 
 /** Roll hop (m): rises up to 0.38 m mid-roll and lands by frame 18 (never below the hover height). */
@@ -220,7 +224,8 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
       const n = Math.hypot(axis[0], axis[2]) || 1;
       const a: P3 = [axis[0] / n, 0, axis[2] / n];
       const ry = Math.atan2(a[0], a[2]) ;
-      const tuck = f <= 16 ? Math.min(1, f / 2) : Math.max(0, 1 - ((f - 16) / 11) ** 2);
+      const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
+      const tuck = f <= 15 ? smooth(f / 4) : 1 - smooth((f - 15) / 12);
       pose = {
         spear: {
           pos: [SPEAR_REST.pos[0] + (0 - a[0] * 0.25 - SPEAR_REST.pos[0]) * tuck, SPEAR_REST.pos[1] + (1.1 - SPEAR_REST.pos[1]) * tuck, SPEAR_REST.pos[2] + (-0.12 - a[2] * 0.25 - SPEAR_REST.pos[2]) * tuck],

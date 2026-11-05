@@ -179,6 +179,7 @@ export const hoverPlayer: Plugin = {
       let actionPose: ActionPose | undefined;
       let floatGate = 1;
       let wasLocked = false;
+      let leanGate = 1;
       const tmpQ = quat.create();
       const samples: { t: number; speed: number; yaw: number; modelY: number; capsuleY: number; x: number; z: number }[] = [];
       const delta = vec3.create();
@@ -308,7 +309,8 @@ export const hoverPlayer: Plugin = {
         queries: [],
         fn: () => {
           const move = tuning.current.move;
-          const leanRad = actionPose?.suppressLean ? 0 : (-lean * Math.PI) / 180;
+          leanGate += ((actionPose?.suppressLean ? 0 : 1) - leanGate) * (1 - Math.exp(-Math.min(world.getResource(Time).delta, 0.1) * 25));
+          const leanRad = (-lean * leanGate * Math.PI) / 180;
           quat.fromEuler(rotation, leanRad + floatPitch, 0, floatRoll, 'YXZ');
           const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY, 0];
           let pos = base;

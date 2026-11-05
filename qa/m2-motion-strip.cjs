@@ -24,7 +24,11 @@ const h = require('./harness.cjs');
       await h.hold(page, ['Space'], 30);
       await page.keyboard.up('KeyD');
     }, 10, 0);
-    await h.wait(1200);
+    for (let i = 0; i < 4; i += 1) {
+      await h.wait(200);
+      await page.screenshot({ path: h.path.join(out, `linger-${i}.png`), clip: { x: 230, y: 90, width: 500, height: 400 } });
+    }
+    await h.wait(600);
     await strip('combo', async () => {
       await page.mouse.down({ button: 'left' });
       await page.mouse.up({ button: 'left' });

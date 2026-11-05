@@ -75,8 +75,8 @@ export const DEFAULT_COMBAT: CombatConfig = {
   slowmoSteps: 18,
   perfectRefund: 20,
   hurtSteps: 24,
-  // Boss ruling 17:46: attack stamina halved (design 4.2 had light 12 / heavy 30).
-  cost: { light: 6, heavy: 15, roll: 20, sprintPerSecond: 15 },
+  // Boss 22:12: attacks cost no stamina (17:46 had halved them; design 4.2 had light 12 / heavy 30).
+  cost: { light: 0, heavy: 0, roll: 20, sprintPerSecond: 15 },
   regenDelay: 48,
   regenPerSecond: 25,
   lotus: { count: 3, steps: 60, heal: 40, speedScale: 0.4 },
@@ -251,7 +251,9 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   const rollVelocity = (frame: number, dir: V2): V2 => {
     const r = config.roll;
     if (frame > r.moveSteps) return ZERO;
-    const d = r.distance * (easeOut(frame / r.moveSteps) - easeOut((frame - 1) / r.moveSteps));
+    // Softer burst than a pure ease-out: still moves on the press frame, peaks early, glides out.
+    const p = (t: number) => { const c = Math.min(1, Math.max(0, t)); return 0.6 * easeOut(c) + 0.4 * c * c * (3 - 2 * c); };
+    const d = r.distance * (p(frame / r.moveSteps) - p((frame - 1) / r.moveSteps));
     return { x: (dir.x * d) / STEP, z: (dir.z * d) / STEP };
   };
 

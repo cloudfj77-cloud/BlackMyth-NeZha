@@ -10,7 +10,7 @@ describe('tuning.json', () => {
     expect(t.camera).toMatchObject({ shoulderOffset: 0.6, minDistance: 1.2, distance: 5 });
     expect(t.ambient.seaweedCanyon + t.ambient.seaweedEdge + t.ambient.seaweedFar).toBe(480);
     expect(t.ambient.seaweedSwayHz).toBeLessThanOrEqual(0.25);
-    expect(t.combat).toMatchObject({ hitstopLight1: 3, hitstopLight3: 5, hitstopHeavyMin: 5, hitstopHeavyMax: 8, shakeHeavyMax: 0.06, slowmoSteps: 18, rollDistance: 3, costLight: 6, costHeavy: 15 });
+    expect(t.combat).toMatchObject({ hitstopLight1: 3, hitstopLight3: 5, hitstopHeavyMin: 5, hitstopHeavyMax: 8, shakeHeavyMax: 0.06, slowmoSteps: 18, rollDistance: 3, costLight: 0, costHeavy: 0 });
   });
   it('every default lies inside its panel range', () => {
     const t = defaultTuning();

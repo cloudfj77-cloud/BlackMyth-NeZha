@@ -95,9 +95,10 @@
     "autoTurnRange": 3,
     "sparkLife": 0.2,
     "wheelRollScale": 1.4,
-    "costLight": 6,
-    "costHeavy": 15,
-    "afterimageLife": 30,
-    "afterimageIntensity": 0.75
+    "costLight": 0,
+    "costHeavy": 0,
+    "afterimageLife": 66,
+    "afterimageIntensity": 0.7,
+    "poseBlend": 0.1
   }
 }
