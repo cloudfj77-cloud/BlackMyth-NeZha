@@ -17,6 +17,7 @@ async function launch({ lang = 'zh-CN', width = 1280, height = 720, gpu = true }
       '--disable-gpu-sandbox',
       '--enable-unsafe-webgpu',
       ...(gpu ? ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal'] : []),
+      ...(width >= 1920 ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
       `--window-size=${width},${height + 80}`,
       `--lang=${lang}`,
     ],
