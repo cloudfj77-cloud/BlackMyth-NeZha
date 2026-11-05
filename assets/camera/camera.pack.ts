@@ -18,6 +18,9 @@ import { boomLimit, cameraRight, createBoom, orbitDirection, wallLift, type V3 }
 
 const DEG = Math.PI / 180;
 const PROBE_RADIUS = 0.2;
+/** Boom reach that frames Nezha whole while locked (55° FOV), and the most the camera may rise to keep it. */
+const LOCK_FIT_DISTANCE = 2.9;
+const LOCK_MAX_LIFT = 2.6;
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 
 /** Optional lock-on framing, installed by the lock-on plugin (T5). */
@@ -152,7 +155,11 @@ export const camera: Plugin = {
             // 3) Back to the wall: rise up the wall until the lens is ≥ minDistance from the focus.
             const up = ray(physics, end, [0, 1, 0], cam.wallLiftMax + 0.5);
             const ceiling = up === undefined ? Infinity : Math.max(0, up - cam.collisionMargin);
-            const lift = wallLift(Math.hypot(shoulder, length), cam, ceiling);
+            const reach = Math.hypot(shoulder, length);
+            // Locked framing must keep Nezha whole (feet to spear tip ≈ 2.8 m): if a wall shortens the boom
+            // below the fit distance, rise further up the wall and look down at him (capped by the ceiling).
+            const fitLift = locked && reach < LOCK_FIT_DISTANCE ? Math.min(LOCK_MAX_LIFT, ceiling, Math.sqrt(LOCK_FIT_DISTANCE ** 2 - reach ** 2)) : 0;
+            const lift = Math.max(wallLift(reach, cam, ceiling), fitLift);
             const position: V3 = [end[0], end[1] + lift, end[2]];
             const toCam: V3 = [position[0] - focus[0], position[1] - focus[1], position[2] - focus[2]];
             const camDistance = Math.hypot(...toCam);
@@ -165,7 +172,11 @@ export const camera: Plugin = {
             let lookAt: V3;
             if (locked) {
               const goal = lockView!.target();
-              lookAt = [focus[0] + (goal[0] - focus[0]) * cam.lockLookAtRatio, focus[1], focus[2] + (goal[2] - focus[2]) * cam.lockLookAtRatio];
+              const free: V3 = [focus[0] + (goal[0] - focus[0]) * cam.lockLookAtRatio, focus[1], focus[2] + (goal[2] - focus[2]) * cam.lockLookAtRatio];
+              // Lifted: pull the aim back onto Nezha's chest so the whole body stays in frame.
+              const blend = Math.min(1, lift / 1.2);
+              const chest: V3 = [focus[0], groundY + 1.0, focus[2]];
+              lookAt = [free[0] + (chest[0] - free[0]) * blend, free[1] + (chest[1] - free[1]) * blend, free[2] + (chest[2] - free[2]) * blend];
             } else if (lift > 0) {
               // Lifted: look down over the shoulder at the chest, so body, wheels and glow stay in frame.
               const blend = Math.min(1, lift / Math.max(0.05, cam.wallLiftMax));

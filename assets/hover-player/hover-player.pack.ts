@@ -52,6 +52,8 @@ export interface PlayerService {
   /** Visual-only float offset written by float-fx (T4); 0 until then. */
   readonly setFloat: (offsetY: number, roll: number, pitch: number) => void;
   readonly setLock: (frame: LockFrame | undefined) => void;
+  /** Always-on footprint clamp for render-only bodies (the lock-target placeholder). */
+  readonly setObstacle: (clamp: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined) => void;
 }
 
 declare module '@forgeax/engine/plugin' {
@@ -108,6 +110,7 @@ export const hoverPlayer: Plugin = {
       let lean = 0;
       let floatY = 0, floatRoll = 0, floatPitch = 0;
       let lock: LockFrame | undefined;
+      let obstacle: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined;
       let taps = 0;
       const samples: { t: number; speed: number; yaw: number; modelY: number; capsuleY: number; x: number; z: number }[] = [];
       const delta = vec3.create();
@@ -177,9 +180,10 @@ export const hoverPlayer: Plugin = {
           vec3.set(delta, velocity.x * dt, 0, velocity.z * dt);
           const actual = physics.moveAndSlide(player, delta);
           let ax = actual[0] ?? 0, az = actual[2] ?? 0;
-          if (lock?.clamp) {
+          const clamp = lock?.clamp ?? obstacle;
+          if (clamp) {
             const after = world.get(player, Transform).unwrap().pos;
-            const fixedPos = lock.clamp(after[0] ?? 0, after[2] ?? 0);
+            const fixedPos = clamp(after[0] ?? 0, after[2] ?? 0);
             if (Math.abs(fixedPos.x - (after[0] ?? 0)) + Math.abs(fixedPos.z - (after[2] ?? 0)) > 1e-5) {
               physics.teleport(player, vec3.create(fixedPos.x, after[1] ?? CAPSULE_CENTER_Y, fixedPos.z));
               ax += fixedPos.x - (after[0] ?? 0);
@@ -280,6 +284,9 @@ export const hoverPlayer: Plugin = {
         },
         setLock: (frame) => {
           lock = frame;
+        },
+        setObstacle: (clamp) => {
+          obstacle = clamp;
         },
       } satisfies PlayerService);
     }, 'nezha/hover-player');
