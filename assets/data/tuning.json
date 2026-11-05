@@ -94,6 +94,10 @@
     "lungeDistance": 0.5,
     "autoTurnRange": 3,
     "sparkLife": 0.12,
-    "wheelRollScale": 1.4
+    "wheelRollScale": 1.4,
+    "costLight": 6,
+    "costHeavy": 15,
+    "afterimageLife": 30,
+    "afterimageIntensity": 0.75
   }
 }

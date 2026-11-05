@@ -69,7 +69,8 @@ export const DEFAULT_COMBAT: CombatConfig = {
   slowmoSteps: 18,
   perfectRefund: 20,
   hurtSteps: 24,
-  cost: { light: 12, heavy: 30, roll: 20, sprintPerSecond: 15 },
+  // Boss ruling 17:46: attack stamina halved (design 4.2 had light 12 / heavy 30).
+  cost: { light: 6, heavy: 15, roll: 20, sprintPerSecond: 15 },
   regenDelay: 48,
   regenPerSecond: 25,
   lotus: { count: 3, steps: 60, heal: 40, speedScale: 0.4 },
@@ -487,6 +488,7 @@ export function configFromTuning(t: {
   readonly hitstopHeavyMin: number; readonly hitstopHeavyMax: number;
   readonly shakeLight3: number; readonly shakeHeavyMin: number; readonly shakeHeavyMax: number;
   readonly slowmoSteps: number; readonly rollDistance: number; readonly lungeDistance: number;
+  readonly costLight: number; readonly costHeavy: number;
 }): CombatConfig {
   const d = DEFAULT_COMBAT;
   return {
@@ -501,5 +503,6 @@ export function configFromTuning(t: {
     slowmoSteps: t.slowmoSteps,
     lungeDistance: t.lungeDistance,
     roll: { ...d.roll, distance: t.rollDistance },
+    cost: { ...d.cost, light: t.costLight, heavy: t.costHeavy },
   };
 }

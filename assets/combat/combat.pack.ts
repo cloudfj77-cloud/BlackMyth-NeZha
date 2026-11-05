@@ -1,5 +1,5 @@
 import { definePack } from '@forgeax/engine/pack/source';
-import { FixedUpdate, Time, Update, type EntityHandle } from '@forgeax/engine/ecs';
+import { FixedTime, FixedUpdate, Time, Update, type EntityHandle } from '@forgeax/engine/ecs';
 import { packInterleavedVertexAttributes } from '@forgeax/engine/geometry';
 import type { Plugin } from '@forgeax/engine/plugin';
 import { DirectionalLight, Fog, MeshFilter, MeshRenderer, Points, PointShapeValue, PointSizeUnitsValue, Skylight } from '@forgeax/engine/render';
@@ -297,13 +297,15 @@ export const combat: Plugin = {
             const m = readPresentationWorldMatrix(world, player.model);
             if (m) {
               world.set(slot.entity, Transform, { pos: [m[12] ?? 0, m[13] ?? 0, m[14] ?? 0], quat: quatFromMatrix(m), scale: [1, 1, 1] }).unwrap();
-              slot.life = 12;
+              slot.life = tuning.current.combat.afterimageLife;
             }
           }
           for (const slot of afterimages) {
             if (slot.life <= 0) continue;
             slot.life -= 1;
-            assets.update(slot.instance, { values: { intensity: 0.6 * (slot.life / 12) } } as never).unwrap();
+            // Boss 17:46: afterimages linger (0.5 s default) and fade out smoothly.
+            const left = slot.life / Math.max(1, tuning.current.combat.afterimageLife);
+            assets.update(slot.instance, { values: { intensity: tuning.current.combat.afterimageIntensity * left * left } } as never).unwrap();
             if (slot.life === 0) world.set(slot.entity, Transform, { scale: [0, 0, 0] }).unwrap();
           }
         },
@@ -318,9 +320,12 @@ export const combat: Plugin = {
         queries: [],
         fn: () => {
           const dt = Math.min(world.getResource(Time).delta, 0.1);
-          const visual = actionVisual(state, player.facing());
+          // Sub-step interpolation: poses advance smoothly between the 60 Hz combat steps.
+          const fixed = world.getResource(FixedTime);
+          const alpha = session.clock.frozen() || state.kind === 'free' ? 0 : Math.min(1, Math.max(0, fixed.overstep / Math.max(1e-6, fixed.delta)));
+          const visual = actionVisual({ ...state, frame: state.frame + alpha }, player.facing());
           const active = state.kind !== 'free';
-          player.setActionPose(active ? { rotation: visual.rotation, pivotY: visual.pivotY, offset: [0, 0, 0], suppressLean: true } : undefined);
+          player.setActionPose(active ? { rotation: visual.rotation, pivotY: visual.pivotY, offset: visual.offset, suppressLean: true } : undefined);
           floatGate = visual.floatGate;
           player.setFloatGate(floatGate);
           world.set(spear, Transform, { pos: visual.spear.pos, quat: visual.spear.quat }).unwrap();

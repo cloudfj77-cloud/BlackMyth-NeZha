@@ -56,9 +56,9 @@ describe('light combo', () => {
   it('does not attack without stamina and flashes the hint', () => {
     const c = createCombat();
     const presses: StepInput[] = [];
-    for (let i = 0; i < 9; i += 1) presses.push(press({ light: true }), ...idle(34));
+    for (let i = 0; i < 17; i += 1) presses.push(press({ light: true }), ...idle(34));
     const r = run(c, presses);
-    expect(r.events.filter((x) => x.event.type === 'swing-light').length).toBe(8); // 8 × 12 = 96 ≤ 100
+    expect(r.events.filter((x) => x.event.type === 'swing-light').length).toBe(16); // 16 × 6 = 96 ≤ 100
     expect(r.events.some((x) => x.event.type === 'hint' && (x.event as { key: string }).key === 'noStamina')).toBe(true);
     expect(c.snapshot().flashSerial).toBeGreaterThan(0);
   });
@@ -177,10 +177,10 @@ describe('roll and perfect dodge', () => {
 });
 
 describe('stamina', () => {
-  it('costs 12 / 30 / 20 and recovers 25/s after 48 idle steps', () => {
+  it('costs 6 / 15 / 20 (boss: attacks halved) and recovers 25/s after 48 idle steps', () => {
     const c = createCombat();
     run(c, [press({ light: true }), ...idle(21)]);
-    expect(c.snapshot().stamina).toBe(88);
+    expect(c.snapshot().stamina).toBe(94);
     const c2 = createCombat();
     run(c2, [press({ roll: true }), ...idle(26), press({ roll: true }), ...idle(26), press({ roll: true })]);
     expect(c2.snapshot().stamina).toBe(40);
@@ -191,7 +191,7 @@ describe('stamina', () => {
     expect(c2.snapshot().stamina).toBeCloseTo(65, 6);
     const c3 = createCombat();
     run(c3, [...Array.from({ length: 20 }, () => press({ heavyHeld: true })), ...idle(2)]); // spent on release
-    expect(c3.snapshot().stamina).toBe(70);
+    expect(c3.snapshot().stamina).toBe(85);
   });
 });
 
