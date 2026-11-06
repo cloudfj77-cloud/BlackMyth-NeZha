@@ -37,6 +37,19 @@ describe('language table', () => {
     expect([...en.keys()].filter((key) => !context.has(key))).toEqual([]);
     expect([...context].filter((key) => !en.has(key))).toEqual([]);
   });
+  it('fits every subtitle and reward line in 2 lines of ≤ 42 characters; buttons ≤ 16 (M4 §6)', () => {
+    for (const table of [zh, en]) {
+      for (const [key, value] of table) {
+        if (key.startsWith('ui:dialogue.') || key === 'ui:result.reward.desc') {
+          const lines = value.split('\n');
+          expect(lines.length, key).toBeLessThanOrEqual(2);
+          for (const line of lines) expect(line.length, key).toBeLessThanOrEqual(42);
+        }
+        if (/^ui:(result\.action|menu\.pause\.(restart|toTitle)|hud\.banner\.retry)/.test(key)) expect(value.length, key).toBeLessThanOrEqual(16);
+      }
+    }
+    expect(en.get('terms:boss.dragonKingHud')!.length).toBeLessThanOrEqual(22);
+  });
   it('keeps English free of CJK characters and HUD hints within the 28-character budget', () => {
     for (const [key, value] of en) {
       expect(/[\u3400-\u9fff]/.test(value), key).toBe(false);

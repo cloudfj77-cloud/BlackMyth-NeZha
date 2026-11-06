@@ -159,6 +159,17 @@ export default definePack({
         values: { baseColor: [0.5, 0.03, 0.02, 1], sashColor: [1.25, 0.11, 0.04, 1], goldColor: [1.0, 0.7, 0.2, 1], brightness: 1, fill: 0, flash: 0 },
         renderState: { cullMode: 'none' },
       }),
+      'material/afterimage-cloud': Materials.standard({
+        surfaceModule: 'nezha::ghost_cloud_surface',
+        parameters: [
+          { name: 'coreColor', type: 'color' },
+          { name: 'rimColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { coreColor: [0.95, 0.22, 0.03, 1], rimColor: [1.0, 0.62, 0.12, 1], intensity: 0.7 },
+        renderState: { ...ALPHA_BLEND, cullMode: 'none', fog: false },
+        queue: RenderQueue.Transparent,
+      }),
       'material/afterimage': Materials.standard({
         surfaceModule: 'nezha::ghost_surface',
         parameters: [
@@ -223,9 +234,9 @@ export default definePack({
       'material/dragon-mid': std([0.0976, 0.1946, 0.1529], { metallic: 0.2, roughness: 0.55 }),
       'material/dragon-tail': std([0.0185, 0.0343, 0.0273], { metallic: 0.2, roughness: 0.6 }),
       // Camera see-through (same route as the pillars, boss 15:54「毛玻璃」): 35 % blended band colour.
-      'material/dragon-front-glass': Materials.standard({ baseColor: [0.2122, 0.3613, 0.3005, 0.35], roughness: 0.55, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
-      'material/dragon-mid-glass': Materials.standard({ baseColor: [0.0976, 0.1946, 0.1529, 0.35], roughness: 0.55, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
-      'material/dragon-tail-glass': Materials.standard({ baseColor: [0.0185, 0.0343, 0.0273, 0.35], roughness: 0.6, renderState: ALPHA_BLEND, queue: RenderQueue.Transparent }),
+      'material/dragon-front-glass': Materials.standard({ baseColor: [0.2122, 0.3613, 0.3005, 0.35], roughness: 0.55, renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
+      'material/dragon-mid-glass': Materials.standard({ baseColor: [0.0976, 0.1946, 0.1529, 0.35], roughness: 0.55, renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
+      'material/dragon-tail-glass': Materials.standard({ baseColor: [0.0185, 0.0343, 0.0273, 0.35], roughness: 0.6, renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
       'material/dragon-ridge': std([0.0976, 0.1946, 0.1529], { roughness: 0.5 }),
       'material/dragon-horn': std([0.7913, 0.7682, 0.7011], { roughness: 0.6 }),
       /** Moon-cyan eyes #CFE7E4: steady glow at 30 % (50 % telegraph, 15 % opening, 0 closed). Never flickers. */

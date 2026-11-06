@@ -1,6 +1,6 @@
 import { definePack } from '@forgeax/engine/pack/source';
 import { FixedTime, FixedUpdate, Time, Update, type EntityHandle } from '@forgeax/engine/ecs';
-import { packInterleavedVertexAttributes } from '@forgeax/engine/geometry';
+import { createMeshBuilder, packInterleavedVertexAttributes } from '@forgeax/engine/geometry';
 import type { Plugin } from '@forgeax/engine/plugin';
 import { DirectionalLight, Fog, MeshFilter, MeshRenderer, Points, PointShapeValue, PointSizeUnitsValue, Skylight } from '@forgeax/engine/render';
 import { ChildOf, PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
@@ -150,7 +150,7 @@ export const combat: Plugin = {
     const mat = {
       wheel: await load(guidText(materialGuid('wheel-fire')), 'material'),
       wheelFull: await load(guidText(materialGuid('wheel-fire-full')), 'material'),
-      afterimage: await load(guidText(materialGuid('afterimage')), 'material'),
+      afterimage: await load(guidText(materialGuid('afterimage-cloud')), 'material'),
       ring: await load(guidText(materialGuid('perfect-ring')), 'material'),
       spark: await load(guidText(materialGuid('spark')), 'material'),
       flame: await load(guidText(materialGuid('flame')), 'material'),
@@ -174,6 +174,7 @@ export const combat: Plugin = {
       let bindsSinceReset = 0;
       let deadFor = -1;
       let wheelFire: unknown;
+      let wheelGlow = -1;
       let configRevision = tuning.revision();
       let hitSerial = 0, bindSerial = 0, hurtSerial = 0;
       const hitLog: { step: number; kind: string; stage: number; dmg: number; dist: number; ang: number; segment: number; tail: boolean; hitstop: number; shake: number }[] = [];
@@ -203,16 +204,62 @@ export const combat: Plugin = {
       ).unwrap();
       spawned.push(flame);
       const AFTER_FRAMES = [1, 4, 7, 10, 13];
-      const afterimages = AFTER_FRAMES.map(() => {
-        const instance = copy(mat.afterimage);
-        const entity = world.spawn(
-          { component: Transform, data: { pos: [0, -50, 0], scale: [0, 0, 0] } },
-          { component: MeshFilter, data: { assetHandle: mesh.body } as never },
-          { component: MeshRenderer, data: { materials: [instance, instance, instance, instance, instance] } as never },
-        ).unwrap();
-        spawned.push(entity);
-        return { entity, instance, life: 0 };
-      });
+      // All five afterimages live in ONE mesh (M4 §12: separately drawn ghosts cost 5 draw calls each
+      // and caused the draw spikes). Each slot bakes the body's pose when it spawns; its fade rides in
+      // uv0.x. One draw for the whole trail.
+      const body = assets.read(mesh.body).unwrap() as MeshAsset;
+      const bodyPos = body.attributes.position as Float32Array;
+      const bodyNor = (body.attributes.normal as Float32Array | undefined) ?? new Float32Array(bodyPos.length);
+      const bodyVerts = bodyPos.length / 3;
+      const bodyIdx: number[] = [];
+      const srcIdx = body.indices as Uint32Array | Uint16Array | undefined;
+      for (const sm of body.submeshes) for (let k = 0; k < sm.indexCount; k += 1) bodyIdx.push((srcIdx?.[sm.indexOffset + k] ?? 0) + ((sm as { baseVertex?: number }).baseVertex ?? 0));
+      const cloudIdx = new Uint32Array(bodyIdx.length * AFTER_FRAMES.length);
+      AFTER_FRAMES.forEach((_, s) => bodyIdx.forEach((v, k) => (cloudIdx[s * bodyIdx.length + k] = v + s * bodyVerts)));
+      const cloudPos = new Float32Array(bodyVerts * 3 * AFTER_FRAMES.length);
+      for (let v = 0; v < cloudPos.length; v += 3) cloudPos[v + 1] = -50;
+      const cloudNor = new Float32Array(cloudPos.length);
+      const cloudUv = new Float32Array(bodyVerts * 2 * AFTER_FRAMES.length);
+      const cloudBuilt = createMeshBuilder({
+        attributes: { position: cloudPos, normal: cloudNor, uv: cloudUv },
+        indices: cloudIdx,
+        submeshes: [{ indexOffset: 0, indexCount: cloudIdx.length, vertexCount: bodyVerts * AFTER_FRAMES.length, topology: 'triangle-list', materialSlot: 0 }],
+        materialSlots: [{ slotName: 'afterimages' }],
+      }).build();
+      if (!cloudBuilt.ok) throw cloudBuilt.error;
+      const cloudMesh = assets.create({ ...cloudBuilt.value, aabb: new Float32Array([-60, -60, -60, 60, 30, 60]) }).unwrap();
+      yield () => {
+        assets.release(cloudMesh).unwrap();
+      };
+      const cloud = world.spawn(
+        { component: Transform, data: { pos: [0, 0, 0] } },
+        { component: MeshFilter, data: { assetHandle: cloudMesh } as never },
+        { component: MeshRenderer, data: { materials: [mat.afterimage] } as never },
+      ).unwrap();
+      spawned.push(cloud);
+      const afterimages = AFTER_FRAMES.map(() => ({ life: 0 }));
+      let cloudLive = false;
+      /** Bake the body at matrix m into slot s (world space). */
+      const bakeSlot = (s: number, m: ArrayLike<number>) => {
+        const o = s * bodyVerts * 3;
+        for (let v = 0; v < bodyVerts; v += 1) {
+          const x = bodyPos[v * 3]!, y = bodyPos[v * 3 + 1]!, z = bodyPos[v * 3 + 2]!;
+          cloudPos[o + v * 3] = m[0]! * x + m[4]! * y + m[8]! * z + m[12]!;
+          cloudPos[o + v * 3 + 1] = m[1]! * x + m[5]! * y + m[9]! * z + m[13]!;
+          cloudPos[o + v * 3 + 2] = m[2]! * x + m[6]! * y + m[10]! * z + m[14]!;
+          const nx = bodyNor[v * 3]!, ny = bodyNor[v * 3 + 1]!, nz = bodyNor[v * 3 + 2]!;
+          cloudNor[o + v * 3] = m[0]! * nx + m[4]! * ny + m[8]! * nz;
+          cloudNor[o + v * 3 + 1] = m[1]! * nx + m[5]! * ny + m[9]! * nz;
+          cloudNor[o + v * 3 + 2] = m[2]! * nx + m[6]! * ny + m[10]! * nz;
+        }
+        assets.writeRange(cloudMesh, { attribute: 'position', first: s * bodyVerts, values: cloudPos.subarray(o, o + bodyVerts * 3) }).unwrap();
+        assets.writeRange(cloudMesh, { attribute: 'normal', first: s * bodyVerts, values: cloudNor.subarray(o, o + bodyVerts * 3) }).unwrap();
+      };
+      const fadeSlot = (s: number, fade: number) => {
+        const o = s * bodyVerts * 2;
+        for (let v = 0; v < bodyVerts; v += 1) cloudUv[o + v * 2] = fade;
+      };
+      assets.update(mat.afterimage, { values: { intensity: tuning.current.combat.afterimageIntensity } } as never).unwrap();
       const ringInstance = copy(mat.ring);
       const ring = world.spawn(
         { component: Transform, data: { pos: [0, -50, 0], scale: [0, 0, 0] } },
@@ -353,23 +400,23 @@ export const combat: Plugin = {
           // Fire afterimages along the roll (boss 22:12: more of them, lingering ~1.1 s).
           const afterIndex = state.kind === 'roll' ? AFTER_FRAMES.indexOf(state.frame) : -1;
           if (afterIndex >= 0) {
-            const slot = afterimages[afterIndex]!;
             const m = readPresentationWorldMatrix(world, player.model);
             if (m) {
-              world.set(slot.entity, Transform, { pos: [m[12] ?? 0, m[13] ?? 0, m[14] ?? 0], quat: quatFromMatrix(m), scale: [1, 1, 1] }).unwrap();
-              slot.life = tuning.current.combat.afterimageLife;
+              bakeSlot(afterIndex, m);
+              afterimages[afterIndex]!.life = tuning.current.combat.afterimageLife;
             }
           }
-          for (const slot of afterimages) {
-            if (slot.life <= 0) continue;
+          let anyLive = false;
+          afterimages.forEach((slot, s) => {
+            if (slot.life <= 0) return;
             slot.life -= 1;
-            // Boss 17:46: afterimages linger (0.5 s default) and fade out smoothly.
-            // Stay bright most of their life, then fade out smoothly.
+            anyLive = true;
+            // Boss 17:46: afterimages linger and fade out smoothly — bright most of their life, then fade.
             const left = slot.life / Math.max(1, tuning.current.combat.afterimageLife);
-            const glow = left > 0.5 ? 1 : (left / 0.5) ** 1.5;
-            assets.update(slot.instance, { values: { intensity: tuning.current.combat.afterimageIntensity * glow } } as never).unwrap();
-            if (slot.life === 0) world.set(slot.entity, Transform, { scale: [0, 0, 0] }).unwrap();
-          }
+            fadeSlot(s, left > 0.5 ? 1 : (left / 0.5) ** 1.5);
+          });
+          if (anyLive || cloudLive) assets.writeRange(cloudMesh, { attribute: 'uv', first: 0, values: cloudUv }).unwrap();
+          cloudLive = anyLive;
         },
       }).unwrap();
       yield () => world.removeSystem(FixedUpdate, 'nezha-combat').unwrap();
@@ -404,26 +451,21 @@ export const combat: Plugin = {
           player.setActionPose(active ? { rotation: shown.rotation, pivotY: shown.pivotY, offset: shown.offset, suppressLean: state.kind !== 'free' } : undefined);
           floatGate = visual.floatGate * floatScale;
           player.setFloatGate(floatGate);
-          // Defeat (M4 §7): the wheel fire goes out over 30 steps.
-          if (state.kind === 'dead') {
-            if (deadFor < 0) {
-              deadFor = 0;
-              wheelFire = copy(mat.wheel);
-              world.set(wheels, MeshRenderer, { materials: [wheelFire as never] } as never).unwrap();
-            }
-            deadFor += dt * 60;
-            const left = Math.max(0, 1 - deadFor / 30);
-            const res = assets.update(wheelFire as never, { values: { emissiveIntensity: WHEEL_FIRE * left } } as never);
-            if (!res.ok) assets.update(wheelFire as never, { emissiveIntensity: WHEEL_FIRE * left } as never);
-          } else if (deadFor >= 0) {
-            deadFor = -1;
-            world.set(wheels, MeshRenderer, { materials: [wheelsFull ? mat.wheelFull : mat.wheel] } as never).unwrap();
+          // Defeat (M4 §7): the wheel fire goes out over 30 steps. One live wheel material: the roll glow
+          // and the defeat fade only change its emissive intensity (M4 §12: no material swaps).
+          if (wheelFire === undefined) {
+            wheelFire = copy(mat.wheel);
+            world.set(wheels, MeshRenderer, { materials: [wheelFire as never] } as never).unwrap();
+          }
+          if (state.kind === 'dead') deadFor = deadFor < 0 ? 0 : deadFor + dt * 60;
+          else deadFor = -1;
+          if (state.kind !== 'dead') wheelsFull = visual.wheelsFull;
+          const glow = state.kind === 'dead' ? WHEEL_FIRE * Math.max(0, 1 - deadFor / 30) : wheelsFull ? WHEEL_FULL_INTENSITY : WHEEL_FIRE;
+          if (Math.abs(glow - wheelGlow) > 1e-3) {
+            wheelGlow = glow;
+            assets.update(wheelFire as never, { values: { emissiveIntensity: glow } } as never).unwrap();
           }
           world.set(spear, Transform, { pos: shown.spearPos, quat: shown.spearQuat }).unwrap();
-          if (visual.wheelsFull !== wheelsFull && state.kind !== 'dead') {
-            wheelsFull = visual.wheelsFull;
-            world.set(wheels, MeshRenderer, { materials: [wheelsFull ? mat.wheelFull : mat.wheel] } as never).unwrap();
-          }
           const wsTarget = wheelsFull ? tuning.current.combat.wheelRollScale : 1;
           wheelScale += (wsTarget - wheelScale) * (1 - Math.exp(-dt * 30));
           world.set(wheels, Transform, { scale: [wheelScale, 1, wheelScale] }).unwrap();
@@ -568,10 +610,11 @@ export const combat: Plugin = {
           bindsSinceReset = 0;
           floatScale = 1;
           state = { kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: { x: 0, z: 0 } };
-          for (const slot of afterimages) {
+          afterimages.forEach((slot, s) => {
             slot.life = 0;
-            world.set(slot.entity, Transform, { scale: [0, 0, 0] }).unwrap();
-          }
+            fadeSlot(s, 0);
+          });
+          assets.writeRange(cloudMesh, { attribute: 'uv', first: 0, values: cloudUv }).unwrap();
           player.setControl(undefined);
         },
         hp: () => machine.snapshot().hp,

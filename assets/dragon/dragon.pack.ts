@@ -174,6 +174,63 @@ function circle(c: V2, r: number): V2[] {
   });
 }
 
+/** Shared glass mesh (M4 §12): per segment slot an octagonal prism with caps, stretched over its joints. */
+const GLASS_SIDES = 8;
+const GLASS_VERTS = GLASS_SIDES * 2 + 2;
+function glassMesh(slots: number): MeshAsset {
+  const indices: number[] = [];
+  for (let k = 0; k < slots; k += 1) {
+    const o = k * GLASS_VERTS;
+    for (let s = 0; s < GLASS_SIDES; s += 1) {
+      const a = o + s, b = o + ((s + 1) % GLASS_SIDES), c = o + GLASS_SIDES + s, d = o + GLASS_SIDES + ((s + 1) % GLASS_SIDES);
+      indices.push(a, c, b, b, c, d);
+      indices.push(o + 2 * GLASS_SIDES, b, a);
+      indices.push(o + 2 * GLASS_SIDES + 1, c, d);
+    }
+  }
+  const count = slots * GLASS_VERTS;
+  const built = createMeshBuilder({
+    attributes: { position: new Float32Array(count * 3), normal: new Float32Array(count * 3), uv: new Float32Array(count * 2) },
+    indices: new Uint32Array(indices),
+    submeshes: [{ indexOffset: 0, indexCount: indices.length, vertexCount: count, topology: 'triangle-list', materialSlot: 0 }],
+    materialSlots: [{ slotName: 'glass' }],
+  }).build();
+  if (!built.ok) throw built.error;
+  return { ...built.value, aabb: new Float32Array([-60, -10, -60, 60, 30, 60]) };
+}
+/** Write one glass slot (a → b, radii ra → rb, ends pushed out by the radius); `a` null hides it. */
+function writeGlassSlot(pos: Float32Array, nor: Float32Array, slot: number, a: P3 | null, b: P3, ra: number, rb: number): void {
+  const o = slot * GLASS_VERTS * 3;
+  if (!a) {
+    if (pos[o + 1] === -60 && pos[o + 4] === -60) return;
+    for (let v = 0; v < GLASS_VERTS; v += 1) pos.set([0, -60, 0], o + v * 3);
+    return;
+  }
+  let ax = b[0] - a[0], ay = b[1] - a[1], az = b[2] - a[2];
+  const len = Math.hypot(ax, ay, az) || 1;
+  ax /= len; ay /= len; az /= len;
+  // Any vector not parallel to the axis gives the ring basis.
+  const ux = Math.abs(ay) < 0.9 ? 0 : 1, uy = Math.abs(ay) < 0.9 ? 1 : 0;
+  let px = uy * az - 0 * ay, py = 0 * ax - ux * az, pz = ux * ay - uy * ax;
+  const pn = Math.hypot(px, py, pz) || 1;
+  px /= pn; py /= pn; pz /= pn;
+  const qx = ay * pz - az * py, qy = az * px - ax * pz, qz = ax * py - ay * px;
+  const s0: P3 = [a[0] - ax * ra * 0.7, a[1] - ay * ra * 0.7, a[2] - az * ra * 0.7];
+  const s1: P3 = [b[0] + ax * rb * 0.7, b[1] + ay * rb * 0.7, b[2] + az * rb * 0.7];
+  for (let s = 0; s < GLASS_SIDES; s += 1) {
+    const t = (s / GLASS_SIDES) * Math.PI * 2;
+    const nx = Math.cos(t) * px + Math.sin(t) * qx, ny = Math.cos(t) * py + Math.sin(t) * qy, nz = Math.cos(t) * pz + Math.sin(t) * qz;
+    pos.set([s0[0] + nx * ra, s0[1] + ny * ra, s0[2] + nz * ra], o + s * 3);
+    pos.set([s1[0] + nx * rb, s1[1] + ny * rb, s1[2] + nz * rb], o + (GLASS_SIDES + s) * 3);
+    nor.set([nx, ny, nz], o + s * 3);
+    nor.set([nx, ny, nz], o + (GLASS_SIDES + s) * 3);
+  }
+  pos.set(s0, o + 2 * GLASS_SIDES * 3);
+  pos.set(s1, o + (2 * GLASS_SIDES + 1) * 3);
+  nor.set([-ax, -ay, -az], o + 2 * GLASS_SIDES * 3);
+  nor.set([ax, ay, az], o + (2 * GLASS_SIDES + 1) * 3);
+}
+
 function lookQuat(dir: P3): [number, number, number, number] {
   const q = quat.fromLookAt(quat.create(), [0, 0, 0], dir, [0, 1, 0]);
   return [q[0] ?? 0, q[1] ?? 0, q[2] ?? 0, q[3] ?? 1];
@@ -267,10 +324,43 @@ export const dragon: Plugin = {
         ...FADES.slice(1).map((fade) => copy(mat.fade, { baseColor: [...BAND_COLORS[b]!, 1], rimColor: [BAND_COLORS[b]![0] * 1.4, BAND_COLORS[b]![1] * 1.4, BAND_COLORS[b]![2] * 1.4, 1], fade })),
       ]);
       const glassMats = mat.bands.map((solid, b) => [solid, mat.glass[b]!, mat.glass[b]!, mat.glass[b]!]);
-      const routeMats = () => (session.frontend().fade === 'hash' ? hashMats : glassMats);
       const bandMats = glassMats;
-      const joints = Array.from({ length: POINTS }, (_, i) => ({ entity: spawn(mesh.joint, [bandMats[bandOf(i)]![0]!]), level: 0 }));
-      const segs = Array.from({ length: POINTS - 1 }, (_, i) => ({ entity: spawn(mesh.segment, [bandMats[bandOf(i)]![0]!]), level: 0 }));
+      // M4 §12: every separately drawn see-through part costs one draw call (blended parts are not
+      // batched), which spiked the draw count whenever the camera came close. The solid parts stay
+      // batched; the see-through segments of each colour band are written into one shared glass mesh
+      // per band (≤ 3 draws), rebuilt only while anything is see-through.
+      const part = (m: never, i: number) => ({ entity: spawn(m, [bandMats[bandOf(i)]![0]!]), level: 0, hashLevel: 0 });
+      const joints = Array.from({ length: POINTS }, (_, i) => part(mesh.joint, i));
+      const segs = Array.from({ length: POINTS - 1 }, (_, i) => part(mesh.segment, i));
+      const ZERO3: [number, number, number] = [0, 0, 0];
+      const bandSegments = [0, 1, 2].map((b) => Array.from({ length: POINTS - 1 }, (_, i) => i).filter((i) => bandOf(i) === b));
+      const glassBands = bandSegments.map((list, b) => {
+        const mesh = assets.create(glassMesh(list.length)).unwrap();
+        meshes.push(mesh as unknown as number);
+        const entity = world.spawn(
+          { component: Transform, data: { pos: [0, 0, 0], scale: [1, 1, 1] } },
+          { component: MeshFilter, data: { assetHandle: mesh } as never },
+          { component: MeshRenderer, data: { materials: [mat.glass[b]!] } as never },
+        ).unwrap();
+        spawned.push(entity);
+        return { mesh, entity, list, positions: new Float32Array(list.length * GLASS_VERTS * 3), normals: new Float32Array(list.length * GLASS_VERTS * 3), dirty: true, active: 0 };
+      });
+      const segGlass = new Array<boolean>(POINTS - 1).fill(false);
+      /** Place a part: 0 solid, 1–3 see-through (shared glass mesh), 4 hidden at the lens. */
+      const placePart = (p: { entity: EntityHandle; level: number; hashLevel: number }, i: number, raw: number, t: { pos: P3; quat?: [number, number, number, number]; scale: [number, number, number] }) => {
+        p.level = Math.min(3, raw);
+        if (session.frontend().fade === 'hash') {
+          // Dev comparison route only (screen-door levels swap materials).
+          if (p.level !== p.hashLevel) {
+            p.hashLevel = p.level;
+            world.set(p.entity, MeshRenderer, { materials: [hashMats[bandOf(i)]![p.level]!] } as never).unwrap();
+          }
+          world.set(p.entity, Transform, raw === 4 ? { ...t, scale: ZERO3 } : t).unwrap();
+          return false;
+        }
+        world.set(p.entity, Transform, raw === 0 ? t : { pos: t.pos, scale: ZERO3 }).unwrap();
+        return raw > 0 && raw < 4;
+      };
       const fins = Array.from({ length: 19 }, () => spawn(mesh.fin, [mat.ridge]));
       const head = spawn(mesh.head, [bandMats[0]![0]!, mat.horn, mat.ridge]);
       const eyeMat = copy(mat.eye);
@@ -456,34 +546,31 @@ export const dragon: Plugin = {
           let hiddenParts = 0;
           for (let i = 0; i < POINTS; i += 1) {
             const p = pts[i]!, r = radius(i);
-            const j = joints[i]!;
-            world.set(j.entity, Transform, { pos: p, scale: [r, r, r] }).unwrap();
             const raw = fadeOf(p, r);
-            if (raw === 4) {
-              hiddenParts += 1;
-              world.set(j.entity, Transform, { scale: [0, 0, 0] }).unwrap();
-            }
-            const level = Math.min(3, raw);
-            if (level !== j.level) {
-              j.level = level;
-              world.set(j.entity, MeshRenderer, { materials: [routeMats()[bandOf(i)]![level]!] } as never).unwrap();
-            }
+            if (raw === 4) hiddenParts += 1;
+            placePart(joints[i]!, i, raw, { pos: p, scale: [r, r, r] });
             if (i < POINTS - 1) {
               const q = pts[i + 1]!;
-              const s = segs[i]!;
               const rr = (r + radius(i + 1)) / 2;
-              world.set(s.entity, Transform, { pos: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], quat: segmentQuat(p, q), scale: [rr, Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]), rr] }).unwrap();
               const rawQ = fadeOf(q, radius(i + 1));
-              if (raw === 4 || rawQ === 4) {
-                hiddenParts += 1;
-                world.set(s.entity, Transform, { scale: [0, 0, 0] }).unwrap();
-              }
-              const sl = Math.min(3, Math.max(level, rawQ));
-              if (sl !== s.level) {
-                s.level = sl;
-                world.set(s.entity, MeshRenderer, { materials: [routeMats()[bandOf(i)]![sl]!] } as never).unwrap();
-              }
+              const segRaw = raw === 4 || rawQ === 4 ? 4 : Math.max(raw, rawQ);
+              if (segRaw === 4) hiddenParts += 1;
+              segGlass[i] = placePart(segs[i]!, i, segRaw, { pos: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], quat: segmentQuat(p, q), scale: [rr, Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]), rr] });
             }
+          }
+          // Shared glass meshes: one rounded prism per see-through segment (covers its joints too).
+          for (const g of glassBands) {
+            let active = 0;
+            g.list.forEach((i, slot) => {
+              const on = segGlass[i]!;
+              if (on) active += 1;
+              writeGlassSlot(g.positions, g.normals, slot, on ? pts[i]! : null, pts[i + 1]!, radius(i), radius(i + 1));
+            });
+            if (active > 0 || g.active > 0) {
+              assets.writeRange(g.mesh as never, { attribute: 'position', first: 0, values: g.positions }).unwrap();
+              assets.writeRange(g.mesh as never, { attribute: 'normal', first: 0, values: g.normals }).unwrap();
+            }
+            g.active = active;
           }
           // Dorsal ridge fins along the back (#587A6D), keeping the tail readable against the vortex.
           const snapV = brain.snapshot();
@@ -551,7 +638,7 @@ export const dragon: Plugin = {
             } else world.set(splash, Transform, { pos: [splashAt.x, FLOOR_Y + 4.0, splashAt.z], scale: [1 + 4 * t, (1 + 4 * t) * 0.6 * (1 - t), 1 + 4 * t] }).unwrap();
           }
           lensHidden = hiddenParts;
-          seeThrough = joints.filter((j) => j.level > 0).length;
+          seeThrough = segGlass.filter(Boolean).length;
           cpuMs += (performance.now() - t0 - cpuMs) * 0.05;
         },
       }).unwrap();
