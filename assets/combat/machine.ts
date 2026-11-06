@@ -70,12 +70,13 @@ export const DEFAULT_COMBAT: CombatConfig = {
     { hit: 7, recover: 16, damage: 9, hitstop: 3, shake: 0, lunge: 0.45 },
     { hit: 11, recover: 22, damage: 14, hitstop: 5, shake: 0.02, lunge: 0.9 },
     /** v1.4.0 LIGHT[3] 回旋枪 (boss 11-06 20:57): a full spin, 360°, 3 m; 0.8 s (hit at 0.2 s… swept to 0.5 s). */
-    { hit: 18, recover: 30, damage: 14, hitstop: 6, shake: 0.04, lunge: 0.2, range: 3.0, arc: 360 },
+    { hit: 18, recover: 30, damage: 14, hitstop: 6, shake: 0.04, lunge: 0.2, range: 3.6, arc: 360 },
   ],
   chainFrom: 4,
   hurtRollFrom: 0,
-  lightRange: 2.5,
-  heavyRange: 3,
+  // The doubled spear (asset v2, 11-06): reach follows the blade so a visible hit is a real hit.
+  lightRange: 3.6,
+  heavyRange: 4,
   arcDeg: 60,
   chargeMin: 18,
   chargeMax: 72,

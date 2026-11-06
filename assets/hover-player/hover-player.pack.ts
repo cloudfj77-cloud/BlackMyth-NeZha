@@ -365,7 +365,7 @@ export const hoverPlayer: Plugin = {
           if (grey !== greyApplied) {
             greyApplied = grey;
             for (const part of greyParts) {
-              world.set(part.entity, MeshRenderer, { materials: grey ? Array.from({ length: part.slots }, () => greyMaterial) : [] } as never).unwrap();
+              if (world.get(part.entity, MeshRenderer).ok) world.set(part.entity, MeshRenderer, { materials: grey ? Array.from({ length: part.slots }, () => greyMaterial) : [] } as never).unwrap();
             }
           }
           const g = grey ? 0 : tuning.current.glow.radius;

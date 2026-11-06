@@ -81,6 +81,37 @@ const ALPHA_BLEND = {
 } as const;
 
 
+
+/** Asset-track model material (vertex colour, glow in the vertex alpha). */
+function vcModel(glow: number, glowColor: readonly number[], glowAdd: number, roughness: number, metallic: number): MaterialRootAsset {
+  return Materials.standard({
+    surfaceModule: 'nezha::model_vc_surface',
+    parameters: [
+      { name: 'tint', type: 'color' },
+      { name: 'glowColor', type: 'color' },
+      { name: 'glow', type: 'f32' },
+      { name: 'glowAdd', type: 'f32' },
+      { name: 'roughness', type: 'f32' },
+      { name: 'metallic', type: 'f32' },
+    ],
+    values: { tint: [1, 1, 1, 1], glowColor: [glowColor[0]!, glowColor[1]!, glowColor[2]!, 1], glow, glowAdd, roughness, metallic },
+    renderState: { cullMode: 'none' },
+  });
+}
+/** Custom Surfaces compile the rigid geometry variant; skinned meshes need the skinned one. */
+function skinnedVariant(m: MaterialRootAsset): MaterialRootAsset {
+  return {
+    ...m,
+    // The material cook publishes skinned programs only for roots on the skin module (pack-cooker): the
+    // Surface slot is kept, so Forward / Deferred / ShadowCaster still share our Surface.
+    passes: (m.passes ?? []).map((p) => ({
+      ...p,
+      program: p.program.module === 'forgeax_material::standard' ? { ...p.program, module: 'forgeax::pbr-skin' } : p.program,
+      renderState: { ...p.renderState, tags: { ...((p.renderState as { tags?: Record<string, string> } | undefined)?.tags ?? {}), GeometryVariant: 'skinned' } },
+    })) as never,
+  };
+}
+
 export default definePack({
   schemaVersion: '2.0.0',
   packageId: PACKAGE_IDS.materials,
@@ -319,6 +350,35 @@ export default definePack({
           { name: 'glow', type: 'f32' },
         ],
         values: { deepColor: [...lin3(0.02, 0.1, 0.14), 1], waterColor: [...lin3(0.16, 0.46, 0.5), 1], foamColor: [...lin3(0.92, 0.97, 0.98), 1], radius: 16, speed: 1, glow: 0.3 },
+      }),
+      // Asset-track models (11-06 22:24): vertex colour; glow coded in the vertex alpha (see model-vc.wgsl).
+      'material/model-nezha-skin': skinnedVariant(vcModel(4.0, [0, 0, 0], 0, 0.6, 0)),
+      'material/model-dragon-skin': skinnedVariant(vcModel(3.0, [0.25, 0.8, 1.0], 0, 0.55, 0.15)),
+      'material/model-nezha': Materials.standard({
+        surfaceModule: 'nezha::model_vc_surface',
+        parameters: [
+          { name: 'tint', type: 'color' },
+          { name: 'glowColor', type: 'color' },
+          { name: 'glow', type: 'f32' },
+          { name: 'glowAdd', type: 'f32' },
+          { name: 'roughness', type: 'f32' },
+          { name: 'metallic', type: 'f32' },
+        ],
+        values: { tint: [1, 1, 1, 1], glowColor: [0, 0, 0, 1], glow: 4.0, glowAdd: 0, roughness: 0.6, metallic: 0 },
+        renderState: { cullMode: 'none' },
+      }),
+      'material/model-dragon': Materials.standard({
+        surfaceModule: 'nezha::model_vc_surface',
+        parameters: [
+          { name: 'tint', type: 'color' },
+          { name: 'glowColor', type: 'color' },
+          { name: 'glow', type: 'f32' },
+          { name: 'glowAdd', type: 'f32' },
+          { name: 'roughness', type: 'f32' },
+          { name: 'metallic', type: 'f32' },
+        ],
+        values: { tint: [1, 1, 1, 1], glowColor: [0.25, 0.8, 1.0, 1], glow: 3.0, glowAdd: 0, roughness: 0.55, metallic: 0.15 },
+        renderState: { cullMode: 'none' },
       }),
       'material/sea-veil': Materials.standard({
         surfaceModule: 'nezha::sea_veil_surface',

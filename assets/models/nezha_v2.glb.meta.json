@@ -1,0 +1,417 @@
+{
+  "importSettings": {
+    "defaultSceneIndex": 0,
+    "diagnostics": {
+      "matrixTrsCoexistNodes": [],
+      "nodeNames": [
+        "WindFireWheel_L",
+        "lWheel",
+        "lMount",
+        "lK",
+        "lHip",
+        "WindFireWheel_R",
+        "rWheel",
+        "rMount",
+        "rK",
+        "rHip",
+        "head",
+        "lH",
+        "lE",
+        "lS",
+        "tassel_04",
+        "tassel_03",
+        "tassel_02",
+        "tassel_01",
+        "FireTippedSpear",
+        "staffPivot",
+        "rH",
+        "rE",
+        "rS",
+        "sash_L_12",
+        "sash_L_11",
+        "sash_L_10",
+        "sash_L_09",
+        "sash_L_08",
+        "sash_L_07",
+        "sash_L_06",
+        "sash_L_05",
+        "sash_L_04",
+        "sash_L_03",
+        "sash_L_02",
+        "sash_L_01",
+        "sash_R_12",
+        "sash_R_11",
+        "sash_R_10",
+        "sash_R_09",
+        "sash_R_08",
+        "sash_R_07",
+        "sash_R_06",
+        "sash_R_05",
+        "sash_R_04",
+        "sash_R_03",
+        "sash_R_02",
+        "sash_R_01",
+        "torso",
+        "hips",
+        "root",
+        "Nezha",
+        "NezhaRig"
+      ],
+      "unsupportedExtensions": []
+    }
+  },
+  "importer": "gltf",
+  "kind": "external-asset-package",
+  "schemaVersion": 1,
+  "source": "nezha_v2.glb",
+  "sourceOverrideDescriptors": [
+    {
+      "payloadSchema": {
+        "additionalProperties": true,
+        "properties": {
+          "materialSlotDefaultOverrides": {
+            "additionalProperties": {
+              "nullable": true,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "materialSlots": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "defaultMaterialGuid": {
+                  "type": "string"
+                },
+                "slotName": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sourceKey": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slotName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "semantic": "mesh-material-slot-defaults",
+      "sourceKey": "mesh:Nezha"
+    },
+    {
+      "payloadSchema": {
+        "additionalProperties": true,
+        "properties": {
+          "materialSlotDefaultOverrides": {
+            "additionalProperties": {
+              "nullable": true,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "materialSlots": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "defaultMaterialGuid": {
+                  "type": "string"
+                },
+                "slotName": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sourceKey": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slotName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "semantic": "mesh-material-slot-defaults",
+      "sourceKey": "mesh:WindFireWheel_L"
+    },
+    {
+      "payloadSchema": {
+        "additionalProperties": true,
+        "properties": {
+          "materialSlotDefaultOverrides": {
+            "additionalProperties": {
+              "nullable": true,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "materialSlots": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "defaultMaterialGuid": {
+                  "type": "string"
+                },
+                "slotName": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sourceKey": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slotName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "semantic": "mesh-material-slot-defaults",
+      "sourceKey": "mesh:WindFireWheel_R"
+    },
+    {
+      "payloadSchema": {
+        "additionalProperties": true,
+        "properties": {
+          "materialSlotDefaultOverrides": {
+            "additionalProperties": {
+              "nullable": true,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "materialSlots": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "defaultMaterialGuid": {
+                  "type": "string"
+                },
+                "slotName": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sourceKey": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slotName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "semantic": "mesh-material-slot-defaults",
+      "sourceKey": "mesh:FireTippedSpear"
+    }
+  ],
+  "sourceOverrides": {
+    "mesh:FireTippedSpear": {
+      "materialSlots": [
+        {
+          "slotName": "Default",
+          "sourceKey": "gltf:default"
+        }
+      ]
+    },
+    "mesh:Nezha": {
+      "materialSlots": [
+        {
+          "slotName": "Default",
+          "sourceKey": "gltf:default"
+        }
+      ]
+    },
+    "mesh:WindFireWheel_L": {
+      "materialSlots": [
+        {
+          "slotName": "Default",
+          "sourceKey": "gltf:default"
+        }
+      ]
+    },
+    "mesh:WindFireWheel_R": {
+      "materialSlots": [
+        {
+          "slotName": "Default",
+          "sourceKey": "gltf:default"
+        }
+      ]
+    }
+  },
+  "subAssets": [
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3726716b239d",
+      "kind": "mesh",
+      "name": "Nezha",
+      "sourceIndex": 0,
+      "sourceKey": "mesh:Nezha"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3727dd2d7f12",
+      "kind": "mesh",
+      "name": "WindFireWheel_L",
+      "sourceIndex": 1,
+      "sourceKey": "mesh:WindFireWheel_L"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3728ac9fd333",
+      "kind": "mesh",
+      "name": "WindFireWheel_R",
+      "sourceIndex": 2,
+      "sourceKey": "mesh:WindFireWheel_R"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3729d16120f1",
+      "kind": "mesh",
+      "name": "FireTippedSpear",
+      "sourceIndex": 3,
+      "sourceKey": "mesh:FireTippedSpear"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372a6818b8b4",
+      "kind": "scene",
+      "name": "Scene",
+      "sourceIndex": 0,
+      "sourceKey": "scene:Scene"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372b9b4773a2",
+      "kind": "skeleton",
+      "sourceIndex": 0,
+      "sourceKey": "skeleton"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372ca443d836",
+      "kind": "skin",
+      "sourceIndex": 0,
+      "sourceKey": "skin"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372d83e4db07",
+      "kind": "animation-clip",
+      "name": "Charge",
+      "sourceIndex": 0,
+      "sourceKey": "animation-clip:Charge"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372e3c763408",
+      "kind": "animation-clip",
+      "name": "Dead",
+      "sourceIndex": 1,
+      "sourceKey": "animation-clip:Dead"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-372fa6cc0b08",
+      "kind": "animation-clip",
+      "name": "Glide",
+      "sourceIndex": 2,
+      "sourceKey": "animation-clip:Glide"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3730d94de679",
+      "kind": "animation-clip",
+      "name": "Heavy",
+      "sourceIndex": 3,
+      "sourceKey": "animation-clip:Heavy"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3731a70d6968",
+      "kind": "animation-clip",
+      "name": "Hurt",
+      "sourceIndex": 4,
+      "sourceKey": "animation-clip:Hurt"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3732bba0b1d5",
+      "kind": "animation-clip",
+      "name": "Idle",
+      "sourceIndex": 5,
+      "sourceKey": "animation-clip:Idle"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-373356697ca2",
+      "kind": "animation-clip",
+      "name": "Jump",
+      "sourceIndex": 6,
+      "sourceKey": "animation-clip:Jump"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3734a2d93cfb",
+      "kind": "animation-clip",
+      "name": "Light1",
+      "sourceIndex": 7,
+      "sourceKey": "animation-clip:Light1"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-373554a5ff54",
+      "kind": "animation-clip",
+      "name": "Light2",
+      "sourceIndex": 8,
+      "sourceKey": "animation-clip:Light2"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-37362e1c5d22",
+      "kind": "animation-clip",
+      "name": "Light3",
+      "sourceIndex": 9,
+      "sourceKey": "animation-clip:Light3"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3737fc0d7d69",
+      "kind": "animation-clip",
+      "name": "Light4_Spin",
+      "sourceIndex": 10,
+      "sourceKey": "animation-clip:Light4_Spin"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-37384b5d84ab",
+      "kind": "animation-clip",
+      "name": "Lotus",
+      "sourceIndex": 11,
+      "sourceKey": "animation-clip:Lotus"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-3739381568be",
+      "kind": "animation-clip",
+      "name": "PlungeAttack",
+      "sourceIndex": 12,
+      "sourceKey": "animation-clip:PlungeAttack"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-373a3768e9f1",
+      "kind": "animation-clip",
+      "name": "Roll",
+      "sourceIndex": 13,
+      "sourceKey": "animation-clip:Roll"
+    },
+    {
+      "guid": "01a1b16d-b093-776f-92c4-373b1953da84",
+      "kind": "animation-clip",
+      "name": "SashBind",
+      "sourceIndex": 14,
+      "sourceKey": "animation-clip:SashBind"
+    }
+  ]
+}

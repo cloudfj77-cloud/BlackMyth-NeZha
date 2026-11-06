@@ -16,6 +16,8 @@ import type { SessionService, TelemetryService, TuningService } from '../core/co
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import { PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
+import { buildModel, GhostCloud, type MountedModel } from '../shared/model-rig.ts';
+import { MODEL_GUIDS, NEZHA_IBM, NEZHA_JOINTS, NEZHA_NODES, SKELETON_GUIDS } from '../models/skins.ts';
 import {
   blendPose,
   glidePose,
@@ -113,8 +115,46 @@ export const nezhaRig: Plugin = {
     };
     const joints = Object.fromEntries(JOINT_NAMES.map((n) => [n, resolveGameEntity(world, ctx.gameScene, jointKey(n))])) as Record<JointName, EntityHandle>;
 
+    // --- Asset-track Nezha (11-06 22:24): the skinned glb replaces the code-built jointed parts. Its
+    // skeleton has our joint names (positions = JOINTS × 0.86 m); under player/rig (×0.86) it is scaled
+    // back by 1 / 0.86, and every frame its bones take the same rotations as our joints.
+    const mat = async (key: string) => {
+      const h = await assets.load(guidText(materialGuid(key)), 'material');
+      if (!h.ok) throw h.error;
+      return h.value;
+    };
+    const mm = { body: await mat('model-nezha'), skin: await mat('model-nezha-skin') };
+    const mounted = await buildModel(world, assets, {
+      nodes: NEZHA_NODES,
+      skinMesh: 'Nezha',
+      skinJoints: NEZHA_JOINTS,
+      skeletonGuid: SKELETON_GUIDS.nezha,
+      meshGuids: { Nezha: MODEL_GUIDS.nezha.Nezha, WindFireWheel_L: MODEL_GUIDS.nezha.WindFireWheel_L, WindFireWheel_R: MODEL_GUIDS.nezha.WindFireWheel_R, FireTippedSpear: MODEL_GUIDS.nezha.FireTippedSpear },
+      // One vertex-colour material per mesh (glow parts coded in the vertex alpha); repeated per submesh.
+      materials: { Nezha: [mm.skin], WindFireWheel_L: [mm.body], WindFireWheel_R: [mm.body], FireTippedSpear: [mm.body] },
+      parent: rigRoot,
+      local: { scale: [1 / RIG_SCALE, 1 / RIG_SCALE, 1 / RIG_SCALE] },
+    });
+    const model: MountedModel = mounted.model;
+    const ghostMat = await assets.load(guidText(materialGuid('afterimage-cloud')), 'material');
+    if (!ghostMat.ok) throw ghostMat.error;
+    const hiddenOld = [...JOINT_NAMES.filter((n) => world.get(joints[n], MeshRenderer).ok).map((n) => joints[n]), spearEntity];
+
     await ctx.effect(function* () {
       yield () => assets.release(silk).unwrap();
+      yield mounted.dispose;
+      yield () => { assets.release(ghostMat.value).unwrap(); for (const h of Object.values(mm)) assets.release(h).unwrap(); };
+      for (const e of hiddenOld) if (world.get(e, MeshRenderer).ok) world.removeComponent(e, MeshRenderer).unwrap();
+      const bone = (name: string) => (model.has(name) ? model.bone(name) : undefined);
+      const modelJoint = Object.fromEntries(JOINT_NAMES.map((n) => [n, bone(n)])) as Record<JointName, EntityHandle | undefined>;
+      // Afterimages of the real model (CPU-skinned body + wheels + spear), one draw (boss 20:57: pale
+      // while moving, dark along the roll).
+      const ghosts = new GhostCloud(world, assets as never, [
+        { kind: 'skinned', mesh: model.meshData.get('Nezha')!, joints: NEZHA_JOINTS.map((n) => model.bone(n)), ibm: NEZHA_IBM },
+        ...(['WindFireWheel_L', 'WindFireWheel_R', 'FireTippedSpear'] as const).map((n) => ({ kind: 'rigid' as const, mesh: model.meshData.get(n)!, entity: model.bone(n) })),
+      ], 10, ghostMat.value);
+      yield () => world.despawn(ghosts.entity).unwrap();
+      let ghostGap = 0, lastRollFrame = -1;
       yield () => { assets.release(sashMat).unwrap(); assets.release(haloLoaded.value).unwrap(); assets.release(haloMesh.value).unwrap(); };
       // --- 混天绫 (v1.4.0): both ends tied behind the shoulders, floating up and back into a loop. It wears
       // the live sash material (cooldown dimming / gold fill / ready glint), uv.y root → middle → root.
@@ -141,6 +181,17 @@ export const nezhaRig: Plugin = {
         { component: MeshRenderer, data: { materials: [sashMat] } as never },
       ).unwrap();
       yield () => world.despawn(loopEntity).unwrap();
+      world.set(loopEntity, Transform, { scale: [0, 0, 0] }).unwrap();
+      const restOf = (e: EntityHandle) => { const q = world.get(e, Transform).unwrap().quat; return [q[0] ?? 0, q[1] ?? 0, q[2] ?? 0, q[3] ?? 1] as [number, number, number, number]; };
+      const sashBones = { L: [] as { e: EntityHandle; rest: [number, number, number, number] }[], R: [] as { e: EntityHandle; rest: [number, number, number, number] }[] };
+      for (const side of ['L', 'R'] as const) for (let k = 1; k <= 12; k += 1) { const e = bone(`sash_${side}_${String(k).padStart(2, '0')}`); if (e !== undefined) sashBones[side].push({ e, rest: restOf(e) }); }
+      const tasselBones = [1, 2, 3, 4].map((k) => bone(`tassel_0${k}`)).filter((e): e is EntityHandle => e !== undefined).map((e) => ({ e, rest: restOf(e) }));
+      const qMulArr = (a: readonly number[], b: readonly number[]): [number, number, number, number] => [
+        a[3]! * b[0]! + a[0]! * b[3]! + a[1]! * b[2]! - a[2]! * b[1]!,
+        a[3]! * b[1]! - a[0]! * b[2]! + a[1]! * b[3]! + a[2]! * b[0]!,
+        a[3]! * b[2]! + a[0]! * b[1]! - a[1]! * b[0]! + a[2]! * b[3]!,
+        a[3]! * b[3]! - a[0]! * b[0]! - a[1]! * b[1]! - a[2]! * b[2]!,
+      ];
       // --- 风火轮 fire (v1.4.0 wheels): a flame halo round each rim (flickering) and a warm light.
       const haloMat = assets.copy(haloLoaded.value).unwrap();
       yield () => assets.release(haloMat).unwrap();
@@ -205,7 +256,7 @@ export const nezhaRig: Plugin = {
       ribbonDefs.push({ pin: atJoint(PINS.waist.joint, PINS.waist.pos), spec: ribbonSpec({ n: 20, len: 1.7 * S, width: 0.1 * S, gravity: -1.2, flutter: 6, taper: 0.6, twist: 1.1, back: 4 }, 2.7) });
       ribbonDefs.push({ pin: atJoint(PINS.bunL.joint, PINS.bunL.pos), spec: ribbonSpec({ n: 9, len: 0.6 * S, width: 0.045 * S, gravity: -1.5, flutter: 5, taper: 0.4, back: 2.5 }, 4.1) });
       ribbonDefs.push({ pin: atJoint(PINS.bunR.joint, PINS.bunR.pos), spec: ribbonSpec({ n: 9, len: 0.6 * S, width: 0.045 * S, gravity: -1.5, flutter: 5, taper: 0.4, back: 2.5 }, 5.9) });
-      for (let k = 0; k < 6; k += 1) {
+      for (let k = 0; k < 0; k += 1) { // the model carries its own tassel now
         const a = (k / 6) * Math.PI * 2;
         const local: V3 = [Math.cos(a) * 0.02, PINS.tassel.pos[1], Math.sin(a) * 0.02];
         ribbonDefs.push({ pin: () => worldPoint(spearEntity, local), spec: ribbonSpec({ n: 7, len: 0.34 + k * 0.03, width: 0.04, gravity: -3.5, flutter: 4, taper: 0.6, twist: 0.5, back: 1.2 }, 7 + k) });
@@ -285,6 +336,8 @@ export const nezhaRig: Plugin = {
       const setRot = (name: JointName, e: V3) => {
         const q = qEuler(e[0], e[1], e[2]);
         world.set(joints[name], Transform, { quat: [q[0], q[1], q[2], q[3]] }).unwrap();
+        const m = modelJoint[name];
+        if (m !== undefined) world.set(m, Transform, { quat: [q[0], q[1], q[2], q[3]] }).unwrap();
       };
 
       world.addSystem(Update, {
@@ -314,6 +367,7 @@ export const nezhaRig: Plugin = {
           const h = hover.feed(dt, state, vel, 0, player.facing(), inputYaw);
           const pj = poseJoints(pose);
           world.set(joints.hips, Transform, { pos: [0, pj.hipsY, 0] }).unwrap();
+          if (modelJoint.hips) world.set(modelJoint.hips, Transform, { pos: [0, pj.hipsY * RIG_SCALE, 0] }).unwrap();
           for (const [name, e] of Object.entries(pj.rot) as [JointName, V3][]) {
             let rot: V3 = e;
             if (name === 'hips') rot = [e[0], h.pelvisYaw, e[2]];
@@ -348,6 +402,42 @@ export const nezhaRig: Plugin = {
           const ql = qEuler(spin * 1.03, 0, 0), qr = qEuler(spin, 0, 0);
           world.set(joints.lWheel, Transform, { quat: [ql[0], ql[1], ql[2], ql[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
           world.set(joints.rWheel, Transform, { quat: [qr[0], qr[1], qr[2], qr[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
+          if (modelJoint.lWheel) world.set(modelJoint.lWheel, Transform, { quat: [ql[0], ql[1], ql[2], ql[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
+          if (modelJoint.rWheel) world.set(modelJoint.rWheel, Transform, { quat: [qr[0], qr[1], qr[2], qr[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
+          // Afterimages (boss 20:57): dark along the roll (frames 1, 4, 7, 10, 13), pale while moving.
+          const cpk = combat.pose();
+          const rollF = Math.floor(cpk.frame);
+          if (cpk.kind === 'roll' && [1, 4, 7, 10, 13].includes(rollF) && rollF !== lastRollFrame) {
+            lastRollFrame = rollF;
+            ghosts.spawn(tuning.current.combat.afterimageLife, 1);
+          } else if (cpk.kind !== 'roll') lastRollFrame = -1;
+          if (dt > 0 && cpk.kind !== 'roll' && cpk.kind !== 'dead' && speed > 1.2) {
+            ghostGap -= dt * 60;
+            if (ghostGap <= 0) { ghostGap = 6; ghosts.spawn(20, player.mode() === 'sprint' ? 0.2 : 0.13); }
+          }
+          if (dt > 0) ghosts.step();
+          // The model's two sash tails and the 24-strand tassel: procedural flow on their bones (they
+          // trail back with speed, ripple along the chain, swing out in the spin).
+          if (dt > 0) {
+            const sp = Math.min(1.5, speed / 6);
+            for (const side of ['L', 'R'] as const) {
+              const sgn = side === 'L' ? 1 : -1;
+              for (let k = 1; k <= 12; k += 1) {
+                const b = sashBones[side][k - 1];
+                if (!b) continue;
+                const w = time * 3.2 - k * 0.55 + (side === 'L' ? 0 : 1.3);
+                const pitch = (k === 1 ? 0.35 * sp : 0.06 * sp) + 0.09 * Math.sin(w) * (0.4 + 0.6 * k / 12);
+                const roll = sgn * (0.05 * Math.sin(w * 0.8 + 0.7)) + (spinNow > 0 ? sgn * 0.15 : 0);
+                const q = qEuler(pitch, 0, roll);
+                world.set(b.e, Transform, { quat: qMulArr(b.rest, q) }).unwrap();
+              }
+            }
+            tasselBones.forEach((b, k) => {
+              const w = time * 5 - k * 0.8;
+              const q = qEuler(0.12 * Math.sin(w) + 0.25 * sp * (k === 0 ? 1 : 0.4), 0, 0.1 * Math.cos(w * 0.9));
+              world.set(b.e, Transform, { quat: qMulArr(b.rest, q) }).unwrap();
+            });
+          }
           // v1.4.0 flame flicker: halo 0.4–0.65 opacity, size 0.95–1.07 × (1 + speed), light flickers with it.
           if (dt > 0) flick = 0.85 + Math.random() * 0.3;
           const fl = 1 + Math.min(1.5, speed * 0.12);
@@ -383,7 +473,7 @@ export const nezhaRig: Plugin = {
           // Swing trail: sample the blade and the shaft, age the samples, write the strip.
           const realDt = Math.min(world.getResource(Time).delta, 0.05) * session.clock.nezhaScale();
           for (const smp of samples) smp.age += realDt;
-          if (trailOn) samples.unshift({ a: worldPoint(joints.staffPivot, PINS.tip.pos), b: worldPoint(joints.staffPivot, [0, 0.35, 0]), age: 0 });
+          if (trailOn) samples.unshift({ a: worldPoint(joints.staffPivot, PINS.tip.pos), b: worldPoint(joints.staffPivot, [0, PINS.tip.pos[1] - 1.7, 0]), age: 0 }); // blade half of the long spear only
           while (samples.length > TN || (samples.length && samples[samples.length - 1]!.age >= TLIFE)) samples.pop();
           if (samples.length || trailWasLive) {
             const n = samples.length;
@@ -400,9 +490,8 @@ export const nezhaRig: Plugin = {
             assets.update(trailMat, { values: { intensity: heavy ? 3.4 : 2.2 } } as never).unwrap();
           }
           trailWasLive = samples.length > 0;
-          loop.update(dt, ribbonTime, worldPoint(joints[PINS.backL.joint], PINS.backL.pos), wind, back, FLOOR_Y, worldPoint(joints[PINS.backR.joint], PINS.backR.pos));
-          loop.write(loopPos, 0, ribbonTime);
-          assets.writeRange(loopMesh, { attribute: 'position', first: 0, values: loopPos }).unwrap();
+          // The model's own two sash tails replace the v1.4.0 loop (asset track v2, boss-approved shape).
+          void loop; void loopPos; void loopMesh;
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-rig-ribbons').unwrap();

@@ -10,10 +10,11 @@ export const FLIGHT = Object.freeze({
   /** Wheels / underside above the stage while fighting. */
   height: 2 * NEZHA_HEIGHT,
   /** Half of the up-down band (the band is one Nezha tall). */
-  bob: NEZHA_HEIGHT / 2,
+  // Asset v2 / boss 11-06: the same swell as the dragon, ±2 m every 4.5 s.
+  bob: 2.0,
   /** Nezha's slow air swell (Hz) and the dragon's (a travelling wave along its body). */
-  nezhaHz: 0.16,
-  dragonHz: 0.13,
+  nezhaHz: 1 / 4.5,
+  dragonHz: 1 / 4.5,
   /** Rise / descent smoothing rate (1/s). */
   rate: 1.6,
 });

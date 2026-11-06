@@ -14,7 +14,8 @@ export const RIG_SCALE = 0.86;
 /** Hip height in rig units (v1.4.0 BH). */
 export const BH = 1.22;
 /** Spear: overall length and grip distance from the butt (v1.4.0 SL / grip). */
-export const SPEAR = Object.freeze({ length: 2.4, grip: 0.75 });
+/** Rig units (× 0.86 = metres): the asset-track v2 spear, 4.83 m, grip 1.55 m from the butt. */
+export const SPEAR = Object.freeze({ length: 4.83 / 0.86, grip: 1.55 / 0.86 });
 
 // --- Joints -------------------------------------------------------------------------------------
 export const JOINT_NAMES = [
@@ -236,7 +237,7 @@ export const PINS = Object.freeze({
   armL: { joint: 'lE' as JointName, pos: [0, 0, 0] as V3 },
   /** On the spear (grip space): the tassel, just under the head. */
   tassel: { joint: 'staffPivot' as JointName, pos: [0, SPEAR.length - SPEAR.grip - 0.07, 0] as V3 },
-  tip: { joint: 'staffPivot' as JointName, pos: [0, SPEAR.length - SPEAR.grip + 0.34, 0] as V3 },
+  tip: { joint: 'staffPivot' as JointName, pos: [0, SPEAR.length - SPEAR.grip, 0] as V3 },
 });
 
 // --- Quaternion helpers -------------------------------------------------------------------------------

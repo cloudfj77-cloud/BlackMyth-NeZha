@@ -32,9 +32,11 @@ import { INTRO } from './brain.ts';
 import { AOBING, createAobing, ICE_RING, SPIKE, type AobingEvent, type AobingKind } from './aobing.ts';
 import { LEVEL_SCALE } from '../shared/sea-layout.ts';
 import { FLIGHT, NEZHA_HEIGHT } from '../shared/flight.ts';
+import { buildModel, GhostCloud, qAxis, qFrameY, qFrameZ, qInv, qMul, type Q as MQ, type V3 as MV3 } from '../shared/model-rig.ts';
+import { DRAGON_IBM, DRAGON_JOINTS, DRAGON_NODES, MODEL_GUIDS, SKELETON_GUIDS } from '../models/skins.ts';
 /** Mid-air: spikes shoot up from the whirlpool to past Nezha's chest; the ice ring wall is as tall. */
-const SPIKE_REACH = (FLIGHT.height + NEZHA_HEIGHT * 0.7) / (1.6 * 0.86);
-const RING_WALL = FLIGHT.height + NEZHA_HEIGHT;
+const SPIKE_REACH = (FLIGHT.height + FLIGHT.bob + NEZHA_HEIGHT * 0.7) / (1.6 * 0.86);
+const RING_WALL = FLIGHT.height + FLIGHT.bob + NEZHA_HEIGHT;
 
 export type DragonEvent = AobingEvent;
 type AttackKind = AobingKind;
@@ -300,9 +302,33 @@ export const dragon: Plugin = {
       iceGlow: await load(guidText(materialGuid('ice-glow')), 'material'),
       iceShock: await load(guidText(materialGuid('ice-shock')), 'material'),
       dustShock: await load(guidText(materialGuid('dust-shock')), 'material'),
+      model: await load(guidText(materialGuid('model-dragon-skin')), 'material'),
+      ghost: await load(guidText(materialGuid('afterimage-cloud')), 'material'),
     };
+    // --- Asset-track dragon (11-06 22:24): the skinned glb (40 spine bones × 0.4 m from the neck, head,
+    // jaw, whiskers, mane) is posed every frame from the gameplay spine; our own vertex-colour material.
+    const modelMat = assets.copy(mat.model).unwrap() as never;
+    const built = await buildModel(world, assets, {
+      nodes: DRAGON_NODES,
+      skinMesh: 'DragonKing',
+      skinJoints: DRAGON_JOINTS,
+      skeletonGuid: SKELETON_GUIDS.dragon,
+      meshGuids: { DragonKing: MODEL_GUIDS.dragon.DragonKing },
+      materials: { DragonKing: [modelMat] },
+      parent: undefined,
+      local: { pos: [0, -60, 0] },
+    });
+    const dmodel = built.model;
+    const spineBones = Array.from({ length: 40 }, (_, k) => dmodel.bone(`spine_${String(k).padStart(2, '0')}`));
+    const headBone = dmodel.bone('head');
+    const jawBone = dmodel.bone('jaw');
+    const restQ = (e: EntityHandle): MQ => { const q = world.get(e, Transform).unwrap().quat; return [q[0] ?? 0, q[1] ?? 0, q[2] ?? 0, q[3] ?? 1]; };
+    const spine0Rest = restQ(spineBones[0]!);
+    const headRestWorld = qMul(spine0Rest, restQ(headBone));
+    const jawRest = restQ(jawBone);
 
     await ctx.effect(function* () {
+      yield () => { built.dispose(); assets.release(modelMat).unwrap(); };
       const copies: number[] = [];
       const spawned: EntityHandle[] = [];
       const meshes: number[] = [];
@@ -310,7 +336,7 @@ export const dragon: Plugin = {
         for (const e of spawned) world.despawn(e).unwrap();
         for (const c of copies) assets.release(c as never).unwrap();
         for (const m of meshes) assets.release(m as never).unwrap();
-        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, mat.wall, mat.iceSpike, mat.iceGlow, mat.iceShock, mat.dustShock, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
+        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, mat.wall, mat.iceSpike, mat.iceGlow, mat.iceShock, mat.dustShock, mat.model, mat.ghost, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
       };
       const copy = (handle: never, values?: Record<string, unknown>) => {
         const c = assets.copy(handle).unwrap() as unknown as number;
@@ -363,7 +389,7 @@ export const dragon: Plugin = {
           // Dev comparison route only (screen-door levels swap materials).
           if (p.level !== p.hashLevel) {
             p.hashLevel = p.level;
-            world.set(p.entity, MeshRenderer, { materials: [hashMats[bandOf(i)]![p.level]!] } as never).unwrap();
+            if (world.get(p.entity, MeshRenderer).ok) world.set(p.entity, MeshRenderer, { materials: [hashMats[bandOf(i)]![p.level]!] } as never).unwrap();
           }
           world.set(p.entity, Transform, raw === 4 ? { ...t, scale: ZERO3 } : t).unwrap();
           return false;
@@ -375,6 +401,14 @@ export const dragon: Plugin = {
       const head = spawn(mesh.head, [bandMats[0]![0]!, mat.horn, mat.ridge]);
       const eyeMat = copy(mat.eye);
       const eyes = spawn(mesh.eyes, [eyeMat]);
+      // The code-built capsule dragon stays for hit tests / telemetry but is no longer drawn.
+      for (const e of [...joints.map((p) => p.entity), ...segs.map((p) => p.entity), ...glassBands.map((g) => g.entity), ...fins, head, eyes]) world.removeComponent(e, MeshRenderer).unwrap();
+      // Afterimages (boss 11-06 22:24, as for Nezha): pale while it swims, dark in its strikes.
+      const ghostMat = copy(mat.ghost, { coreColor: [0.03, 0.2, 0.32, 1], rimColor: [0.35, 0.8, 0.95, 1], intensity: 0.6 });
+      const ghosts = new GhostCloud(world, assets as never, [{ kind: 'skinned', mesh: dmodel.meshData.get('DragonKing')!, joints: DRAGON_JOINTS.map((n) => dmodel.bone(n)), ibm: DRAGON_IBM }], 8, ghostMat);
+      yield () => world.despawn(ghosts.entity).unwrap();
+      let ghostGap = 0;
+      let lastHead: [number, number] | undefined;
       // Warning entities (M4 §12): meshes built once; a telegraph only rewrites positions.
       const fillMat = copy(mat.fill);
       const shrinkMat = copy(mat.shrink);
@@ -504,6 +538,7 @@ export const dragon: Plugin = {
       let seeThrough = 0;
       let engagedRule: (() => boolean) | undefined;
       let shownSerial = 0;
+      let jawOpen = 0;
       let breaksSeen = 0;
 
       const capsules = () => hurtCapsules(cur);
@@ -515,7 +550,8 @@ export const dragon: Plugin = {
       /** A dragon span [lo, hi] is within her reach (spear above her head, wheels below). */
       const inReach = (lo: number, hi: number) => {
         const [a, b] = nezhaBand();
-        return lo <= b + 1.0 && hi >= a - 1.0;
+        // ±2 m swell on both, out of step: the spear (and the head) reach a band around her.
+        return lo <= b + 2.6 && hi >= a - 2.6;
       };
       const nezhaXZ = (): V2 => {
         const r = player.root();
@@ -549,6 +585,17 @@ export const dragon: Plugin = {
             prev = cur;
             const events = brain.step({ nezha: nezhaXZ(), engaged: engagedNow() });
             cur = brain.points();
+            {
+              const sn = brain.snapshot();
+              const h0 = cur[0]!;
+              const moved = lastHead ? Math.hypot(h0[0] - lastHead[0], h0[2] - lastHead[1]) * 60 : 0;
+              lastHead = [h0[0], h0[2]];
+              ghostGap -= 1;
+              const striking = sn.mode === 'attack' && (sn.sp === 'act' || sn.sp === 'air');
+              if (striking && ghostGap <= 0) { ghostGap = 4; ghosts.spawn(42, 1); }
+              else if (!striking && moved > 1.5 && sn.mode !== 'dead' && ghostGap <= 0) { ghostGap = 9; ghosts.spawn(24, 0.16); }
+              ghosts.step();
+            }
             // The warning follows the wind-up turn (v1.4.0 placeTele): redraw when the zone moved.
             const snapZ = brain.snapshot();
             if (snapZ.telegraph && snapZ.zone && snapZ.zoneSerial !== shownSerial) {
@@ -679,6 +726,41 @@ export const dragon: Plugin = {
           const hq = lookQuat(dir);
           world.set(head, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
           world.set(eyes, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
+          // Pose the model: bone k starts at arc length 0.4·k along the spine (neck = point 0).
+          {
+            const at = (sArc: number): MV3 => {
+              let acc2 = 0;
+              for (let i = 0; i < POINTS - 1; i += 1) {
+                const a2 = pts[i]!, b2 = pts[i + 1]!;
+                const l = Math.hypot(b2[0] - a2[0], b2[1] - a2[1], b2[2] - a2[2]);
+                if (acc2 + l >= sArc || i === POINTS - 2) {
+                  const t = l > 1e-6 ? Math.min(1, (sArc - acc2) / l) : 0;
+                  return [a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t, a2[2] + (b2[2] - a2[2]) * t];
+                }
+                acc2 += l;
+              }
+              return [pts[POINTS - 1]![0], pts[POINTS - 1]![1], pts[POINTS - 1]![2]];
+            };
+            const P = Array.from({ length: 41 }, (_, k) => at(0.4 * k));
+            world.set(dmodel.root, Transform, { pos: P[0]!, quat: [0, 0, 0, 1], scale: [1, 1, 1] }).unwrap();
+            let prevW: MQ = [0, 0, 0, 1];
+            let w0: MQ = [0, 0, 0, 1];
+            for (let k = 0; k < 40; k += 1) {
+              const d: MV3 = [P[k + 1]![0] - P[k]![0], P[k + 1]![1] - P[k]![1], P[k + 1]![2] - P[k]![2]];
+              const w = qFrameY(d);
+              if (k === 0) w0 = w;
+              const local = k === 0 ? w : qMul(qInv(prevW), w);
+              world.set(spineBones[k]!, Transform, { quat: local }).unwrap();
+              prevW = w;
+            }
+            // Head: model forward (+Z in its rest) turned to the gameplay head direction.
+            const want = qMul(qFrameZ([dir[0], dir[1], dir[2]]), headRestWorld);
+            world.set(headBone, Transform, { quat: qMul(qInv(w0), want) }).unwrap();
+            // Jaw opens on a wind-up, in the strike and while roaring.
+            const open = snap.mode === 'roar' ? 0.55 : snap.telegraph ? 0.35 : snap.opening ? 0.1 : 0.04;
+            jawOpen += (open - jawOpen) * Math.min(1, dt * 10);
+            world.set(jawBone, Transform, { quat: qMul(jawRest, qAxis([1, 0, 0], jawOpen)) }).unwrap();
+          }
           // Eyes: 30 % steady, rise to 50 % in 6 steps on a telegraph, 15 % in the opening, close as it dies. Never flicker.
           // Phase 2 (M4 §2): the steady glow rises linearly 30 % → 45 % over the 120-step roar, never flickers.
           const base = snap.roarK !== null ? 0.3 + 0.15 * Math.min(1, snap.roarK / AOBING.roarSteps) : snap.phase === 2 ? 0.45 : 0.3;
@@ -747,6 +829,7 @@ export const dragon: Plugin = {
           if (Math.abs(glowNow - p2Glow) > 0.004) {
             p2Glow = glowNow;
             for (const m of mat.bands) assets.update(m, { values: { emissiveIntensity: glowNow } } as never).unwrap();
+            assets.update(modelMat, { values: { glowAdd: glowNow * 1.6 } } as never).unwrap();
           }
           // Intro breach: a flattened burst of water where the head comes through the wall.
           if (splashAge >= 0) {

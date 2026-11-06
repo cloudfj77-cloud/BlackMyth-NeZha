@@ -111,11 +111,11 @@ describe('heavy attack', () => {
     }
     expect(lunge).toBe(0);
   });
-  it('reports the 3 m judgement line in front of the root', () => {
+  it('reports the heavy judgement line in front of the root (4 m with the doubled spear)', () => {
     const c = createCombat();
     run(c, chargeFor(30));
     expect(c.snapshot().judgeLine!.x).toBeCloseTo(0, 9);
-    expect(c.snapshot().judgeLine!.z).toBeCloseTo(-3, 9);
+    expect(c.snapshot().judgeLine!.z).toBeCloseTo(-4, 9);
   });
   it('can be cancelled into a roll while charging', () => {
     const c = createCombat();

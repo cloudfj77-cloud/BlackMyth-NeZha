@@ -454,8 +454,9 @@ export const combat: Plugin = {
           for (const event of out.events) onEvent(event);
           player.setControl({ velocity: out.velocity, facing: out.facing, speedScale: out.speedScale, allowSprint: out.allowSprint });
           // Afterimages: dark along the roll (frames 1, 4, 7, 10, 13; ~1.1 s), pale while moving (every 5 steps, 0.4 s).
-          if (state.kind === 'roll' && AFTER_FRAMES.includes(state.frame)) spawnGhost(tuning.current.combat.afterimageLife, 1);
-          else if (player.speed() > 1.2 && state.kind !== 'dead') {
+          // Afterimages moved to the rig plugin (they show the asset-track model).
+          if (false as boolean) spawnGhost(tuning.current.combat.afterimageLife, 1);
+          else if (false as boolean) {
             walkGap -= 1;
             if (walkGap <= 0) {
               walkGap = 6;
@@ -516,7 +517,7 @@ export const combat: Plugin = {
           if (wheelFire === undefined) {
             wheelFire = copy(mat.wheel);
             // Rig wheel slots: gold, red, fire (first-use order of the wheel parts).
-            for (const w of wheels) world.set(w, MeshRenderer, { materials: [mat.wheelGold, mat.wheelRed, wheelFire as never] } as never).unwrap();
+            for (const w of wheels) if (world.get(w, MeshRenderer).ok) world.set(w, MeshRenderer, { materials: [mat.wheelGold, mat.wheelRed, wheelFire as never] } as never).unwrap();
           }
           if (state.kind === 'dead') deadFor = deadFor < 0 ? 0 : deadFor + dt * 60;
           else deadFor = -1;

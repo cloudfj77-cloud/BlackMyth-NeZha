@@ -1,0 +1,159 @@
+{
+  "importSettings": {
+    "defaultSceneIndex": 0,
+    "diagnostics": {
+      "matrixTrsCoexistNodes": [],
+      "nodeNames": [
+        "eyelid_L",
+        "eyelid_R",
+        "jaw",
+        "mane_01",
+        "mane_02",
+        "mane_03",
+        "mane_04",
+        "mane_05",
+        "mane_06",
+        "whisker_L_06",
+        "whisker_L_05",
+        "whisker_L_04",
+        "whisker_L_03",
+        "whisker_L_02",
+        "whisker_L_01",
+        "whisker_R_06",
+        "whisker_R_05",
+        "whisker_R_04",
+        "whisker_R_03",
+        "whisker_R_02",
+        "whisker_R_01",
+        "head",
+        "spine_39",
+        "spine_38",
+        "spine_37",
+        "spine_36",
+        "spine_35",
+        "spine_34",
+        "spine_33",
+        "spine_32",
+        "spine_31",
+        "spine_30",
+        "spine_29",
+        "spine_28",
+        "spine_27",
+        "spine_26",
+        "spine_25",
+        "spine_24",
+        "spine_23",
+        "spine_22",
+        "spine_21",
+        "spine_20",
+        "spine_19",
+        "spine_18",
+        "spine_17",
+        "spine_16",
+        "spine_15",
+        "spine_14",
+        "spine_13",
+        "spine_12",
+        "spine_11",
+        "spine_10",
+        "spine_09",
+        "spine_08",
+        "spine_07",
+        "spine_06",
+        "spine_05",
+        "spine_04",
+        "spine_03",
+        "spine_02",
+        "spine_01",
+        "spine_00",
+        "DragonKing",
+        "DragonKingRig"
+      ],
+      "unsupportedExtensions": []
+    }
+  },
+  "importer": "gltf",
+  "kind": "external-asset-package",
+  "schemaVersion": 1,
+  "source": "dragon_king_v1.glb",
+  "sourceOverrideDescriptors": [
+    {
+      "payloadSchema": {
+        "additionalProperties": true,
+        "properties": {
+          "materialSlotDefaultOverrides": {
+            "additionalProperties": {
+              "nullable": true,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "materialSlots": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "defaultMaterialGuid": {
+                  "type": "string"
+                },
+                "slotName": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sourceKey": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slotName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "semantic": "mesh-material-slot-defaults",
+      "sourceKey": "mesh:DragonKing"
+    }
+  ],
+  "sourceOverrides": {
+    "mesh:DragonKing": {
+      "materialSlots": [
+        {
+          "slotName": "Default",
+          "sourceKey": "gltf:default"
+        }
+      ]
+    }
+  },
+  "subAssets": [
+    {
+      "guid": "01a1b16d-ccc7-78c5-8968-7afb87b5a37b",
+      "kind": "mesh",
+      "name": "DragonKing",
+      "sourceIndex": 0,
+      "sourceKey": "mesh:DragonKing"
+    },
+    {
+      "guid": "01a1b16d-ccc8-7fd2-ae78-4041c3ddd030",
+      "kind": "scene",
+      "name": "Scene",
+      "sourceIndex": 0,
+      "sourceKey": "scene:Scene"
+    },
+    {
+      "guid": "01a1b16d-ccc8-7fd2-ae78-4042c388df80",
+      "kind": "skeleton",
+      "sourceIndex": 0,
+      "sourceKey": "skeleton"
+    },
+    {
+      "guid": "01a1b16d-ccc8-7fd2-ae78-404331331132",
+      "kind": "skin",
+      "sourceIndex": 0,
+      "sourceKey": "skin"
+    }
+  ]
+}

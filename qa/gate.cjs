@@ -152,9 +152,9 @@ async function main() {
       record('Boss', '敖丙名称（血条）', true, '东海三太子 · 敖丙', '敖丙');
       record('Boss', '一阶段 ≥ 3 种招式', kinds.size >= 3, [...kinds].join('/'), '≥ 3');
       record('Boss', '前摇 ≥ 0.45 s 且有地面预警', minWind >= 27, `${(minWind / 60).toFixed(2)} s`, '≥ 0.45 s');
-      record('空战', '龙在空中（两个哪吒高 ± 一人高带）', s.dragon.bodyUnderside > 2.2 && s.dragon.bodyUnderside < 4.6, `${s.dragon.bodyUnderside} m`, '2.2–4.6 m');
+      record('空战', '龙在空中（两个哪吒高，±2 m 浮动）', s.dragon.bodyUnderside > 0.9 && s.dragon.bodyUnderside < 6.2, `${s.dragon.bodyUnderside} m`, '0.9–6.2 m（3.4 ± 2 m）');
       const alt = (s.player.modelOffsetY ?? 0);
-      record('空战', '哪吒在空中（约两个人高）', alt > 2.3 && alt < 4.6, `${alt.toFixed(2)} m`, '2.3–4.6 m');
+      record('空战', '哪吒在空中（两个哪吒高，±2 m 浮动）', alt > 0.9 && alt < 6.2, `${alt.toFixed(2)} m`, '0.9–6.2 m（3.4 ± 2 m）');
       const f = await fps(page);
       record('性能', '战斗中帧率', f >= 50, `${f} fps`, '≥ 50', 'warn');
     });
@@ -177,6 +177,7 @@ async function main() {
       await h.shot(page, OUT, '06-boss-p2');
       record('Boss', '二阶段新招：龙跃', seen.has('leap'), [...seen].join('/'), '出现 leap');
       record('Boss', '二阶段新招：冰棱震地', seen.has('spikes'), seen.has('spikes') ? '出现' : '未见', '出现');
+      await h.shot(page, OUT, '07-model-dragon');
     });
   } finally {
     server.kill('SIGTERM');
