@@ -70,7 +70,8 @@
             "sash": "$t(terms:skill.sashBind)：定住目标",
             "keyRmb": "右键",
             "keySpace": "空格",
-            "skip": "跳过开场 / 再战"
+            "skip": "跳过开场 / 再战",
+            "mute": "静音 / 取消静音"
           }
         },
         "hud": {
@@ -198,7 +199,8 @@
             "sash": "$t(terms:skill.sashBind): hold the target",
             "keyRmb": "RMB",
             "keySpace": "Space",
-            "skip": "Skip intro / Try again"
+            "skip": "Skip intro / Try again",
+            "mute": "Mute / unmute"
           }
         },
         "hud": {

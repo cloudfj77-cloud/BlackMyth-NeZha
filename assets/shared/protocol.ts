@@ -69,7 +69,7 @@ export interface HudState {
   readonly phase: GamePhase;
   readonly lock: { readonly active: boolean; readonly marker: ScreenPoint; readonly opening?: boolean };
   /** Boss bar (M3): name + health only. */
-  readonly boss?: { readonly hp: number; readonly hpMax: number; readonly visible: boolean };
+  readonly boss?: { readonly hp: number; readonly hpMax: number; readonly visible: boolean; readonly phase?: 1 | 2 };
   /** The run (M4): stage, subtitle, banners, result, intro skip prompt. */
   readonly run?: RunHud;
   /** Monotonic counter per newly raised hint, so repeated hints re-animate. */

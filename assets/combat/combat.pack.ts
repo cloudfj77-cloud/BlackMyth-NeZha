@@ -316,7 +316,7 @@ export const combat: Plugin = {
             hitSerial += 1;
             session.clock.hitstop(event.hitstop);
             if (event.shake > 0) session.shake(event.shake);
-            session.emit('hit');
+            session.emit(event.kind === 'heavy' ? 'hit-heavy' : 'hit');
             const segment = event.strike.segment ?? 0;
             target.damage(event.damage, segment);
             hitLog.push({ step: machine.snapshot().step, kind: event.kind, stage: event.stage, dmg: event.damage, dist: r3(event.strike.distance), ang: r3(event.strike.angleDeg), segment, tail: event.tail, hitstop: event.hitstop, shake: event.shake });

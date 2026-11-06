@@ -38,6 +38,7 @@ const CONTROL_ROWS: readonly { readonly keys: readonly string[]; readonly action
   { keys: ['Q'], action: 'menu.controls.lotus' },
   { keys: ['1'], action: 'menu.controls.sash' },
   { keys: ['Enter'], action: 'menu.controls.skip' },
+  { keys: ['M'], action: 'menu.controls.mute' },
   { keys: ['Esc'], action: 'menu.controls.pause' },
 ];
 
@@ -224,6 +225,9 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
 
   const showHint = (key: string) => {
     hintKey = key;
+    if (key === 'locked') audio.play('lock');
+    else if (key === 'unlocked' || key === 'targetLost') audio.play('unlock');
+    else if (key === 'noStamina' || key === 'noLotusSeeds' || key === 'sashCooldown') audio.play('no-stamina');
     const node = part('hint')!;
     node.textContent = t(`hud.hint.${key}`);
     node.classList.add('show');
@@ -279,6 +283,16 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     part('boss-panel')!.classList.toggle('show', !!boss?.visible);
     if (boss) part('boss-fill')!.style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.hpMax) * 100)).toFixed(1)}%`;
     const run = next.run;
+    // Music follows the run (v1.4.0 score): explore on the way in, battle / phase-two battle,
+    // silent from the fall on and in the defeat; nothing on the start screen.
+    const stage = run?.stage;
+    audio.setMusic(
+      next.phase === 'title' || !stage ? 'none'
+      : stage === 'canyon' || stage === 'intro' ? 'explore'
+      : stage === 'fight' || stage === 'transition' ? (stage === 'transition' || next.boss?.phase === 2 ? 'battle2' : 'battle')
+      : stage === 'victory' || stage === 'result' ? 'victory'
+      : 'none',
+    );
     ui.host.classList.toggle('run-hud-off', !!run && !run.hud);
     ui.host.classList.toggle('run-menu', !!run && (run.banner || !!run.result));
     part('defeat')!.classList.toggle('show', !!run?.banner);
@@ -326,7 +340,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     // QA mirror of the Engine read projection (static preview has no inspection bridge).
     if (next.projection !== undefined) {
       ui.host.dataset.nezha = JSON.stringify(next.projection);
-      ui.host.dataset.audio = JSON.stringify(audio.counts());
+      ui.host.dataset.audio = JSON.stringify({ ...audio.counts(), music: audio.music(), muted: audio.muted() });
     }
     if (next.phase === 'playing' && !status.debugOpen && shadow.activeElement instanceof view.HTMLElement) shadow.activeElement.blur();
   };
@@ -363,6 +377,8 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   if (host.controlMode) releases.push(host.controlMode.subscribe(onMode));
   onMode();
   const onKey = (event: KeyboardEvent) => {
+    // M: mute / unmute (v1.4.0).
+    if (event.code === 'KeyM' && !event.repeat && state?.phase !== 'title') audio.toggleMute();
     if (event.code === 'F2' && dev) {
       event.preventDefault();
       setDebugOpen(!status.debugOpen);
