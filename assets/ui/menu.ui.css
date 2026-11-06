@@ -320,6 +320,16 @@ button {
   transition: opacity 300ms ease-out;
 }
 .hurt-vignette.on { opacity: 1; transition: none; }
+/* v1.4.0 perfect dodge: cyan edge flash and a big banner (also used for 破势). */
+.perfect-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgb(120 220 255 / 12%) 30%, rgb(40 180 255 / 60%)); }
+.perfect-vignette.on { animation: perfect-flash 0.8s ease-out 1; }
+@keyframes perfect-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+.big-banner { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; pointer-events: none; opacity: 0; }
+.big-banner > span:first-child { font: 700 46px/1.1 "STKaiti", "KaiTi", "Songti SC", serif; letter-spacing: 0.3em; color: #dffaff; text-shadow: 0 2px 6px rgb(0 18 36 / 95%), 0 0 22px #2ac6ff; white-space: nowrap; }
+.big-banner.break > span:first-child { color: #ffe0a8; text-shadow: 0 0 24px #ff8a2a, 0 0 4px #ffffff; font-size: 52px; }
+.big-banner .sub { font-size: 13px; letter-spacing: 0.4em; color: #eafcff; text-shadow: 0 1px 4px rgb(0 18 36 / 95%); }
+.big-banner.show { animation: big-banner 0.95s ease-out 1; }
+@keyframes big-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -54%) scale(1); } }
 
 .player-panel {
   position: absolute;

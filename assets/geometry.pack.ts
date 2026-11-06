@@ -16,7 +16,7 @@ import {
 } from './shared/layout.ts';
 import { axisAngle, fromTo, MeshKit, yawQ, type V3 } from './shared/mesh-kit.ts';
 import { canyonWallSegments, trenchSegments } from './shared/greybox.ts';
-import { ARENA_PILLAR_HEIGHTS, seaArena, seaArenaPillar, seaCoral, seaCurtain, seaFar, seaGate, seaLotus, seaLotusPond, seaPalace, seaRocks, seaRunes, seaWalk } from './sea/sea-geometry.ts';
+import { ARENA_PILLAR_HEIGHTS, seaWhirlpool, seaArena, seaArenaPillar, seaCoral, seaCurtain, seaFar, seaGate, seaLotus, seaLotusPond, seaPalace, seaRocks, seaRunes, seaWalk } from './sea/sea-geometry.ts';
 import { LEVEL_SCALE } from './shared/sea-layout.ts';
 
 
@@ -123,6 +123,7 @@ export default definePack({
       'mesh/sea-rocks': seaRocks(),
       'mesh/sea-gate': seaGate(),
       'mesh/sea-arena': seaArena(),
+      'mesh/sea-whirlpool': seaWhirlpool(),
       'mesh/sea-runes': seaRunes(),
       'mesh/sea-lotus-pond': seaLotusPond(),
       'mesh/sea-lotus': seaLotus(),

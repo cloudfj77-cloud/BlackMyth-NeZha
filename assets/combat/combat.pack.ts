@@ -1,3 +1,4 @@
+import { JOINT_PARTS, jointKey, kebab } from '../nezha-rig/rig-def.ts';
 import { definePack } from '@forgeax/engine/pack/source';
 import { FixedTime, FixedUpdate, Time, Update, type EntityHandle } from '@forgeax/engine/ecs';
 import { createMeshBuilder, packInterleavedVertexAttributes } from '@forgeax/engine/geometry';
@@ -166,13 +167,15 @@ export const combat: Plugin = {
     };
     const mesh = {
       body: await load(guidText(characterGuid('nezha-body')), 'mesh'),
+      // Afterimages show the jointed Nezha (boss 11-06 20:57): every jointed part plus the spear.
+      parts: await Promise.all([...Object.keys(JOINT_PARTS).map((j) => load(guidText(characterGuid(`nz-${kebab(j)}`)), 'mesh')), load(guidText(characterGuid('nz-spear')), 'mesh')]),
       ring: await load(guidText(geometryGuid('ring')), 'mesh'),
       flame: await load(guidText(geometryGuid('flame')), 'mesh'),
     };
 
     await ctx.effect(function* () {
       yield () => {
-        for (const handle of [...Object.values(mat), ...Object.values(mesh)]) assets.release(handle).unwrap();
+        for (const handle of [...Object.values(mat), ...Object.values(mesh).flat()] as never[]) assets.release(handle).unwrap();
       };
       const config = () => {
         const c = configFromTuning(tuning.current.combat);
@@ -213,26 +216,30 @@ export const combat: Plugin = {
       ).unwrap();
       spawned.push(flame);
       const AFTER_FRAMES = [1, 4, 7, 10, 13];
-      // All five afterimages live in ONE mesh (M4 §12: separately drawn ghosts cost 5 draw calls each
-      // and caused the draw spikes). Each slot bakes the body's pose when it spawns; its fade rides in
-      // uv0.x. One draw for the whole trail.
-      const body = assets.read(mesh.body).unwrap() as MeshAsset;
-      const bodyPos = body.attributes.position as Float32Array;
-      const bodyNor = (body.attributes.normal as Float32Array | undefined) ?? new Float32Array(bodyPos.length);
-      const bodyVerts = bodyPos.length / 3;
+      // Afterimage pool (boss 11-06 20:57): the roll leaves five dark ones as before; plain movement
+      // leaves pale ones every 5 steps. All live in ONE mesh (one draw); uv0.x = fade, uv0.y = strength.
+      const SLOTS = 12;
+      const partEntities = [...Object.keys(JOINT_PARTS).map((j) => resolveGameEntity(world, scene, jointKey(j as never))), spear];
+      const partData = (mesh.parts as unknown as never[]).map((h) => assets.read(h).unwrap() as MeshAsset);
+      const partBase: number[] = [];
+      let bodyVerts = 0;
       const bodyIdx: number[] = [];
-      const srcIdx = body.indices as Uint32Array | Uint16Array | undefined;
-      for (const sm of body.submeshes) for (let k = 0; k < sm.indexCount; k += 1) bodyIdx.push((srcIdx?.[sm.indexOffset + k] ?? 0) + ((sm as { baseVertex?: number }).baseVertex ?? 0));
-      const cloudIdx = new Uint32Array(bodyIdx.length * AFTER_FRAMES.length);
-      AFTER_FRAMES.forEach((_, s) => bodyIdx.forEach((v, k) => (cloudIdx[s * bodyIdx.length + k] = v + s * bodyVerts)));
-      const cloudPos = new Float32Array(bodyVerts * 3 * AFTER_FRAMES.length);
+      for (const m of partData) {
+        partBase.push(bodyVerts);
+        const idx = m.indices as Uint32Array | Uint16Array | undefined;
+        for (const sm of m.submeshes) for (let q = 0; q < sm.indexCount; q += 1) bodyIdx.push((idx?.[sm.indexOffset + q] ?? 0) + ((sm as { baseVertex?: number }).baseVertex ?? 0) + bodyVerts);
+        bodyVerts += (m.attributes.position as Float32Array).length / 3;
+      }
+      const cloudIdx = new Uint32Array(bodyIdx.length * SLOTS);
+      for (let sl = 0; sl < SLOTS; sl += 1) bodyIdx.forEach((v, q) => (cloudIdx[sl * bodyIdx.length + q] = v + sl * bodyVerts));
+      const cloudPos = new Float32Array(bodyVerts * 3 * SLOTS);
       for (let v = 0; v < cloudPos.length; v += 3) cloudPos[v + 1] = -50;
       const cloudNor = new Float32Array(cloudPos.length);
-      const cloudUv = new Float32Array(bodyVerts * 2 * AFTER_FRAMES.length);
+      const cloudUv = new Float32Array(bodyVerts * 2 * SLOTS);
       const cloudBuilt = createMeshBuilder({
         attributes: { position: cloudPos, normal: cloudNor, uv: cloudUv },
         indices: cloudIdx,
-        submeshes: [{ indexOffset: 0, indexCount: cloudIdx.length, vertexCount: bodyVerts * AFTER_FRAMES.length, topology: 'triangle-list', materialSlot: 0 }],
+        submeshes: [{ indexOffset: 0, indexCount: cloudIdx.length, vertexCount: bodyVerts * SLOTS, topology: 'triangle-list', materialSlot: 0 }],
         materialSlots: [{ slotName: 'afterimages' }],
       }).build();
       if (!cloudBuilt.ok) throw cloudBuilt.error;
@@ -246,25 +253,41 @@ export const combat: Plugin = {
         { component: MeshRenderer, data: { materials: [mat.afterimage] } as never },
       ).unwrap();
       spawned.push(cloud);
-      const afterimages = AFTER_FRAMES.map(() => ({ life: 0 }));
+      const afterimages = Array.from({ length: SLOTS }, () => ({ life: 0, total: 1, age: 0 }));
+      let walkGap = 0;
       let cloudLive = false;
       let perfectSerial = 0;
       let cyanLeft = 0;
-      /** Bake the body at matrix m into slot s (world space). */
-      const bakeSlot = (s: number, m: ArrayLike<number>) => {
+      /** Bake every part of the jointed Nezha at its current world matrix into slot s (world space). */
+      const bakeSlot = (s: number) => {
         const o = s * bodyVerts * 3;
-        for (let v = 0; v < bodyVerts; v += 1) {
-          const x = bodyPos[v * 3]!, y = bodyPos[v * 3 + 1]!, z = bodyPos[v * 3 + 2]!;
-          cloudPos[o + v * 3] = m[0]! * x + m[4]! * y + m[8]! * z + m[12]!;
-          cloudPos[o + v * 3 + 1] = m[1]! * x + m[5]! * y + m[9]! * z + m[13]!;
-          cloudPos[o + v * 3 + 2] = m[2]! * x + m[6]! * y + m[10]! * z + m[14]!;
-          const nx = bodyNor[v * 3]!, ny = bodyNor[v * 3 + 1]!, nz = bodyNor[v * 3 + 2]!;
-          cloudNor[o + v * 3] = m[0]! * nx + m[4]! * ny + m[8]! * nz;
-          cloudNor[o + v * 3 + 1] = m[1]! * nx + m[5]! * ny + m[9]! * nz;
-          cloudNor[o + v * 3 + 2] = m[2]! * nx + m[6]! * ny + m[10]! * nz;
-        }
+        partData.forEach((m, pi) => {
+          const mm = readPresentationWorldMatrix(world, partEntities[pi]!);
+          if (!mm) return;
+          const pos = m.attributes.position as Float32Array, nor = m.attributes.normal as Float32Array;
+          const base = o + partBase[pi]! * 3;
+          for (let v = 0; v < pos.length / 3; v += 1) {
+            const x = pos[v * 3]!, y = pos[v * 3 + 1]!, z = pos[v * 3 + 2]!;
+            cloudPos[base + v * 3] = mm[0]! * x + mm[4]! * y + mm[8]! * z + mm[12]!;
+            cloudPos[base + v * 3 + 1] = mm[1]! * x + mm[5]! * y + mm[9]! * z + mm[13]!;
+            cloudPos[base + v * 3 + 2] = mm[2]! * x + mm[6]! * y + mm[10]! * z + mm[14]!;
+            const nx = nor[v * 3]!, ny = nor[v * 3 + 1]!, nz = nor[v * 3 + 2]!;
+            cloudNor[base + v * 3] = mm[0]! * nx + mm[4]! * ny + mm[8]! * nz;
+            cloudNor[base + v * 3 + 1] = mm[1]! * nx + mm[5]! * ny + mm[9]! * nz;
+            cloudNor[base + v * 3 + 2] = mm[2]! * nx + mm[6]! * ny + mm[10]! * nz;
+          }
+        });
         assets.writeRange(cloudMesh, { attribute: 'position', first: s * bodyVerts, values: cloudPos.subarray(o, o + bodyVerts * 3) }).unwrap();
         assets.writeRange(cloudMesh, { attribute: 'normal', first: s * bodyVerts, values: cloudNor.subarray(o, o + bodyVerts * 3) }).unwrap();
+      };
+      /** Take the free slot (or the oldest) and start an afterimage there. */
+      const spawnGhost = (life: number, strength: number) => {
+        let best = 0;
+        for (let q = 1; q < SLOTS; q += 1) if (afterimages[q]!.life < afterimages[best]!.life) best = q;
+        bakeSlot(best);
+        afterimages[best] = { life, total: life, age: 0 };
+        const o = best * bodyVerts * 2;
+        for (let v = 0; v < bodyVerts; v += 1) cloudUv[o + v * 2 + 1] = strength;
       };
       const fadeSlot = (s: number, fade: number) => {
         const o = s * bodyVerts * 2;
@@ -350,7 +373,7 @@ export const combat: Plugin = {
             // Sparks burst at the struck body point, chest height (real time, never paused).
             // Tail hits (boss 1B): 30 % of the sparks, 60 % of the size.
             const count = event.tail ? Math.round(SPARKS * 0.3) : SPARKS;
-            world.set(sparks, Transform, { pos: [event.strike.point.x, FLOOR_Y + 1.1, event.strike.point.z] }).unwrap();
+            world.set(sparks, Transform, { pos: [event.strike.point.x, FLOOR_Y + 1.1 + player.altitude(), event.strike.point.z] }).unwrap();
             world.set(sparks, Points, { size: event.tail ? 0.11 * 0.6 : 0.11 } as never).unwrap();
             for (let i = 0; i < SPARKS; i += 1) {
               if (i >= count) {
@@ -430,15 +453,15 @@ export const combat: Plugin = {
           state = out.state;
           for (const event of out.events) onEvent(event);
           player.setControl({ velocity: out.velocity, facing: out.facing, speedScale: out.speedScale, allowSprint: out.allowSprint });
-          // Fire afterimages along the roll (boss 22:12: more of them, lingering ~1.1 s).
-          const afterIndex = state.kind === 'roll' ? AFTER_FRAMES.indexOf(state.frame) : -1;
-          if (afterIndex >= 0) {
-            const m = readPresentationWorldMatrix(world, player.model);
-            if (m) {
-              bakeSlot(afterIndex, m);
-              afterimages[afterIndex]!.life = tuning.current.combat.afterimageLife;
+          // Afterimages: dark along the roll (frames 1, 4, 7, 10, 13; ~1.1 s), pale while moving (every 5 steps, 0.4 s).
+          if (state.kind === 'roll' && AFTER_FRAMES.includes(state.frame)) spawnGhost(tuning.current.combat.afterimageLife, 1);
+          else if (player.speed() > 1.2 && state.kind !== 'dead') {
+            walkGap -= 1;
+            if (walkGap <= 0) {
+              walkGap = 6;
+              spawnGhost(20, player.mode() === 'sprint' ? 0.2 : 0.13);
             }
-          }
+          } else walkGap = 0;
           if (cyanLeft > 0) {
             cyanLeft -= 1;
             if (cyanLeft === 0) assets.update(mat.afterimage, { values: { coreColor: [0.95, 0.22, 0.03, 1], rimColor: [1.0, 0.62, 0.12, 1], intensity: tuning.current.combat.afterimageIntensity } } as never).unwrap();
@@ -449,7 +472,7 @@ export const combat: Plugin = {
             slot.life -= 1;
             anyLive = true;
             // Boss 17:46: afterimages linger and fade out smoothly — bright most of their life, then fade.
-            const left = slot.life / Math.max(1, tuning.current.combat.afterimageLife);
+            const left = slot.life / Math.max(1, slot.total);
             fadeSlot(s, left > 0.5 ? 1 : (left / 0.5) ** 1.5);
           });
           if (anyLive || cloudLive) assets.writeRange(cloudMesh, { attribute: 'uv', first: 0, values: cloudUv }).unwrap();
@@ -550,7 +573,7 @@ export const combat: Plugin = {
           if (qiAge >= 0) {
             qiAge += dt;
             const rt = player.root();
-            const chest = [rt[0], rt[1] + 1.3, rt[2]];
+            const chest = [rt[0], rt[1] + 1.3 + player.altitude(), rt[2]];
             if (qiAge > 0.7) {
               qiAge = -1;
               for (let i = 0; i < QI; i += 1) qiPos[i * 3 + 1] = -50;
@@ -572,7 +595,7 @@ export const combat: Plugin = {
             ringAge += dt;
             const t = Math.min(1, ringAge / 0.2);
             const root = player.root();
-            world.set(ring, Transform, { pos: [root[0], FLOOR_Y + 0.08, root[2]], scale: [1.2 * t, 1, 1.2 * t] }).unwrap();
+            world.set(ring, Transform, { pos: [root[0], FLOOR_Y + 0.08 + player.altitude() + tuning.current.move.hoverHeight * 0.6, root[2]], scale: [1.2 * t, 1, 1.2 * t] }).unwrap();
             assets.update(ringInstance, { values: { intensity: 1.5 * (1 - t) } } as never).unwrap();
             if (t >= 1) {
               ringAge = -1;
@@ -617,7 +640,8 @@ export const combat: Plugin = {
       };
 
       const triggerPerfect = () => {
-        session.clock.slowmo(tuning.current.combat.slowmoSteps);
+        // v1.4.0 perfectDodge: the world drops to 0.22 for 0.55 s.
+        session.clock.slowmo(33, 0.22);
         session.emit('perfect');
         ringAge = 0;
         perfectSerial += 1;
@@ -626,7 +650,7 @@ export const combat: Plugin = {
           const rt = player.root();
           for (let i = 0; i < QI; i += 1) {
             const a = rand() * Math.PI * 2, rr = 1.6 + rand() * 0.9;
-            qiFrom.set([rt[0] + Math.sin(a) * rr, rt[1] + 0.3 + rand() * 1.7, rt[2] + Math.cos(a) * rr], i * 3);
+            qiFrom.set([rt[0] + Math.sin(a) * rr, rt[1] + 0.3 + rand() * 1.7 + player.altitude(), rt[2] + Math.cos(a) * rr], i * 3);
           }
         }
         // v1.4.0: the perfect-dodge trail turns pale cyan (and gets out of the way) for its lifetime.

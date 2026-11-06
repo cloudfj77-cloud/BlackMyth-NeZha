@@ -36,7 +36,8 @@ export interface GameClock {
   /** 0 during hitstop, else 1. */
   readonly nezhaScale: () => number;
   readonly hitstop: (steps: number) => void;
-  readonly slowmo: (steps: number) => void;
+  /** World slow motion for `steps` real steps at `scale` (default 0.3; the v1.4.0 perfect dodge uses 0.22). */
+  readonly slowmo: (steps: number, scale?: number) => void;
   /** Victory slow motion (M4 §8): world and Nezha at 0.3, easing back to 1 over `steps`. */
   readonly ease: (steps: number) => void;
   readonly snapshot: () => { readonly hitstop: number; readonly slowmo: number; readonly ease: number; readonly worldScale: number; readonly nezhaScale: number; readonly step: number };
@@ -140,8 +141,9 @@ export const core: Plugin = {
       let ambience = { light: 1, beams: 1 };
       let lockBlocked = false;
       const SLOW = 0.3;
+      let slowScale = SLOW;
       const eased = () => (easeLeft > 0 ? SLOW + (1 - SLOW) * (1 - easeLeft / easeTotal) : 1);
-      const worldScale = () => (frozen ? 0 : slowmo > 0 ? SLOW : eased());
+      const worldScale = () => (frozen ? 0 : slowmo > 0 ? slowScale : eased());
       const clock: GameClock = {
         frozen: () => frozen,
         worldScale,
@@ -152,7 +154,8 @@ export const core: Plugin = {
         hitstop: (steps) => {
           hitstop = Math.max(hitstop, Math.round(steps));
         },
-        slowmo: (steps) => {
+        slowmo: (steps, scale = SLOW) => {
+          if (slowmo <= 0 || scale < slowScale) slowScale = scale;
           slowmo = Math.max(slowmo, Math.round(steps));
         },
         snapshot: () => ({ hitstop, slowmo, ease: easeLeft, worldScale: worldScale(), nezhaScale: frozen ? 0 : eased(), step: clockStep }),

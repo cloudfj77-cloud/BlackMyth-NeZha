@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { radius, zoneHits } from '../dragon/body.ts';
 import { AOBING, createAobing, moveSteps, type AobingEvent } from '../dragon/aobing.ts';
+import { FLIGHT } from '../shared/flight.ts';
 
 const R = 0.35;
 type Ev = { step: number; e: AobingEvent };
@@ -25,7 +26,7 @@ describe('敖丙 on the long dragon (v1.4.0 boss AI)', () => {
     expect(moveSteps('sweep', true).length).toBe(2);
     expect(moveSteps('leap', true)[0]!.air).toBe(57);
   });
-  it('floats low: the body underside stays in the hover band (≈ Nezha’s 0.5 m), bobbing', () => {
+  it('flies at two Nezhas, swelling over a band one Nezha tall', () => {
     const b = createAobing({ seed: 3 });
     let lo = Infinity, hi = -Infinity;
     for (let i = 0; i < 600; i += 1) {
@@ -33,9 +34,9 @@ describe('敖丙 on the long dragon (v1.4.0 boss AI)', () => {
       const p = b.points();
       for (let j = 10; j < p.length; j += 1) { const u = p[j]![1] - radius(j); lo = Math.min(lo, u); hi = Math.max(hi, u); }
     }
-    expect(lo).toBeGreaterThan(AOBING.hover - 0.2);
-    expect(hi).toBeLessThan(AOBING.hover + 0.25);
-    expect(hi - lo).toBeGreaterThan(0.08);
+    expect(lo).toBeGreaterThan(FLIGHT.height - FLIGHT.bob - 0.3);
+    expect(hi).toBeLessThan(FLIGHT.height + FLIGHT.bob + 0.3);
+    expect(hi - lo).toBeGreaterThan(FLIGHT.bob * 1.5);
   });
   it('chases Nezha and attacks with a telegraph whose zone covers her', () => {
     const b = createAobing({ seed: 5 });

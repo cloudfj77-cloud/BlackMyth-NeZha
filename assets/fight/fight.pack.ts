@@ -20,6 +20,7 @@ import type { TargetService } from '../lock-on/lock-on.pack.ts';
 import { geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { CHECKPOINT, FLOOR_Y, SPAWN } from '../shared/layout.ts';
 import { onPlatform } from '../shared/sea-layout.ts';
+import { nezhaFlight } from '../shared/flight.ts';
 import type { SeaService } from '../sea/sea.pack.ts';
 import type { MobsService } from '../yaksha/yaksha.pack.ts';
 import type { RunHud } from '../shared/protocol.ts';
@@ -103,6 +104,7 @@ export const fight: Plugin = {
       let lastRecord: Record<string, unknown> | undefined;
       let lastCause: AttackKind | null = null;
       let defeatAt = -1;
+      let flightTime = 0;
       const history: Record<string, unknown>[] = [];
       const log: { step: number; kind: string; inside: boolean; signed: number; result: string; damage: number }[] = [];
       const actionLog: { step: number; stage: string; type: string }[] = [];
@@ -348,7 +350,6 @@ export const fight: Plugin = {
             } else if (event.type === 'break') {
               // 破势 (v1.4.0 banner + slam): the boss staggers 2.1 s.
               session.emit('break');
-              session.raiseHint('bossBreak');
               session.shake(0.06);
             }
             else if (event.type === 'phase') {
@@ -436,6 +437,12 @@ export const fight: Plugin = {
         fn: () => {
           const st = run.snapshot().stage;
           sea.setFightLight(st === 'intro' || st === 'fight' || st === 'transition' || st === 'defeat');
+          // Mid-air combat (boss 11-06 20:57): up at two Nezhas over the whirlpool from the intro's hand-over
+          // through the win; she drops when she falls, and floats low on the road and when roaming.
+          const k = run.snapshot().k;
+          const aloft = (st === 'intro' && k >= INTRO.orbitEnd) || st === 'fight' || st === 'transition' || st === 'victory' || st === 'result';
+          flightTime += Math.min(world.getResource(Time).delta, 0.1);
+          player.setAltitude(aloft ? nezhaFlight(flightTime) - tuning.current.move.hoverHeight : 0);
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-arena-flow').unwrap();

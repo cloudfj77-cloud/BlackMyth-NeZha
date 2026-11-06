@@ -282,6 +282,24 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     }
     if (next.tuning) panel?.update(next.tuning);
     for (const event of next.events ?? []) audio.play(event);
+    // v1.4.0 banners: 「完美闪避」 (cyan, with the edge flash) and 「破势」.
+    for (const event of next.events ?? []) {
+      if (event !== 'perfect' && event !== 'break') continue;
+      const banner = part('big-banner')!;
+      const key = `hud.banner.${event}`;
+      part('big-banner-text')!.textContent = t(key);
+      part('big-banner-sub')!.textContent = (i18n.resolvedLanguage ?? i18n.language) === 'zh' ? i18n.getFixedT('en')(key) : '';
+      banner.classList.toggle('break', event === 'break');
+      banner.classList.remove('show');
+      void banner.offsetWidth;
+      banner.classList.add('show');
+      if (event === 'perfect') {
+        const v = part('perfect-vignette')!;
+        v.classList.remove('on');
+        void v.offsetWidth;
+        v.classList.add('on');
+      }
+    }
     const c = next.combat;
     if (c) {
       const width = (name: string, value: number, max: number) => {

@@ -1,3 +1,4 @@
+import { FLIGHT } from '../shared/flight.ts';
 import { definePack } from '@forgeax/engine/pack/source';
 import { FixedUpdate, Time, Update } from '@forgeax/engine/ecs';
 import { quat, vec3 } from '@forgeax/engine/math';
@@ -96,6 +97,7 @@ export const camera: Plugin = {
         wallGap: null as number | null,
       };
       let airFollow = 0;
+      let altFollow = 0;
       const origin = vec3.create();
       const direction = vec3.create();
       const rotation = quat.create();
@@ -130,7 +132,12 @@ export const camera: Plugin = {
           }
           const matrix = readPresentationWorldMatrix(world, player);
           if (matrix === undefined) return;
-          const groundY = (matrix[13] ?? 0) - CAPSULE_CENTER_Y;
+          // Mid-air combat: the camera rides at the flight height but takes only 55 % of the swell, so the
+          // floating reads on screen (Nezha drifts up and down in frame), smoothed.
+          const alt = playerService.altitude();
+          const altWant = alt > FLIGHT.height * 0.5 ? FLIGHT.height - 0.5 + (alt - FLIGHT.height + 0.5) * 0.55 : alt;
+          altFollow += (altWant - altFollow) * (1 - Math.exp(-3 * dt));
+          const groundY = (matrix[13] ?? 0) - CAPSULE_CENTER_Y + altFollow;
           const locked = lockView !== undefined && phase === 'playing';
           const focusHeight = locked ? cam.focusHeightLocked : cam.focusHeight;
           // Jumps (v1.4.0): the aim rises 75 % of the jump height, smoothed (rate 6/s) so the camera does not bob.

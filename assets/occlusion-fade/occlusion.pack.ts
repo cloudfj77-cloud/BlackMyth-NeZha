@@ -9,6 +9,7 @@ import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import { guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
+import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import { PILLAR_RAY_FILTER } from '../shared/collision.ts';
 
 /** Level geometry (group 1) + pillars (group 5): what can hide Nezha from the lens. */
@@ -48,13 +49,14 @@ interface PillarState {
 
 export const occlusion: Plugin = {
   name: 'nezha/occlusion',
-  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry'],
+  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer'],
   async apply(ctx) {
     const world = ctx.world;
     const host = ctx.gameHost;
     const session = ctx.nezhaSession as SessionService | undefined;
     const tuning = ctx.nezhaTuning as TuningService | undefined;
     const telemetry = ctx.nezhaTelemetry as TelemetryService | undefined;
+    const playerService = ctx.nezhaPlayer as PlayerService | undefined;
     if (!host || !session || !tuning || !telemetry) throw new Error('nezha/occlusion requires core services');
     const assets = host.assets;
     const camera = resolveGameEntity(world, ctx.gameScene, 'camera');
@@ -136,8 +138,9 @@ export const occlusion: Plugin = {
             const cx = cam[12] ?? 0, cy = cam[13] ?? 0, cz = cam[14] ?? 0;
             // Root is the capsule centre; probe heights are above the seabed (centre - half capsule height).
             const groundY = (body[13] ?? 0) - tuning.current.move.capsuleHeight / 2;
+            const flyY = groundY + (playerService?.altitude() ?? 0);
             for (const height of PROBE_HEIGHTS) {
-              const tx = body[12] ?? 0, ty = groundY + height, tz = body[14] ?? 0;
+              const tx = body[12] ?? 0, ty = flyY + height, tz = body[14] ?? 0;
               const dx = tx - cx, dy = ty - cy, dz = tz - cz;
               const distance = Math.hypot(dx, dy, dz);
               if (distance < 1e-3) continue;

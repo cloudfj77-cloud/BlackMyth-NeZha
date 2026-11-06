@@ -190,7 +190,7 @@ export const lockOn: Plugin = {
             facing: facingTo,
           });
           // Head above 5 m (bite rear-up): tilt the aim up by 0.6 m per metre, at most 1.5 m.
-          camera.setLockView({ target: lookPoint, raise: () => (current === boss ? Math.min(1.5, Math.max(0, (dragon.points()[0]![1] - FLOOR_Y - 5) * 0.6)) : 0) });
+          camera.setLockView({ target: lookPoint, raise: () => (current === boss ? Math.min(1.5, Math.max(0, (dragon.points()[0]![1] - FLOOR_Y - player.altitude() - 5) * 0.6)) : 0) });
         } else {
           player.setLock(undefined);
           camera.setLockView(undefined);
@@ -222,7 +222,7 @@ export const lockOn: Plugin = {
           }
           distance = current.surfaceDistance(root[0], root[2]);
           const p = pivotOf(root[0], root[2]);
-          const want: [number, number, number] = [p.x, FLOOR_Y + Math.min(4, Math.max(1.5, p.y)), p.z];
+          const want: [number, number, number] = [p.x, FLOOR_Y + Math.min(9, Math.max(1.5, p.y)), p.z];
           const k = 1 - Math.exp(-dt / 0.1); // ≈ 0.3 s to settle
           look = look ? [look[0] + (want[0] - look[0]) * k, look[1] + (want[1] - look[1]) * k, look[2] + (want[2] - look[2]) * k] : want;
           if (!session.playing()) {
@@ -267,7 +267,7 @@ export const lockOn: Plugin = {
           if (!matrix) return;
           const yaw = Math.atan2(-(matrix[2] ?? 0), matrix[0] ?? 1);
           const c = Math.cos(yaw), s = Math.sin(yaw);
-          const model = FLOOR_Y + tuning.current.move.hoverHeight;
+          const model = FLOOR_Y + tuning.current.move.hoverHeight + player.altitude();
           const at = (lx: number, ly: number, lz: number): V3 => [(matrix[12] ?? 0) + lx * c + lz * s, model + ly, (matrix[14] ?? 0) - lx * s + lz * c];
           const tilt = (NEZHA.spearTiltDeg * Math.PI) / 180;
           const above = NEZHA.spearLength - NEZHA.spearBelowGrip;

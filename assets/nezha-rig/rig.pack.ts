@@ -30,6 +30,8 @@ import {
   L3b,
   keyframes,
   LIGHT_KF,
+  LIGHT4_KF,
+  spinOf,
   P_CAST,
   P_DEAD,
   P_DRINK,
@@ -96,6 +98,9 @@ export const nezhaRig: Plugin = {
     if (!haloLoaded.ok) throw haloLoaded.error;
     const haloMesh = await assets.load(guidText(geometryGuid('wheel-halo')), 'mesh');
     if (!haloMesh.ok) throw haloMesh.error;
+    const trailLoaded = await assets.load(guidText(materialGuid('weapon-trail')), 'material');
+    if (!trailLoaded.ok) throw trailLoaded.error;
+    const rigRoot = resolveGameEntity(world, ctx.gameScene, 'player/rig');
     const spearEntity = resolveGameEntity(world, ctx.gameScene, 'player/spear');
     worldPoint = (entity, local) => {
       const m = readPresentationWorldMatrix(world, entity);
@@ -155,6 +160,43 @@ export const nezhaRig: Plugin = {
       });
       yield () => { for (const w of wheelFx) { world.despawn(w.light).unwrap(); world.despawn(w.halo).unwrap(); } };
       let flick = 1;
+      // --- Spear swing trail (v1.4.0 Trail: 16 samples of blade + shaft, 0.15 s life, additive). ---
+      const TN = 16, TLIFE = 0.15;
+      const trailMat = assets.copy(trailLoaded.value).unwrap();
+      yield () => { assets.release(trailMat).unwrap(); assets.release(trailLoaded.value).unwrap(); };
+      const trailPos = new Float32Array(TN * 2 * 3);
+      const trailUv = new Float32Array(TN * 2 * 2);
+      const trailNor = new Float32Array(TN * 2 * 3);
+      for (let v = 0; v < TN * 2; v += 1) trailNor[v * 3 + 1] = 1;
+      const trailIdx = stripIndices([TN]);
+      const trailBuilt = createMeshBuilder({
+        attributes: { position: trailPos, normal: trailNor, uv: trailUv },
+        indices: trailIdx,
+        submeshes: [{ indexOffset: 0, indexCount: trailIdx.length, vertexCount: TN * 2, topology: 'triangle-list', materialSlot: 0 }],
+        materialSlots: [{ slotName: 'trail' }],
+      }).build();
+      if (!trailBuilt.ok) throw trailBuilt.error;
+      const trailMesh = assets.create({ ...trailBuilt.value, aabb: new Float32Array([-80, -10, -80, 80, 30, 80]) }).unwrap();
+      yield () => assets.release(trailMesh).unwrap();
+      const trailEntity = world.spawn(
+        { component: Transform, data: { pos: [0, 0, 0] } },
+        { component: MeshFilter, data: { assetHandle: trailMesh } as never },
+        { component: MeshRenderer, data: { materials: [trailMat] } as never },
+      ).unwrap();
+      yield () => world.despawn(trailEntity).unwrap();
+      const samples: { a: RV3; b: RV3; age: number }[] = [];
+      let trailOn = false, trailWasLive = false, spinNow = 0;
+      /** When the blade leaves a trail (v1.4.0: from the swing start through the hit window). */
+      const trailActive = () => {
+        const c = combat.pose();
+        if (c.kind === 'light') {
+          const spec = DEFAULT_COMBAT.light[Math.max(0, Math.min(3, c.stage - 1))]!;
+          return c.stage === 4 ? c.frame >= 6 && c.frame <= 34 : c.frame >= 2 && c.frame <= spec.hit + 4;
+        }
+        if (c.kind === 'heavy') return c.frame <= 14;
+        if (c.kind === 'airatk') return c.frame >= 10;
+        return false;
+      };
       // --- Extra ribbons (v1.4.0): arm sash, waist sash, hair ribbons, spear tassel — one mesh, one draw.
       const S = RIG_SCALE;
       const ribbonDefs: { pin: () => RV3; spec: ReturnType<typeof ribbonSpec> }[] = [];
@@ -213,14 +255,15 @@ export const nezhaRig: Plugin = {
         }
         switch (c.kind) {
           case 'light': {
-            const stage = Math.max(1, Math.min(3, c.stage));
+            const stage = Math.max(1, Math.min(4, c.stage));
             const spec = DEFAULT_COMBAT.light[stage - 1]!;
-            return { pose: keyframes(P_IDLE, LIGHT_KF[stage - 1]!, Math.min(1, c.frame / (spec.hit + spec.recover))), rate: 22, hs: 'attack' };
+            // v1.4.0 rate 30: the swing snaps through instead of lagging behind the keyframes.
+            return { pose: keyframes(P_IDLE, stage === 4 ? LIGHT4_KF : LIGHT_KF[stage - 1]!, Math.min(1, c.frame / (spec.hit + spec.recover))), rate: 30, hs: 'attack' };
           }
           case 'charge':
             return { pose: { ...P_IDLE, ...HC, tX: (HC.tX ?? 0) + Math.sin(time * 40) * 0.01 * Math.min(1, c.charge / DEFAULT_COMBAT.chargeMax) * 3 }, rate: 16, hs: 'charge' };
           case 'heavy':
-            return { pose: keyframes(P_IDLE, HEAVY_KF, Math.min(1, c.frame / HEAVY_STEPS)), rate: 22, hs: 'heavy' };
+            return { pose: keyframes(P_IDLE, HEAVY_KF, Math.min(1, c.frame / HEAVY_STEPS)), rate: 30, hs: 'heavy' };
           case 'roll':
             return { pose: c.frame < DEFAULT_COMBAT.roll.steps - 6 ? ROLL_TUCK : P_IDLE, rate: 24, hs: 'roll' };
           case 'hurt':
@@ -279,6 +322,15 @@ export const nezhaRig: Plugin = {
             else if (name === 'lS' && combat.pose().kind === 'free') rot = [e[0] + h.arm * 0.5, e[1], e[2]];
             setRot(name, rot);
           }
+          // 回旋枪: the whole rig turns once (v1.4.0 extra.spin); the root yaw π faces −Z.
+          const cp = combat.pose();
+          if (cp.kind === 'light' && cp.stage === 4) {
+            const spec = DEFAULT_COMBAT.light[3]!;
+            spinNow = spinOf(Math.min(1, cp.frame / (spec.hit + spec.recover)));
+          } else spinNow = 0;
+          const yawR = Math.PI + spinNow;
+          world.set(rigRoot, Transform, { quat: [0, Math.sin(yawR / 2), 0, Math.cos(yawR / 2)] }).unwrap();
+          trailOn = trailActive();
           // Legs never step: tucked by state and swung by inertia (overrides the pose legs).
           const legs = hover.legs(time);
           setRot('lHip', legs.lHip);
@@ -328,6 +380,26 @@ export const nezhaRig: Plugin = {
             v = r.write(ribbonPos, v, ribbonTime);
           });
           assets.writeRange(ribbonMesh, { attribute: 'position', first: 0, values: ribbonPos }).unwrap();
+          // Swing trail: sample the blade and the shaft, age the samples, write the strip.
+          const realDt = Math.min(world.getResource(Time).delta, 0.05) * session.clock.nezhaScale();
+          for (const smp of samples) smp.age += realDt;
+          if (trailOn) samples.unshift({ a: worldPoint(joints.staffPivot, PINS.tip.pos), b: worldPoint(joints.staffPivot, [0, 0.35, 0]), age: 0 });
+          while (samples.length > TN || (samples.length && samples[samples.length - 1]!.age >= TLIFE)) samples.pop();
+          if (samples.length || trailWasLive) {
+            const n = samples.length;
+            for (let i = 0; i < TN; i += 1) {
+              const smp = samples[Math.min(i, Math.max(0, n - 1))];
+              const f = smp && i < n ? (1 - smp.age / TLIFE) * (1 - i / TN) : 0;
+              const a = smp ? smp.a : [0, -60, 0] as RV3, b = smp ? smp.b : [0, -60, 0] as RV3;
+              trailPos.set(a, i * 6); trailPos.set(b, i * 6 + 3);
+              trailUv[i * 4] = Math.max(0, f); trailUv[i * 4 + 2] = Math.max(0, f * 0.15);
+            }
+            assets.writeRange(trailMesh, { attribute: 'position', first: 0, values: trailPos }).unwrap();
+            assets.writeRange(trailMesh, { attribute: 'uv', first: 0, values: trailUv }).unwrap();
+            const heavy = combat.pose().kind === 'heavy' || combat.pose().kind === 'airatk';
+            assets.update(trailMat, { values: { intensity: heavy ? 3.4 : 2.2 } } as never).unwrap();
+          }
+          trailWasLive = samples.length > 0;
           loop.update(dt, ribbonTime, worldPoint(joints[PINS.backL.joint], PINS.backL.pos), wind, back, FLOOR_Y, worldPoint(joints[PINS.backR.joint], PINS.backR.pos));
           loop.write(loopPos, 0, ribbonTime);
           assets.writeRange(loopMesh, { attribute: 'position', first: 0, values: loopPos }).unwrap();

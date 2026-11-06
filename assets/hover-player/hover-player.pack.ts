@@ -87,6 +87,9 @@ export interface PlayerService {
   /** Jump height above the hover line (visual; the judgement root stays on the floor). */
   readonly setAirLift: (y: number) => void;
   readonly airLift: () => number;
+  /** Mid-air combat: target height of the hover above its low base (smoothed here); 0 = low hover. */
+  readonly setAltitude: (target: number) => void;
+  readonly altitude: () => number;
   readonly setLock: (frame: LockFrame | undefined) => void;
   /** Take (and clear) the combat edges collected since the last call. */
   readonly takeEdges: () => CombatEdges;
@@ -188,6 +191,7 @@ export const hoverPlayer: Plugin = {
       let taps = 0;
       let edges: { light: boolean; roll: boolean; lotus: boolean; sash: boolean; jump: boolean } = { ...NO_EDGES };
       let airLift = 0;
+      let altitude = 0, altitudeTarget = 0;
       let control: MoveControl | undefined;
       let actionPose: ActionPose | undefined;
       let floatGate = 1;
@@ -321,7 +325,7 @@ export const hoverPlayer: Plugin = {
             t: r3(now),
             speed: r3(speed),
             yaw: r3(facing),
-            modelY: r3(move.hoverHeight + floatY),
+            modelY: r3(move.hoverHeight + floatY + altitude),
             capsuleY: Math.round((after[1] ?? 0) * 1e5) / 1e5,
             x: r3(after[0] ?? 0),
             z: r3(after[2] ?? 0),
@@ -341,12 +345,13 @@ export const hoverPlayer: Plugin = {
           leanGate += ((actionPose?.suppressLean ? 0 : 1) - leanGate) * (1 - Math.exp(-Math.min(world.getResource(Time).delta, 0.1) * 25));
           const leanRad = (-lean * leanGate * Math.PI) / 180;
           quat.fromEuler(rotation, leanRad + floatPitch, 0, floatRoll, 'YXZ');
-          const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY + airLift, 0];
+          altitude += (altitudeTarget - altitude) * (1 - Math.exp(-Math.min(world.getResource(Time).delta, 0.1) * 1.6));
+          const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY + airLift + altitude, 0];
           let pos = base;
           if (actionPose) {
             const r = actionPose.rotation;
             tmpQ[0] = r[0]; tmpQ[1] = r[1]; tmpQ[2] = r[2]; tmpQ[3] = r[3];
-            const pivot: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + actionPose.pivotY, 0];
+            const pivot: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + altitude + actionPose.pivotY, 0];
             const rel = [base[0] + actionPose.offset[0] - pivot[0], base[1] + actionPose.offset[1] - pivot[1], base[2] + actionPose.offset[2] - pivot[2]];
             const v = rotateByQuat(r, rel);
             pos = [pivot[0] + v[0], pivot[1] + v[1], pivot[2] + v[2]];
@@ -377,6 +382,7 @@ export const hoverPlayer: Plugin = {
           root: root.map(r3),
           capsule: [r3(capsule[0] ?? 0), Math.round((capsule[1] ?? 0) * 1e5) / 1e5, r3(capsule[2] ?? 0)],
           modelOffsetY: modelMatrix ? r3((modelMatrix[13] ?? 0) - FLOOR_Y) : null,
+          altitude: r3(altitude),
           facingYaw: r3(facing),
           speed: r3(speed),
           mode,
@@ -412,6 +418,8 @@ export const hoverPlayer: Plugin = {
         mode: () => mode,
         facing: () => facing,
         airLift: () => airLift,
+        setAltitude: (t) => { altitudeTarget = t; },
+        altitude: () => altitude,
         setAirLift: (y) => {
           airLift = y;
         },

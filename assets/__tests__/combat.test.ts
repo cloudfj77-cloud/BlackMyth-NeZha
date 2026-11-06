@@ -149,8 +149,8 @@ describe('roll and perfect dodge', () => {
     expect(z).toBeCloseTo(3, 6); // facing 0 looks toward -Z, so backwards is +Z
     expect(x).toBeCloseTo(0, 6);
   });
-  it('counts 0..12 steps before the hit as perfect (inclusive), 13 as a plain dodge, 19 as hurt', () => {
-    for (const [before, expected] of [[0, 'perfect'], [12, 'perfect'], [13, 'dodged'], [17, 'dodged'], [18, 'hurt']] as const) {
+  it('counts 0..14 steps before the hit as perfect (v1.4.0 0.25 s), 15 as a plain dodge, 18 as hurt', () => {
+    for (const [before, expected] of [[0, 'perfect'], [14, 'perfect'], [15, 'dodged'], [17, 'dodged'], [18, 'hurt']] as const) {
       const c = createCombat();
       run(c, [press({ roll: true }), ...idle(before)]);
       expect(c.incoming(10).type).toBe(expected);
@@ -406,6 +406,18 @@ describe('jump, plunge and 灵息 (v1.4.0 port)', () => {
     run(c, idle(20));
     expect(c.incoming(10).type).toBe('dodged');
     run(c, idle(20));
+    expect(c.incoming(10).type).toBe('hurt');
+  });
+  it('v1.4.0 perfect dodge: no perfect when mashing (re-roll < 0.2 s), 0.45 s untouchable after, sash −2 s', () => {
+    const mash = createCombat();
+    run(mash, [press({ roll: true }), ...idle(5), press({ roll: true }), NONE]);
+    expect(mash.incoming(10).type).toBe('dodged');
+    const c = createCombat();
+    run(c, [press({ roll: true }), NONE]);
+    expect(c.incoming(10).type).toBe('perfect');
+    run(c, idle(26));
+    expect(c.incoming(10).type).toBe('dodged');
+    run(c, idle(3));
     expect(c.incoming(10).type).toBe('hurt');
   });
 });

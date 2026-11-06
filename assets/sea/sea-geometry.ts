@@ -197,8 +197,10 @@ export const ARENA_PILLAR_HEIGHTS = [...new Set(ARENA_PILLARS.map((p) => p.heigh
 /** ④ 镇海台: reef drum under the stage, the slab floor (top at y = 0), stone balustrade open to the boardwalk. */
 export function seaArena(): MeshAsset {
   const kit = new MeshKit();
-  cyl(kit, 0, R + 2.8, R + 4.2, 4, 0, -2.05, 0, 72);
-  cyl(kit, 1, R + 2.8, R + 2.8, 0.1, 0, -0.05, 0, 72);
+  // Open drum and a stone ring round the whirlpool (boss 11-06 20:57: the sea turns under the fight).
+  kit.add(createCylinderGeometry((R + 2.8) * S, (R + 4.2) * S, 4 * S, 72, 1, true), { t: s3(0, -2.05, 0) }, 0);
+  kit.addRaw(...annulus(WHIRL.radius, (R + 2.8) * S, -0.02, 96), 1);
+  kit.add(createCylinderGeometry(WHIRL.radius, WHIRL.radius, 0.4, 96, 1, true), { t: [0, -0.2, 0] }, 1);
   for (let i = 0; i < 64; i += 1) {
     const a = (i / 64) * Math.PI * 2;
     if (Math.cos(a) > 0.93) continue;
@@ -207,6 +209,49 @@ export function seaArena(): MeshAsset {
     if (i % 2 === 0) kit.add(createBoxGeometry(0.12 * S, 0.12 * S, 2.4 * S), { t: s3(x, 0.9, z), r: yawQ(a + Math.PI / 2) }, 1);
   }
   return kit.build([slot('Reef', 'sea-rock'), slot('Slab', 'sea-stone')]);
+}
+
+/** The whirlpool in the stage (one Nezha deep, radius inside the stone ring). */
+export const WHIRL = Object.freeze({ radius: 16, depth: 1.7 });
+
+/** Flat ring (y up) between radii a and b: positions, normals, uvs, indices. */
+function annulus(a: number, b: number, y: number, n: number): [number[], number[], number[], number[]] {
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+  for (let i = 0; i <= n; i += 1) {
+    const t = (i / n) * Math.PI * 2;
+    for (const r of [a, b]) { pos.push(Math.sin(t) * r, y, Math.cos(t) * r); nor.push(0, 1, 0); uv.push(Math.sin(t) * r * 0.25, Math.cos(t) * r * 0.25); }
+  }
+  // Counter-clockwise seen from above (normals up).
+  for (let i = 0; i < n; i += 1) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  return [pos, nor, uv, idx];
+}
+
+/** 海漩涡: a funnel dipping one Nezha deep at the centre; the spiral turns in its shader. */
+export function seaWhirlpool(): MeshAsset {
+  const kit = new MeshKit();
+  const rings = 28, sectors = 128;
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+  const yOf = (r: number) => -WHIRL.depth * Math.pow(1 - r / WHIRL.radius, 1.7) - 0.05;
+  for (let j = 0; j <= rings; j += 1) {
+    const r = WHIRL.radius * Math.pow(j / rings, 1.15) + (j === 0 ? 0.25 : 0);
+    const dr = 0.05, slope = (yOf(Math.min(WHIRL.radius, r + dr)) - yOf(Math.max(0, r - dr))) / (2 * dr);
+    for (let i = 0; i <= sectors; i += 1) {
+      const a = (i / sectors) * Math.PI * 2;
+      pos.push(Math.sin(a) * r, yOf(r), Math.cos(a) * r);
+      const nx = -slope * Math.sin(a), nz = -slope * Math.cos(a), l = Math.hypot(nx, 1, nz);
+      nor.push(nx / l, 1 / l, nz / l);
+      uv.push(i / sectors, r / WHIRL.radius);
+    }
+  }
+  for (let j = 0; j < rings; j += 1) {
+    for (let i = 0; i < sectors; i += 1) {
+      const a = j * (sectors + 1) + i, b = a + sectors + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  // The eye: a small dark disc at the bottom.
+  kit.addRaw(pos, nor, uv, idx, 0);
+  return kit.build([slot('Whirl', 'sea-whirlpool')]);
 }
 
 /** Taiji runes on the stage: three rings and eight spokes (glow), plus the dark half disc in the centre. */
@@ -222,21 +267,8 @@ export function seaRunes(): MeshAsset {
     for (let i = 0; i < n; i += 1) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
     kit.addRaw(pos, nor, uv, idx, 0);
   };
-  ring(7.0, 7.25); ring(14.8, 15.0); ring(R - 0.3, R);
-  for (let i = 0; i < 8; i += 1) {
-    const a = (i / 8) * Math.PI * 2;
-    kit.add(createPlaneGeometry(0.14 * S, 7.6 * S), { t: s3(Math.sin(a) * 11, 0.031, Math.cos(a) * 11), r: mulQ(yawQ(a), axisAngle([1, 0, 0], -Math.PI / 2)) }, 0);
-  }
-  // Taiji: half disc of radius 3.2 (dark, translucent).
-  const pos: number[] = [0, 0.025 * S, 0], nor: number[] = [0, 1, 0], uv: number[] = [0.5, 0.5], idx: number[] = [];
-  const n = 48;
-  for (let i = 0; i <= n; i += 1) {
-    const t = Math.PI / 2 + (i / n) * Math.PI;
-    pos.push(Math.cos(t) * 3.2 * S, 0.025 * S, Math.sin(t) * 3.2 * S); nor.push(0, 1, 0); uv.push(0, 0);
-    if (i > 0) idx.push(0, i + 1, i);
-  }
-  kit.addRaw(pos, nor, uv, idx, 1);
-  return kit.build([slot('Runes', 'sea-rune'), slot('Taiji', 'sea-taiji')]);
+  ring(R - 0.3, R); ring(WHIRL.radius / S + 0.05, WHIRL.radius / S + 0.3);
+  return kit.build([slot('Runes', 'sea-rune')]);
 }
 
 /** ② 太乙莲台 pond: stone rim, water disc, lily pads (the lotus itself spins: separate mesh). */

@@ -59,6 +59,8 @@ export const RIG_MATERIALS = {
   mark: { color: 0xff2a10, rough: 0.5, emissive: 0xff2a10, emissiveIntensity: 1.5 },
   lip: { color: 0xd88a7a, rough: 0.7 },
   gourd: { color: 0xb08a3e, rough: 0.55, metal: 0.1 },
+  /** Spear blade (boss 11-06 20:57): the cutting edge glows orange. */
+  blade: { color: 0xffd0a0, rough: 0.2, metal: 0.6, emissive: 0xff6a10, emissiveIntensity: 3.2 },
 } as const;
 export type RigMaterial = keyof typeof RIG_MATERIALS | 'fire';
 
@@ -193,7 +195,7 @@ export function spearParts(): Part[] {
   const { length: SL, grip } = SPEAR;
   return [
     { prim: cyl(0.024, 0.026, SL, 10), mat: 'shaft', p: [0, SL / 2 - grip, 0] },
-    { prim: { kind: 'cone', r: 0.06, h: 0.34, seg: 4 }, mat: 'steel', p: [0, SL - grip + 0.17, 0], s: [1, 1, 0.3] },
+    { prim: { kind: 'cone', r: 0.06, h: 0.34, seg: 4 }, mat: 'blade', p: [0, SL - grip + 0.17, 0], s: [1, 1, 0.3] },
     { prim: cyl(0.035, 0.028, 0.08, 10), mat: 'gold', p: [0, SL - grip - 0.02, 0] },
     { prim: cyl(0.03, 0.03, 0.12, 10), mat: 'gold', p: [0, -grip + 0.06, 0] },
   ];
@@ -336,6 +338,15 @@ export const LIGHT_KF: readonly Frames[] = [
   [[0, L2a], [0.28, { ...L2a, tY: 1.15 }], [0.56, L2b], [1, relax({ tY: -0.3 })]],
   [[0, L3a], [0.3, { ...L3a, rsX: -3.05, tX: -0.3 }], [0.5, L3b], [0.75, L3b], [1, relax({ tX: 0.3 })]],
 ];
+const L4a: PosePatch = { tY: -0.4, tX: 0.2, rsX: -0.1, rsZ: -1.45, reX: 0, wX: Math.PI, wZ: 0, lsX: -0.2, lsZ: 1.2, leX: -0.2, hipY: -0.16, lhX: -0.4, lkX: 0.5, rhX: 0.3, rkX: 0.4 };
+/** v1.4.0 LIGHT[3] 回旋枪: arms out, spear level, the whole body spins once (see `spinOf`). */
+export const LIGHT4_KF: Frames = [[0, L4a], [0.22, { ...L4a, tY: -0.6 }], [0.65, { ...L4a, tY: 0.2 }], [1, relax({})]];
+/** v1.4.0 `extra.spin` for the 4th hit: one full turn over 22 %–65 % of the move, eased. */
+export function spinOf(u: number): number {
+  const k = Math.min(1, Math.max(0, (u - 0.22) / 0.43));
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  return Math.PI * 2 * e;
+}
 export const HEAVY_KF: Frames = [[0, HC], [0.18, { ...HC, rsX: -3.15, tX: -0.35 }], [0.36, HR], [0.7, HR], [1, relax({ tX: 0.3 })]];
 /** Nezha gliding on her wheels (v1.4.0 `CH.glide`): upright torso, spear trailing. */
 export function glidePose(speed: number): Pose {

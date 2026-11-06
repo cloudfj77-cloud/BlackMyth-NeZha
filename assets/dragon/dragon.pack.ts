@@ -18,8 +18,6 @@ import { resolveGameEntity } from '../shared/scene-refs.ts';
 import {
   closestOnSegment,
   frontNearest,
-  HITTABLE_UNDERSIDE,
-  HURT_TOP,
   hurtCapsules,
   POINTS,
   radius,
@@ -33,6 +31,10 @@ import {
 import { INTRO } from './brain.ts';
 import { AOBING, createAobing, ICE_RING, SPIKE, type AobingEvent, type AobingKind } from './aobing.ts';
 import { LEVEL_SCALE } from '../shared/sea-layout.ts';
+import { FLIGHT, NEZHA_HEIGHT } from '../shared/flight.ts';
+/** Mid-air: spikes shoot up from the whirlpool to past Nezha's chest; the ice ring wall is as tall. */
+const SPIKE_REACH = (FLIGHT.height + NEZHA_HEIGHT * 0.7) / (1.6 * 0.86);
+const RING_WALL = FLIGHT.height + NEZHA_HEIGHT;
 
 export type DragonEvent = AobingEvent;
 type AttackKind = AobingKind;
@@ -505,6 +507,16 @@ export const dragon: Plugin = {
       let breaksSeen = 0;
 
       const capsules = () => hurtCapsules(cur);
+      /** Nezha's body band now (wheels → bun tops), with her flight height and jump. */
+      const nezhaBand = (): [number, number] => {
+        const y = FLOOR_Y + tuning.current.move.hoverHeight + player.altitude() + player.airLift();
+        return [y, y + NEZHA_HEIGHT];
+      };
+      /** A dragon span [lo, hi] is within her reach (spear above her head, wheels below). */
+      const inReach = (lo: number, hi: number) => {
+        const [a, b] = nezhaBand();
+        return lo <= b + 1.0 && hi >= a - 1.0;
+      };
       const nezhaXZ = (): V2 => {
         const r = player.root();
         return { x: r[0], z: r[2] };
@@ -708,7 +720,7 @@ export const dragon: Plugin = {
             else {
               const h = Math.min(1, u / 5) * (u > SPIKE.stand ? Math.max(0.001, 1 - (u - SPIKE.stand) / SPIKE.fade) : 1);
               const yaw = (k * 2.399) % (Math.PI * 2);
-              world.set(spikeEntities[k]!, Transform, { pos: [sp.x, FLOOR_Y, sp.z], quat: [0.1 * Math.sin(k), Math.sin(yaw / 2), 0.08 * Math.cos(k), Math.cos(yaw / 2)], scale: [1, Math.max(0.001, h), 1] }).unwrap();
+              world.set(spikeEntities[k]!, Transform, { pos: [sp.x, FLOOR_Y - 0.3, sp.z], quat: [0.06 * Math.sin(k), Math.sin(yaw / 2), 0.05 * Math.cos(k), Math.cos(yaw / 2)], scale: [1.7, Math.max(0.001, h) * SPIKE_REACH, 1.7] }).unwrap();
             }
           }
           assets.writeRange(spikeWarn.handle as never, { attribute: 'position', first: 0, values: spikeWarn.position }).unwrap();
@@ -716,7 +728,7 @@ export const dragon: Plugin = {
           const ring0 = hz.rings[0];
           if (ring0) {
             const fade = ring0.r / ICE_RING.maxR < 0.8 ? 1 : 1 - (ring0.r / ICE_RING.maxR - 0.8) / 0.2;
-            world.set(iceRing, Transform, { pos: [ring0.c.x, FLOOR_Y, ring0.c.z], scale: [ring0.r, 1.6 * LEVEL_SCALE, ring0.r] }).unwrap();
+            world.set(iceRing, Transform, { pos: [ring0.c.x, FLOOR_Y - 0.3, ring0.c.z], scale: [ring0.r, RING_WALL, ring0.r] }).unwrap();
             assets.update(iceRingMat, { values: { intensity: 1.1 * Math.max(0, fade) } } as never).unwrap();
           } else world.set(iceRing, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
           shocks.forEach((sh, k) => {
@@ -726,7 +738,7 @@ export const dragon: Plugin = {
             const t = Math.min(1, sh.age / life);
             if (t >= 1) { sh.age = -1; world.set(sh.e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap(); return; }
             const rr = Math.max(0.2, sh.r * (0.25 + 0.75 * (1 - (1 - t) ** 3)));
-            world.set(sh.e, Transform, { pos: [sh.at.x, FLOOR_Y + 0.12, sh.at.z], scale: [rr, 1 + 2 * (1 - t), rr] }).unwrap();
+            world.set(sh.e, Transform, { pos: [sh.at.x, FLOOR_Y + FLIGHT.height + 0.4, sh.at.z], scale: [rr, 1 + 2 * (1 - t), rr] }).unwrap();
             assets.update(shockMats[k]!, { values: { intensity: (sh.ice ? 1.4 : 0.9) * (1 - t) } } as never).unwrap();
           });
           // 龙化 · 万龙甲: the scales glow ice-blue in phase 2 (rising through the roar), pulsing gently.
@@ -766,7 +778,8 @@ export const dragon: Plugin = {
             const len = Math.hypot(p.x - x, p.z - z);
             const ang = len < 1e-6 ? 0 : (Math.acos(Math.max(-1, Math.min(1, ((p.x - x) * fx + (p.z - z) * fz) / len))) * 180) / Math.PI;
             if (d < nearest.distance) nearest = { distance: d, angleDeg: ang, point: p, segment: c.index, tail: c.tail };
-            if (!canHit || c.bottom > HITTABLE_UNDERSIDE + 1e-9 || d > range + 1e-9 || ang > arcDeg + 1e-9) continue;
+            const top = Math.max(c.a[1], c.b[1]) + c.r;
+            if (!canHit || !inReach(c.bottom, top) || d > range + 1e-9 || ang > arcDeg + 1e-9) continue;
             if (!best || d < best.distance) best = { hit: true, distance: d, angleDeg: ang, point: p, segment: c.index, tail: c.tail };
           }
           return best ?? { hit: false, ...nearest };
@@ -783,7 +796,7 @@ export const dragon: Plugin = {
           let d = Infinity;
           for (let i = 0; i < POINTS; i += 1) {
             const p = cur[i]!;
-            if (p[1] - radius(i) > HURT_TOP) continue;
+            if (!inReach(p[1] - radius(i), p[1] + radius(i))) continue;
             d = Math.min(d, Math.max(0, Math.hypot(p[0] - x, p[2] - z) - radius(i)));
           }
           return d;
@@ -797,7 +810,8 @@ export const dragon: Plugin = {
           let px = x, pz = z;
           for (let i = 0; i < AOBING.blockPoints; i += 1) {
             const p = cur[i]!;
-            if (p[1] - radius(i) >= 1.5) continue;
+            const [na, nb] = nezhaBand();
+            if (p[1] - radius(i) > nb || p[1] + radius(i) < na) continue;
             const dx = px - p[0], dz = pz - p[2];
             const d = Math.hypot(dx, dz);
             const want = radius(i) + margin;

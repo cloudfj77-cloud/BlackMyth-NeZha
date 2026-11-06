@@ -277,6 +277,18 @@ export default definePack({
       'material/yaksha-warn': glow(linearRgb(0xff3010), 0.6),
       // 敖丙 ice (v1.4.0 spikeMat 0xc8f6ff / emissive 0x2a9aff; p2Color 0x6ae8ff for rings and shock waves).
       'material/wheel-halo': glow(linearRgb(0xff4a0a), 0.5),
+      // Spear swing trail (v1.4.0 CH.trail 0xff5a20, hot core toward the blade).
+      'material/weapon-trail': Materials.standard({
+        surfaceModule: 'nezha::weapon_trail_surface',
+        parameters: [
+          { name: 'trailColor', type: 'color' },
+          { name: 'hotColor', type: 'color' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { trailColor: [...linearRgb(0xff5a20), 1], hotColor: [...linearRgb(0xffcf7a), 1], intensity: 2.2 },
+        renderState: GLOW,
+        queue: RenderQueue.Transparent + 2,
+      }),
       'material/ice-spike': std(linearRgb(0xc8f6ff), { roughness: 0.1, emissive: linearRgb(0x2a9aff), emissiveIntensity: 0.8 }),
       'material/ice-glow': glow(linearRgb(0x6af0ff), 0.9),
       'material/ice-shock': glow(linearRgb(0x6ae8ff), 1.2),
@@ -295,6 +307,18 @@ export default definePack({
           { name: 'glow', type: 'f32' },
         ],
         values: { deepColor: [...lin3(0.02, 0.09, 0.12), 1], shallowColor: [...lin3(0.07, 0.3, 0.33), 1], foamColor: [...lin3(0.88, 0.94, 0.95), 1], seaY: SEA.seaY, swell: 1.0 * LEVEL_SCALE, glow: 0.35 },
+      }),
+      'material/sea-whirlpool': Materials.standard({
+        surfaceModule: 'nezha::whirlpool_surface',
+        parameters: [
+          { name: 'deepColor', type: 'color' },
+          { name: 'waterColor', type: 'color' },
+          { name: 'foamColor', type: 'color' },
+          { name: 'radius', type: 'f32' },
+          { name: 'speed', type: 'f32' },
+          { name: 'glow', type: 'f32' },
+        ],
+        values: { deepColor: [...lin3(0.02, 0.1, 0.14), 1], waterColor: [...lin3(0.16, 0.46, 0.5), 1], foamColor: [...lin3(0.92, 0.97, 0.98), 1], radius: 16, speed: 1, glow: 0.3 },
       }),
       'material/sea-veil': Materials.standard({
         surfaceModule: 'nezha::sea_veil_surface',

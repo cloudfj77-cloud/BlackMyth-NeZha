@@ -103,6 +103,7 @@ function dragonPalace(): SceneAsset {
   level('rocks', 'Shore Reefs');
   level('gate', 'Sea-Calming Water Gate');
   level('arena', 'Sea-Calming Terrace');
+  level('whirlpool', 'Sea Whirlpool');
   level('runes', 'Taiji Runes');
   level('lotus-pond', 'Taiyi Lotus Pond');
   level('coral', 'Coral');

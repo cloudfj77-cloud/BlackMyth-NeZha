@@ -18,6 +18,7 @@
  * Jump checks use its heights unscaled (our jump is its jump: 9.8 m/s, g 24).
  */
 import { ARENA } from '../shared/layout.ts';
+import { dragonFlight } from '../shared/flight.ts';
 import { LEVEL_SCALE as S } from '../shared/sea-layout.ts';
 import {
   angleOf,
@@ -269,7 +270,8 @@ export function createAobing(options: AobingOptions = {}) {
   let zoneSerial = 0;
   const log: { step: number; move: MoveName; kind: AobingKind; i: number; distance: number; phase: 1 | 2 }[] = [];
 
-  const base = (i: number, t: number) => AOBING.hover + radius(i) + AOBING.bobAmp * Math.sin(2 * Math.PI * AOBING.bobHz * t - i * 0.35);
+  // Mid-air (boss 11-06 20:57): the underside rides the flight band, a slow swell travelling down the body.
+  const base = (i: number, t: number) => dragonFlight(i, t) + radius(i);
   const straight = (head: V2, dir: V2): P3[] => Array.from({ length: POINTS }, (_, i): P3 => [head.x - dir.x * 0.45 * i, base(i, 0), head.z - dir.z * 0.45 * i]);
   let chain: P3[] = straight(pos, dirOf(facing));
   /** Lurk / intro body: trailing the scripted head path (the M4 intro, now in the sky round the stage). */

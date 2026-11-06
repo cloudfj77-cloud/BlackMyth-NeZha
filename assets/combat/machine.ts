@@ -17,7 +17,7 @@ export const STEP = 1 / 60;
 export interface CombatConfig {
   readonly hpMax: number;
   readonly staminaMax: number;
-  readonly light: readonly { readonly hit: number; readonly recover: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly lunge: number }[];
+  readonly light: readonly { readonly hit: number; readonly recover: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly lunge: number; readonly range?: number; readonly arc?: number }[];
   /** Frames after a light hit frame from which the next light press chains straight in. */
   readonly chainFrom: number;
   /** Hurt frames before a roll can cancel the stun (0 = immediately, boss 21:55). */
@@ -41,6 +41,10 @@ export interface CombatConfig {
   readonly perfectRefund: number;
   /** v1.4.0 P.invuln 0.6 s after being hurt: a second hit inside it does nothing. */
   readonly hurtInvuln: number;
+  /** v1.4.0 perfectDodge: 0.45 s untouchable after it, 混天绫 cooldown −2 s; a roll within 0.2 s of the last one is never perfect. */
+  readonly perfectInvuln: number;
+  readonly perfectSashRefund: number;
+  readonly spamGuard: number;
   readonly hurtSteps: number;
   readonly cost: { readonly light: number; readonly heavy: number; readonly roll: number; readonly sprintPerSecond: number };
   readonly regenDelay: number;
@@ -65,6 +69,8 @@ export const DEFAULT_COMBAT: CombatConfig = {
     { hit: 7, recover: 14, damage: 8, hitstop: 3, shake: 0, lunge: 0.45 },
     { hit: 7, recover: 16, damage: 9, hitstop: 3, shake: 0, lunge: 0.45 },
     { hit: 11, recover: 22, damage: 14, hitstop: 5, shake: 0.02, lunge: 0.9 },
+    /** v1.4.0 LIGHT[3] 回旋枪 (boss 11-06 20:57): a full spin, 360°, 3 m; 0.8 s (hit at 0.2 s… swept to 0.5 s). */
+    { hit: 18, recover: 30, damage: 14, hitstop: 6, shake: 0.04, lunge: 0.2, range: 3.0, arc: 360 },
   ],
   chainFrom: 4,
   hurtRollFrom: 0,
@@ -82,10 +88,14 @@ export const DEFAULT_COMBAT: CombatConfig = {
   comboWindow: 36,
   buffer: 9,
   breakHold: 9,
-  roll: { steps: 27, invuln: 18, moveSteps: 12, distance: 3, perfect: 12 },
+  // v1.4.0 PERFECT_WIN 0.25 s: a roll started 0..14 steps before the hit is perfect.
+  roll: { steps: 27, invuln: 18, moveSteps: 12, distance: 3, perfect: 14 },
   slowmoSteps: 18,
   perfectRefund: 30,
   hurtInvuln: 36,
+  perfectInvuln: 27,
+  perfectSashRefund: 120,
+  spamGuard: 12,
   hurtSteps: 24,
   // Boss 22:12: attacks cost no stamina (17:46 had halved them; design 4.2 had light 12 / heavy 30).
   cost: { light: 0, heavy: 0, roll: 20, sprintPerSecond: 15 },
@@ -125,7 +135,7 @@ export interface StrikeResult {
 }
 
 /** Tail hits (boss 17:48, 1B): damage ×0.3 (rounded, at least 1), hitstop light 1/1/2, heavy 2, no shake. */
-export const TAIL = Object.freeze({ damageMultiplier: 0.3, lightHitstop: [1, 1, 2] as const, heavyHitstop: 2 });
+export const TAIL = Object.freeze({ damageMultiplier: 0.3, lightHitstop: [1, 1, 2, 2] as const, heavyHitstop: 2 });
 
 /** What the machine needs to know about the world this step. */
 export interface CombatEnv {
@@ -212,6 +222,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   /** Airborne height above the hover line (m) and vertical speed; 灵息 steps left. */
   let airY = 0, airVy = 0, boost = 0;
   let lastHurt = -1000;
+  let immuneUntil = -1;
+  let noPerfect = false;
 
   const enter = (kind: ActionKind, extra: Partial<typeof state> = {}) => {
     state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, landed: -1, ...extra };
@@ -226,6 +238,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     idle = 0;
     return true;
   };
+  /** Last combo stage (4: the v1.4.0 spin). */
+  const LAST = config.light.length;
   const faceForStage = (input: StepInput, env: CombatEnv): number | undefined => {
     if (Math.hypot(input.move.x, input.move.z) > 0.1) return yawOf(input.move);
     return env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
@@ -233,7 +247,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let facingOverride: number | undefined;
 
   const startLight = (input: StepInput, env: CombatEnv): boolean => {
-    const stage = comboWindow > 0 && comboStage < 3 ? comboStage + 1 : 1;
+    const stage = comboWindow > 0 && comboStage < LAST ? comboStage + 1 : 1;
     if (!spend(config.cost.light)) {
       comboStage = 0;
       comboWindow = 0;
@@ -251,6 +265,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     const moving = Math.hypot(input.move.x, input.move.z) > 0.1;
     const f = forward(env.facing);
     const dir = moving ? input.move : { x: -f.x, z: -f.z };
+    // v1.4.0 anti-mash: rolling again within 0.2 s of the last roll's start never counts as perfect.
+    noPerfect = state.kind === 'roll' && step - state.rollStart < config.spamGuard;
     // The press step is roll frame 1 (displacement and invulnerability start immediately).
     enter('roll', { rollDir: dir, rollStart: step, frame: 1 });
     comboStage = 0;
@@ -261,8 +277,9 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
 
   const resolveStrike = (kind: 'light' | 'heavy', env: CombatEnv, root: V2, facing: number, slam = false) => {
     const J = config.jump;
-    const range = slam ? J.slamRange : kind === 'light' ? config.lightRange : config.heavyRange;
-    const strike = env.strike(root, facing, range, slam ? J.slamArc : config.arcDeg);
+    const ls = kind === 'light' ? config.light[state.stage - 1] : undefined;
+    const range = slam ? J.slamRange : kind === 'light' ? (ls?.range ?? config.lightRange) : config.heavyRange;
+    const strike = env.strike(root, facing, range, slam ? J.slamArc : (ls?.arc ?? config.arcDeg));
     const f = forward(facing);
     const judgeLine = { x: root.x + f.x * range, z: root.z + f.z * range };
     lastJudge = judgeLine;
@@ -455,16 +472,16 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           if (s.frame === spec.hit) resolveStrike('light', env, env.root, env.facing);
           // Chain: shortly after the hit, the next press goes straight into the next stage.
           if (s.frame >= spec.hit + config.chainFrom && buffered?.kind === 'light') {
-            comboStage = s.stage < 3 ? s.stage : 0;
-            comboWindow = s.stage < 3 ? 1 : 0;
+            comboStage = s.stage < LAST ? s.stage : 0;
+            comboWindow = s.stage < LAST ? 1 : 0;
             buffered = undefined;
             if (startLight(input, env)) break;
           }
           if (s.frame >= spec.hit + spec.recover) {
             const stage = s.stage;
             enter('free');
-            comboStage = stage < 3 ? stage : 0;
-            comboWindow = stage < 3 ? config.comboWindow : 0;
+            comboStage = stage < LAST ? stage : 0;
+            comboWindow = stage < LAST ? config.comboWindow : 0;
             moveHeld = 0;
           }
           break;
@@ -608,12 +625,15 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
      */
     incoming(damage: number, knockback?: { readonly dir: V2; readonly distance: number }): CombatEvent {
       if (state.kind === 'dead') return { type: 'dodged', frame: 0 };
+      if (step < immuneUntil) return { type: 'dodged', frame: 0 };
       if (state.kind === 'roll') {
         const frame = step - state.rollStart + 1;
         if (frame >= 1 && frame <= config.roll.invuln) {
-          if (frame - 1 <= config.roll.perfect) {
+          if (frame - 1 <= config.roll.perfect && !noPerfect) {
             stamina = Math.min(config.staminaMax, stamina + config.perfectRefund);
             boost = config.boostSteps;
+            immuneUntil = step + config.perfectInvuln;
+            sashCd = Math.max(0, sashCd - config.perfectSashRefund);
             return { type: 'perfect', frame };
           }
           return { type: 'dodged', frame };
@@ -639,6 +659,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     reset() {
       hp = config.hpMax;
       lastHurt = -1000;
+      immuneUntil = -1;
+      noPerfect = false;
       stamina = config.staminaMax;
       lotus = config.lotus.count;
       sashCd = 0;
@@ -686,6 +708,7 @@ export function configFromTuning(t: {
       { ...d.light[0]!, hitstop: t.hitstopLight1 },
       { ...d.light[1]!, hitstop: t.hitstopLight2 },
       { ...d.light[2]!, hitstop: t.hitstopLight3, shake: t.shakeLight3 },
+      d.light[3]!,
     ],
     heavyHitstop: [t.hitstopHeavyMin, t.hitstopHeavyMax],
     heavyShake: [t.shakeHeavyMin, t.shakeHeavyMax],

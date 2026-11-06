@@ -55,6 +55,8 @@
   "ui:menu.icons.controls": "Label under the top-right icon button that shows the controls list. ≤ 10 chars.",
   "ui:menu.icons.sound": "Label under the top-right icon button that mutes / unmutes all sound. ≤ 10 chars.",
   "ui:menu.icons.language": "Label under the top-right language switch (中 / EN). ≤ 10 chars.",
+  "ui:hud.banner.perfect": "Big centred banner for ~1 s on a perfect dodge (rolling through an attack at the last moment). Short.",
+  "ui:hud.banner.break": "Big centred banner when the boss's poise breaks and he staggers. Short.",
   "ui:hud.hint.checkpoint": "Toast when Nezha passes the Taiyi Lotus shrine (respawn point on the boardwalk). Budget 28 chars.",
   "ui:hud.bar.hp": "Label of the player health bar. HUD budget 22 chars.",
   "ui:hud.bar.stamina": "Label of the player stamina bar. HUD budget 22 chars.",

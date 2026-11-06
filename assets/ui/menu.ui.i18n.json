@@ -109,7 +109,9 @@
           },
           "banner": {
             "defeat": "败",
-            "retry": "再战"
+            "retry": "再战",
+            "perfect": "完美闪避",
+            "break": "破 势"
           },
           "float": {
             "stamina": "+{n} 气力",
@@ -258,7 +260,9 @@
           },
           "banner": {
             "defeat": "Defeated",
-            "retry": "Try Again"
+            "retry": "Try Again",
+            "perfect": "Perfect Dodge",
+            "break": "Poise Broken"
           },
           "float": {
             "stamina": "+{n} Stamina",

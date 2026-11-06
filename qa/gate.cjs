@@ -152,7 +152,9 @@ async function main() {
       record('Boss', '敖丙名称（血条）', true, '东海三太子 · 敖丙', '敖丙');
       record('Boss', '一阶段 ≥ 3 种招式', kinds.size >= 3, [...kinds].join('/'), '≥ 3');
       record('Boss', '前摇 ≥ 0.45 s 且有地面预警', minWind >= 27, `${(minWind / 60).toFixed(2)} s`, '≥ 0.45 s');
-      record('悬浮', '龙贴地悬浮（与哪吒同高带）', s.dragon.bodyUnderside > 0.1 && s.dragon.bodyUnderside < 1.0, `${s.dragon.bodyUnderside} m`, '0.1–1.0 m');
+      record('空战', '龙在空中（两个哪吒高 ± 一人高带）', s.dragon.bodyUnderside > 2.2 && s.dragon.bodyUnderside < 4.6, `${s.dragon.bodyUnderside} m`, '2.2–4.6 m');
+      const alt = (s.player.modelOffsetY ?? 0);
+      record('空战', '哪吒在空中（约两个人高）', alt > 2.3 && alt < 4.6, `${alt.toFixed(2)} m`, '2.3–4.6 m');
       const f = await fps(page);
       record('性能', '战斗中帧率', f >= 50, `${f} fps`, '≥ 50', 'warn');
     });
