@@ -31,6 +31,11 @@
     <h2 data-i18n="menu.pause.title"></h2>
     <button type="button" class="primary" data-ui-action="resume" data-i18n="menu.pause.resume"></button>
     <p class="pause-hint" data-i18n="menu.pause.hint"></p>
+    <div class="pause-actions">
+      <button type="button" class="secondary" data-ui-action="restart" data-i18n="menu.pause.restart"></button>
+      <button type="button" class="secondary" data-ui-action="toTitle" data-i18n="menu.pause.toTitle"></button>
+      <span class="pause-time" data-ui-part="pause-time"><span data-i18n="menu.pause.time"></span> <b data-ui-part="pause-seconds"></b></span>
+    </div>
     <div class="lang-switch" role="group" data-i18n-aria="menu.common.language">
       <button type="button" data-ui-action="lang-zh" data-lang="zh">中文</button>
       <span class="divider">/</span>
@@ -72,10 +77,41 @@
     </div>
   </div>
   <div class="boss-panel" data-ui-part="boss-panel">
-    <div class="boss-name" data-i18n="terms:boss.dragonKing"></div>
-    <div class="boss-bar"><div class="boss-fill" data-ui-part="boss-fill"></div></div>
+    <div class="boss-name" data-i18n="terms:boss.dragonKingHud"></div>
+    <div class="boss-bar"><div class="boss-fill" data-ui-part="boss-fill"></div><span class="boss-tick" aria-hidden="true"></span></div>
   </div>
-  <div class="defeat" data-ui-part="defeat" role="status" aria-live="assertive"><span data-i18n="hud.banner.defeat"></span></div>
+  <div class="subtitle-box" data-ui-part="subtitle" aria-live="polite">
+    <div class="speaker" data-ui-part="speaker"></div>
+    <div class="line" data-ui-part="line"></div>
+  </div>
+  <div class="skip-hint" data-ui-part="skip-hint"><kbd>Enter</kbd> <span data-i18n="hud.tip.skip"></span></div>
+  <div class="defeat" data-ui-part="defeat" role="status" aria-live="assertive">
+    <span class="defeat-word" data-i18n="hud.banner.defeat"></span>
+    <button type="button" class="retry" data-ui-action="retry"><kbd>Enter</kbd> <span data-i18n="hud.banner.retry"></span></button>
+  </div>
+  <div class="result" data-ui-part="result">
+    <div class="result-panel">
+      <div class="result-main">
+        <h2 data-i18n="result.title.main"></h2>
+        <div class="stats">
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.time"></span><b data-ui-part="res-time"></b></div>
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.hits"></span><b data-ui-part="res-hits"></b></div>
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.perfect"></span><b data-ui-part="res-perfect"></b></div>
+        </div>
+        <div class="rating"><span class="stat-label" data-i18n="result.stat.rating"></span><b class="rating-letter" data-ui-part="res-rating"></b></div>
+      </div>
+      <div class="reward">
+        <div class="reward-label" data-i18n="result.reward.label"></div>
+        <div class="scale-icon" aria-hidden="true"></div>
+        <div class="reward-name" data-i18n="terms:item.reverseScale"></div>
+        <p class="reward-desc" data-i18n="result.reward.desc"></p>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="primary" data-ui-action="retry"><kbd>Enter</kbd> <span data-i18n="result.action.retry"></span></button>
+        <button type="button" class="secondary" data-ui-action="toTitle" data-i18n="result.action.toTitle"></button>
+      </div>
+    </div>
+  </div>
   <div class="lock-marker" data-ui-part="lock-marker" aria-hidden="true"><span></span></div>
   <div class="hint" data-ui-part="hint" role="status" aria-live="polite"></div>
   <div class="look-tip" data-ui-part="look-tip" data-i18n="hud.tip.clickToLook"></div>

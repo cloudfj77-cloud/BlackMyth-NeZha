@@ -37,7 +37,9 @@ export interface GameClock {
   readonly nezhaScale: () => number;
   readonly hitstop: (steps: number) => void;
   readonly slowmo: (steps: number) => void;
-  readonly snapshot: () => { readonly hitstop: number; readonly slowmo: number; readonly worldScale: number; readonly nezhaScale: number; readonly step: number };
+  /** Victory slow motion (M4 §8): world and Nezha at 0.3, easing back to 1 over `steps`. */
+  readonly ease: (steps: number) => void;
+  readonly snapshot: () => { readonly hitstop: number; readonly slowmo: number; readonly ease: number; readonly worldScale: number; readonly nezhaScale: number; readonly step: number };
 }
 
 export interface SessionService {
@@ -56,6 +58,14 @@ export interface SessionService {
   readonly shake: (amplitude: number) => void;
   readonly shakeImpulse: () => { readonly amplitude: number; readonly at: number };
   readonly clock: GameClock;
+  /** Run commands from the frontend buttons since the last call (M4: retry / restart / toTitle). */
+  readonly takeCommands: () => string[];
+  /** Phase-2 grade (M4 §2): light and beam multipliers, read by the light owners each frame. */
+  readonly ambience: () => { readonly light: number; readonly beams: number };
+  readonly setAmbience: (light: number, beams: number) => void;
+  /** Block the click-to-lock pointer while a menu with buttons is up (defeat / result). */
+  readonly blockPointerLock: (blocked: boolean) => void;
+  readonly pointerLockBlocked: () => boolean;
 }
 
 export interface TuningService {
@@ -125,19 +135,27 @@ export const core: Plugin = {
       let events: string[] = [];
       let shake = { amplitude: 0, at: -1 };
       let hitstop = 0, slowmo = 0, frozen = false, clockStep = 0;
+      let easeLeft = 0, easeTotal = 1;
+      let commands: string[] = [];
+      let ambience = { light: 1, beams: 1 };
+      let lockBlocked = false;
       const SLOW = 0.3;
-      const worldScale = () => (frozen ? 0 : slowmo > 0 ? SLOW : 1);
+      const eased = () => (easeLeft > 0 ? SLOW + (1 - SLOW) * (1 - easeLeft / easeTotal) : 1);
+      const worldScale = () => (frozen ? 0 : slowmo > 0 ? SLOW : eased());
       const clock: GameClock = {
         frozen: () => frozen,
         worldScale,
-        nezhaScale: () => (frozen ? 0 : 1),
+        nezhaScale: () => (frozen ? 0 : eased()),
+        ease: (steps) => {
+          easeLeft = easeTotal = Math.max(1, Math.round(steps));
+        },
         hitstop: (steps) => {
           hitstop = Math.max(hitstop, Math.round(steps));
         },
         slowmo: (steps) => {
           slowmo = Math.max(slowmo, Math.round(steps));
         },
-        snapshot: () => ({ hitstop, slowmo, worldScale: worldScale(), nezhaScale: frozen ? 0 : 1, step: clockStep }),
+        snapshot: () => ({ hitstop, slowmo, ease: easeLeft, worldScale: worldScale(), nezhaScale: frozen ? 0 : eased(), step: clockStep }),
       };
       world.addSystem(FixedUpdate, {
         name: 'nezha-clock',
@@ -151,6 +169,7 @@ export const core: Plugin = {
           frozen = hitstop > 0;
           if (frozen) hitstop -= 1;
           else if (slowmo > 0) slowmo -= 1;
+          if (easeLeft > 0) easeLeft -= 1;
         },
       }).unwrap();
       yield () => world.removeSystem(FixedUpdate, 'nezha-clock').unwrap();
@@ -164,7 +183,14 @@ export const core: Plugin = {
 
       const receive = (event: MessageEvent) => {
         const data: unknown = event.data;
-        if (isControlMessage(data)) phase = nextPhase(phase, data.kind);
+        if (isControlMessage(data)) {
+          if (data.kind === 'retry' || data.kind === 'restart' || data.kind === 'toTitle') {
+            commands.push(data.kind);
+            // The pause-menu buttons also leave the pause; 「回到标题」goes back to the start screen.
+            if (data.kind === 'toTitle') phase = 'title';
+            else if (phase === 'paused') phase = 'playing';
+          } else phase = nextPhase(phase, data.kind);
+        }
         else if (isTuningMessage(data)) {
           if (data.kind === 'reset') Object.assign(tuning, defaultTuning());
           else if (!writePath(tuning, data.path, data.value)) return;
@@ -197,6 +223,19 @@ export const core: Plugin = {
         },
         shakeImpulse: () => shake,
         clock,
+        takeCommands: () => {
+          const out = commands;
+          commands = [];
+          return out;
+        },
+        ambience: () => ambience,
+        setAmbience: (light, beams) => {
+          ambience = { light, beams };
+        },
+        blockPointerLock: (blocked) => {
+          lockBlocked = blocked;
+        },
+        pointerLockBlocked: () => lockBlocked,
       };
 
       // Publish one HUD message per frame after every gameplay system has contributed.

@@ -37,6 +37,16 @@ export interface CameraService {
   readonly pose: () => { readonly position: V3; readonly rotation: readonly [number, number, number, number]; readonly fov: number };
   /** Hard cut behind Nezha (defeat / victory reset): yaw, default pitch, focus re-seeded. */
   readonly snap: (yaw: number) => void;
+  /**
+   * Scripted shots (M4 intro): while set, the lens sits exactly at the returned pose (cuts allowed);
+   * on removal the follow camera takes over, blended over `blendSteps` steps.
+   */
+  readonly setScript: (shot: (() => CameraShot) | undefined, blendSteps?: number) => void;
+}
+
+export interface CameraShot {
+  readonly position: V3;
+  readonly look: V3;
 }
 
 declare module '@forgeax/engine/plugin' {
@@ -71,6 +81,9 @@ export const camera: Plugin = {
       let fovApplied = -1;
       let lockView: CameraLockView | undefined;
       let shakeNow = 0, shakePeak = 0;
+      let script: (() => CameraShot) | undefined;
+      let blendFrom: { position: V3; rotation: readonly [number, number, number, number] } | undefined;
+      let blendLeft = 0, blendTotal = 1;
       let aimRaise = 0;
       let state = {
         position: [0, 0, 0] as V3,
@@ -105,8 +118,9 @@ export const camera: Plugin = {
           const dt = Math.min(world.getResource(Time).delta, 0.1);
           const cam = tuning.current.camera;
           const phase = session.phase();
-          if ((phase !== 'title') !== lockAllowed) {
-            lockAllowed = phase !== 'title';
+          const allow = phase !== 'title' && !session.pointerLockBlocked();
+          if (allow !== lockAllowed) {
+            lockAllowed = allow;
             host.setPointerLockAllowed?.(lockAllowed);
           }
           if (fovApplied !== cam.fovY) {
@@ -179,7 +193,7 @@ export const camera: Plugin = {
             const shakeOffset: V3 = [right[0] * amp * Math.sin(phase), amp * Math.cos(phase * 1.3), right[2] * amp * Math.sin(phase)];
             shakeNow = amp;
             shakePeak = Math.max(shakePeak, amp);
-            const position: V3 = [end[0] + shakeOffset[0], end[1] + lift + shakeOffset[1], end[2] + shakeOffset[2]];
+            const position: [number, number, number] = [end[0] + shakeOffset[0], end[1] + lift + shakeOffset[1], end[2] + shakeOffset[2]];
             const toCam: V3 = [position[0] - focus[0], position[1] - focus[1], position[2] - focus[2]];
             const camDistance = Math.hypot(...toCam);
             if (camDistance > 1e-3) {
@@ -212,7 +226,30 @@ export const camera: Plugin = {
               lookAt = [position[0] - back[0], position[1] - back[1], position[2] - back[2]];
             }
             quat.fromLookAt(rotation, position, lookAt, [0, 1, 0]);
-            const q = [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1] as const;
+            let q = [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1] as readonly [number, number, number, number];
+            if (script) {
+              // Scripted shot: exact pose (the follow rig keeps tracking underneath for the hand-back).
+              const shot = script();
+              quat.fromLookAt(rotation, shot.position, shot.look, [0, 1, 0]);
+              const sq = [rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0, rotation[3] ?? 1] as const;
+              world.set(cameraEntity, Transform, { pos: [...shot.position], quat: [sq[0], sq[1], sq[2], sq[3]] }).unwrap();
+              blendFrom = { position: shot.position, rotation: sq };
+              state = { position: shot.position, rotation: sq, distance: camDistance, desired: Math.hypot(cam.shoulderOffset, distance), blocked: limit.blocked, lift, lineClear, wallGap };
+              return;
+            }
+            if (blendFrom && blendLeft > 0) {
+              blendLeft = Math.max(0, blendLeft - dt * 60);
+              const w0 = 1 - blendLeft / blendTotal;
+              const w = w0 * w0 * (3 - 2 * w0);
+              position[0] = blendFrom.position[0] + (position[0] - blendFrom.position[0]) * w;
+              position[1] = blendFrom.position[1] + (position[1] - blendFrom.position[1]) * w;
+              position[2] = blendFrom.position[2] + (position[2] - blendFrom.position[2]) * w;
+              const a = blendFrom.rotation;
+              const sign = a[0] * q[0] + a[1] * q[1] + a[2] * q[2] + a[3] * q[3] < 0 ? -1 : 1;
+              const m = [a[0] + (q[0] * sign - a[0]) * w, a[1] + (q[1] * sign - a[1]) * w, a[2] + (q[2] * sign - a[2]) * w, a[3] + (q[3] * sign - a[3]) * w];
+              const n = Math.hypot(...m) || 1;
+              q = [m[0]! / n, m[1]! / n, m[2]! / n, m[3]! / n];
+            }
             world.set(cameraEntity, Transform, { pos: [position[0], position[1], position[2]], quat: [q[0], q[1], q[2], q[3]] }).unwrap();
             state = { position, rotation: q, distance: camDistance, desired: Math.hypot(cam.shoulderOffset, distance), blocked: limit.blocked, lift, lineClear, wallGap };
           }
@@ -243,6 +280,12 @@ export const camera: Plugin = {
           lockView = view;
         },
         pose: () => ({ position: state.position, rotation: state.rotation, fov: tuning.current.camera.fovY * DEG }),
+        setScript: (shot, blendSteps = 30) => {
+          if (!shot && script) {
+            blendLeft = blendTotal = Math.max(1, blendSteps);
+          }
+          script = shot;
+        },
         snap: (nextYaw) => {
           yaw = nextYaw;
           pitch = tuning.current.camera.pitchDefault * DEG;

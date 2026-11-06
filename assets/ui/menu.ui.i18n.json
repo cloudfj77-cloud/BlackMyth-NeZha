@@ -20,10 +20,13 @@
           "sash": "混天绫"
         },
         "boss": {
-          "dragonKing": "东海龙王"
+          "dragonKing": "东海龙王",
+          "dragonKingHud": "东海龙王",
+          "dragonKingSpeaker": "东海龙王"
         },
         "item": {
-          "lotus": "莲子"
+          "lotus": "莲子",
+          "reverseScale": "龙王逆鳞"
         },
         "skill": {
           "sashBind": "混天绫·缚",
@@ -40,12 +43,15 @@
             "kicker": "$t(terms:place.dragonPalace) · 前庭",
             "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，携三昧真火入海，问罪$t(terms:boss.dragonKing)。",
             "begin": "踏入龙宫",
-            "milestone": "试玩版本 M3 · 神龙：读预兆、翻滚躲开、破绽反击"
+            "milestone": "试玩版本 M4 · 一局：入场、二阶段、战败重来、结算"
           },
           "pause": {
             "title": "暂停",
             "resume": "继续",
-            "hint": "点击画面即可继续，并重新锁定视角"
+            "hint": "点击画面即可继续，并重新锁定视角",
+            "restart": "重新开始",
+            "toTitle": "回到标题",
+            "time": "用时"
           },
           "controls": {
             "title": "操作",
@@ -63,7 +69,8 @@
             "lotus": "服食莲子",
             "sash": "$t(terms:skill.sashBind)：定住目标",
             "keyRmb": "右键",
-            "keySpace": "空格"
+            "keySpace": "空格",
+            "skip": "跳过开场 / 再战"
           }
         },
         "hud": {
@@ -77,14 +84,48 @@
             "sashCooldown": "混天绫冷却中"
           },
           "tip": {
-            "clickToLook": "点击画面锁定视角"
+            "clickToLook": "点击画面锁定视角",
+            "skip": "跳过"
           },
           "bar": {
             "hp": "生命",
             "stamina": "气力"
           },
           "banner": {
-            "defeat": "败"
+            "defeat": "败",
+            "retry": "再战"
+          }
+        },
+        "dialogue": {
+          "dragonKing": {
+            "intro": "东海涨落，何须向你交代。\n……我等你，等得够久了。",
+            "phase2": "你剔骨还了李家，\n谁来还我儿？",
+            "defeat": "莲花，也会凋零。",
+            "fall": "我儿……海底，太冷了。"
+          },
+          "nezha": {
+            "intro": "收水。\n不然，我替你收。",
+            "phase2": "命，我早还过了。\n陈塘关的百姓，不欠你。",
+            "victory": "旧账，到此为止。"
+          }
+        },
+        "result": {
+          "title": {
+            "main": "东海潮平"
+          },
+          "stat": {
+            "time": "用时",
+            "hits": "受击",
+            "perfect": "完美闪避",
+            "rating": "评价"
+          },
+          "reward": {
+            "label": "所得",
+            "desc": "龙喉下有逆鳞，触之必怒。"
+          },
+          "action": {
+            "retry": "再战",
+            "toTitle": "回到标题"
           }
         }
       }
@@ -107,10 +148,13 @@
           "sash": "Red Armillary Sash"
         },
         "boss": {
-          "dragonKing": "Dragon King of the East Sea"
+          "dragonKing": "Dragon King of the East Sea",
+          "dragonKingHud": "East Sea Dragon King",
+          "dragonKingSpeaker": "Dragon King"
         },
         "item": {
-          "lotus": "Lotus Seeds"
+          "lotus": "Lotus Seeds",
+          "reverseScale": "Dragon King's Reverse Scale"
         },
         "skill": {
           "sashBind": "Sash Bind",
@@ -127,12 +171,15 @@
             "kicker": "$t(terms:place.dragonPalace) · Forecourt",
             "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) carries true fire into the sea to call the $t(terms:boss.dragonKing) to account.",
             "begin": "Enter the Palace",
-            "milestone": "Playtest M3 · The Dragon: read the tells, roll clear, punish the opening"
+            "milestone": "Playtest M4 · One run: intro, phase two, retry, results"
           },
           "pause": {
             "title": "Paused",
             "resume": "Resume",
-            "hint": "Click the game to resume and re-lock the camera"
+            "hint": "Click the game to resume and re-lock the camera",
+            "restart": "Restart",
+            "toTitle": "Back to Title",
+            "time": "Time"
           },
           "controls": {
             "title": "Controls",
@@ -150,7 +197,8 @@
             "lotus": "Eat a Lotus Seed",
             "sash": "$t(terms:skill.sashBind): hold the target",
             "keyRmb": "RMB",
-            "keySpace": "Space"
+            "keySpace": "Space",
+            "skip": "Skip intro / Try again"
           }
         },
         "hud": {
@@ -164,14 +212,48 @@
             "sashCooldown": "Sash Bind on cooldown"
           },
           "tip": {
-            "clickToLook": "Click the game to lock the camera"
+            "clickToLook": "Click the game to lock the camera",
+            "skip": "Skip"
           },
           "bar": {
             "hp": "Health",
             "stamina": "Stamina"
           },
           "banner": {
-            "defeat": "Defeated"
+            "defeat": "Defeated",
+            "retry": "Try Again"
+          }
+        },
+        "dialogue": {
+          "dragonKing": {
+            "intro": "The East Sea's tides owe you no answer.\n…I've waited for you long enough.",
+            "phase2": "You repaid your father in flesh and bone.\nWho will repay me for my son?",
+            "defeat": "Born of lotus—and still you wither.",
+            "fall": "My son… the deep is so cold."
+          },
+          "nezha": {
+            "intro": "Call off the flood.\nOr I'll do it for you.",
+            "phase2": "My life—I repaid that long ago.\nThe people of Chentang owe you nothing.",
+            "victory": "The old debt ends here."
+          }
+        },
+        "result": {
+          "title": {
+            "main": "The Tide Recedes"
+          },
+          "stat": {
+            "time": "Time",
+            "hits": "Hits taken",
+            "perfect": "Perfect dodges",
+            "rating": "Rating"
+          },
+          "reward": {
+            "label": "Reward",
+            "desc": "A dragon's throat hides one Reverse Scale.\nTouch it, and the dragon rages."
+          },
+          "action": {
+            "retry": "Try Again",
+            "toTitle": "Back to Title"
           }
         }
       }

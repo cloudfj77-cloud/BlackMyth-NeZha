@@ -134,14 +134,18 @@ export function frontNearest(points: readonly P3[], x: number, z: number): { rea
 
 // --- Attacks ------------------------------------------------------------------------------------
 
-export type AttackKind = 'bite' | 'lash' | 'charge';
+export type AttackKind = 'bite' | 'lash' | 'charge' | 'coil';
 
 /** Step numbers from the start of the telegraph: windup end / hold end / hit frame (shrink end). */
 export const ATTACKS = Object.freeze({
   bite: { windup: 12, hold: 36, hit: 42, damage: 15, knock: 0, parts: [0, 6] as const },
   lash: { windup: 18, hold: 46, hit: 54, damage: 18, knock: 3, parts: [WAIST, POINTS - 1] as const },
   charge: { windup: 14, hold: 42, hit: 48, damage: 20, knock: 0, parts: [0, 2] as const },
+  /** Coiled Tide Roar (phase 2, M4): coils 250° round the head, head up to 7.5 m; ring 4.75–7 m. */
+  coil: { windup: 20, hold: 54, hit: 60, damage: 25, knock: 0, parts: [0, 0] as const },
 });
+/** Coil ring (M4 §4): centre = head ground point at telegraph start; Nezha's centre point is judged. */
+export const COIL = Object.freeze({ inner: 4.75, outer: 7, bodyRadius: 2.5, headY: 7.5, neck: 16 });
 /** Recovery after the hit frame (part of the opening). */
 export const RECOVER = 12;
 /** Opening: steps from the hit frame (includes the recovery) during which the dragon can be punished. */
@@ -167,6 +171,8 @@ export interface Attack {
   readonly pivot: V2;
   readonly theta0: number;
   readonly theta1: number;
+  /** A held pose (no strike): the charge-turn that found no room for a second charge (M4 §5). */
+  readonly rest?: readonly P3[];
 }
 
 /** Distance along `dir` from `p` until the circle of radius R is reached (∞ if never). */
@@ -227,6 +233,32 @@ function biteLunged(att: Attack): P3[] {
 function chargeStraight(att: Attack, travel: number): P3[] {
   return Array.from({ length: POINTS }, (_, i) => local(att, travel - SPACING * i, 0, i === 0 ? 1.2 : radius(i) + 0.3));
 }
+/**
+ * Coil (M4 §4): the head stands 7.5 m over the centre; the neck (16 segments, 7.2 m) runs straight
+ * down to the floor ring (r 2.5 m); the other 24 segments lie round it for ~250° and the tail curls in.
+ */
+function coilPose(att: Attack, strike: number): P3[] {
+  const c = att.origin;
+  // The ring starts behind the head, away from Nezha, and winds round.
+  const a0 = angleOf(-att.dir.x, -att.dir.z);
+  const step = SPACING / COIL.bodyRadius;
+  const ring = (i: number): P3 => {
+    const j = i - COIL.neck;
+    const curl = Math.max(0, j - 18) / 6;
+    const r = COIL.bodyRadius * (1 - 0.45 * curl * curl);
+    const a = a0 + j * step;
+    const d = dirOf(a);
+    return [c.x + d.x * r, radius(i) + 0.05, c.z + d.z * r];
+  };
+  const base = ring(COIL.neck);
+  const top: P3 = [c.x, COIL.headY - 1.0 * strike, c.z];
+  return Array.from({ length: POINTS }, (_, i): P3 => {
+    if (i >= COIL.neck) return ring(i);
+    const t = i / COIL.neck;
+    return [lerp(top[0], base[0], t), lerp(top[1], base[1], t), lerp(top[2], base[2], t)];
+  });
+}
+
 function lashPose(att: Attack, theta: number, tailY: number): P3[] {
   const s = att.snapshot;
   return Array.from({ length: POINTS }, (_, i): P3 => {
@@ -247,7 +279,10 @@ function lashPose(att: Attack, theta: number, tailY: number): P3[] {
 function target(att: Attack, k: number): P3[] {
   const A = ATTACKS[att.kind];
   const t = clamp01((k - A.hold) / (A.hit - A.hold));
+  if (att.rest) return clone(att.rest);
   switch (att.kind) {
+    case 'coil':
+      return coilPose(att, k <= A.hold ? 0 : smooth(t));
     case 'bite': {
       const c = biteCoiled(att);
       if (k <= A.hold) return c;
@@ -316,7 +351,7 @@ export function attackFrame(att: Attack, k: number): AttackFrame {
   }
   // The wave keeps its shape (phase frozen) but calms while the body takes the attack pose, so the
   // swept edges stay straight: charge 10 %, bite 15 %, lash 3 % (the tail must sweep as a straight blade); the opening breathes at 30 %.
-  const calm = att.kind === 'charge' ? 0.1 : att.kind === 'lash' ? 0.03 : 0.15;
+  const calm = att.kind === 'charge' ? 0.1 : att.kind === 'lash' ? 0.03 : att.kind === 'coil' ? 0.02 : 0.15;
   amp = lerp(att.amp0, calm, clamp01(k / A.windup));
   if (k > A.hit) amp = lerp(calm, 0.3, clamp01((k - A.hit) / RECOVER));
   return { points: withWave(points, phase, amp), raw: points, phase, amp };
@@ -373,6 +408,34 @@ export function discHull(discs: readonly Disc[], samples = 16): Polygon {
     upper.push(p);
   }
   return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+/** Where an attack hurts (fixed when the telegraph starts): a convex sweep, or the coil ring. */
+export type Zone =
+  | { readonly kind: 'poly'; readonly poly: Polygon }
+  | { readonly kind: 'ring'; readonly c: V2; readonly inner: number; readonly outer: number };
+
+/** The damage zone of an attack (the warning shows exactly this). */
+export function attackZone(att: Attack): Zone {
+  if (att.kind === 'coil') return { kind: 'ring', c: att.origin, inner: COIL.inner, outer: COIL.outer };
+  return { kind: 'poly', poly: discHull(damagingDiscs(att)) };
+}
+
+/**
+ * Does the zone hit Nezha at (x, z)? Sweeps count her capsule radius (body overlap); the coil ring
+ * judges her centre point (M4 QA 4: 4.74 m safe, 4.75–7 m hit, 7.01 m safe).
+ */
+export function zoneHits(zone: Zone, x: number, z: number, capsuleRadius: number): boolean {
+  if (zone.kind === 'poly') return polygonDistance(zone.poly, x, z) <= capsuleRadius;
+  const d = Math.hypot(x - zone.c.x, z - zone.c.z);
+  return d >= zone.inner - 1e-9 && d <= zone.outer + 1e-9;
+}
+
+/** Signed distance to the zone edge, for logs (negative inside the hurting area). */
+export function zoneDistance(zone: Zone, x: number, z: number): number {
+  if (zone.kind === 'poly') return polygonDistance(zone.poly, x, z);
+  const d = Math.hypot(x - zone.c.x, z - zone.c.z);
+  return Math.max(zone.inner - d, d - zone.outer);
 }
 
 /** Signed distance from (x, z) to a convex CCW polygon (negative inside). */

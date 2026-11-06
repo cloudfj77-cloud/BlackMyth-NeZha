@@ -104,5 +104,11 @@
     "afterimageLife": 66,
     "afterimageIntensity": 0.7,
     "poseBlend": 0.1
+  },
+  "difficulty": {
+    "gapMin": 60,
+    "damageScale": 1,
+    "dragonHp": 800,
+    "lotus": 3
   }
 }

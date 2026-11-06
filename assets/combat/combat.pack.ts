@@ -14,6 +14,7 @@ import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import type { TargetService } from '../lock-on/lock-on.pack.ts';
 import { characterGuid, geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { FLOOR_Y } from '../shared/layout.ts';
+import { WHEEL_FULL_INTENSITY } from '../shared/palette.ts';
 import { NEZHA } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
@@ -40,6 +41,8 @@ function mixShown(a: Shown, b: Shown, t: number): Shown {
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 const SPARKS = 16;
+/** Wheel fire glow (matches material/wheel-fire: WHEEL_FULL_INTENSITY × 0.3). */
+const WHEEL_FIRE = 0.3 * WHEEL_FULL_INTENSITY;
 const SPEAR_ABOVE_GRIP = NEZHA.spearLength - NEZHA.spearBelowGrip;
 
 export interface CombatService {
@@ -50,6 +53,10 @@ export interface CombatService {
   readonly hp: () => number;
   /** Current action (the sash reels in during a roll). */
   readonly action: () => string;
+  /** M4 presentation overrides: float scale (victory: half). */
+  readonly setPresentation: (p: { readonly floatScale?: number }) => void;
+  /** Lotus seeds left, Sash Binds used since the last reset (run records). */
+  readonly usage: () => { readonly lotusLeft: number; readonly lotusMax: number; readonly binds: number };
   /** Bumped on every landed player hit (dummy reaction). */
   readonly hitSerial: () => number;
   /** Bumped when Sash Bind takes hold. */
@@ -158,7 +165,15 @@ export const combat: Plugin = {
       yield () => {
         for (const handle of [...Object.values(mat), ...Object.values(mesh)]) assets.release(handle).unwrap();
       };
-      const machine = createCombat(configFromTuning(tuning.current.combat));
+      const config = () => {
+        const c = configFromTuning(tuning.current.combat);
+        return { ...c, lotus: { ...c.lotus, count: Math.round(tuning.current.difficulty.lotus) } };
+      };
+      const machine = createCombat(config());
+      let floatScale = 1;
+      let bindsSinceReset = 0;
+      let deadFor = -1;
+      let wheelFire: unknown;
       let configRevision = tuning.revision();
       let hitSerial = 0, bindSerial = 0, hurtSerial = 0;
       const hitLog: { step: number; kind: string; stage: number; dmg: number; dist: number; ang: number; segment: number; tail: boolean; hitstop: number; shake: number }[] = [];
@@ -293,6 +308,7 @@ export const combat: Plugin = {
             break;
           case 'sash-bind':
             bindSerial += 1;
+            bindsSinceReset += 1;
             session.emit('sash-bind');
             break;
           case 'sash-ready':
@@ -321,7 +337,7 @@ export const combat: Plugin = {
           }
           if (tuning.revision() !== configRevision) {
             configRevision = tuning.revision();
-            machine.setConfig(configFromTuning(tuning.current.combat));
+            machine.setConfig(config());
           }
           const edges = player.takeEdges();
           const frame = player.input();
@@ -386,10 +402,25 @@ export const combat: Plugin = {
           shown = w >= 1 || !blendFrom ? target : mixShown(blendFrom, target, w);
           const active = state.kind !== 'free' || w < 1;
           player.setActionPose(active ? { rotation: shown.rotation, pivotY: shown.pivotY, offset: shown.offset, suppressLean: state.kind !== 'free' } : undefined);
-          floatGate = visual.floatGate;
+          floatGate = visual.floatGate * floatScale;
           player.setFloatGate(floatGate);
+          // Defeat (M4 §7): the wheel fire goes out over 30 steps.
+          if (state.kind === 'dead') {
+            if (deadFor < 0) {
+              deadFor = 0;
+              wheelFire = copy(mat.wheel);
+              world.set(wheels, MeshRenderer, { materials: [wheelFire as never] } as never).unwrap();
+            }
+            deadFor += dt * 60;
+            const left = Math.max(0, 1 - deadFor / 30);
+            const res = assets.update(wheelFire as never, { values: { emissiveIntensity: WHEEL_FIRE * left } } as never);
+            if (!res.ok) assets.update(wheelFire as never, { emissiveIntensity: WHEEL_FIRE * left } as never);
+          } else if (deadFor >= 0) {
+            deadFor = -1;
+            world.set(wheels, MeshRenderer, { materials: [wheelsFull ? mat.wheelFull : mat.wheel] } as never).unwrap();
+          }
           world.set(spear, Transform, { pos: shown.spearPos, quat: shown.spearQuat }).unwrap();
-          if (visual.wheelsFull !== wheelsFull) {
+          if (visual.wheelsFull !== wheelsFull && state.kind !== 'dead') {
             wheelsFull = visual.wheelsFull;
             world.set(wheels, MeshRenderer, { materials: [wheelsFull ? mat.wheelFull : mat.wheel] } as never).unwrap();
           }
@@ -447,7 +478,8 @@ export const combat: Plugin = {
           // Slow-motion grade: world 30 % darker and cooler (lights + fog); emissive fire keeps its glow.
           const want = session.clock.snapshot().slowmo > 0 ? 1 : 0;
           slowLight += (want - slowLight) * (1 - Math.exp(-dt * 20));
-          const dim = 1 - 0.3 * slowLight;
+          // Phase 2 (M4 §2): the scene light is ×0.8 (no warm tint), on top of the slow-motion grade.
+          const dim = (1 - 0.3 * slowLight) * session.ambience().light;
           world.set(sun, DirectionalLight, { intensity: sunIntensity * dim, color: [sunColor[0]! * (1 - 0.15 * slowLight), sunColor[1]!, sunColor[2]! * (1 + 0.1 * slowLight)] }).unwrap();
           world.set(skylight, Skylight, { intensity: skyIntensity * dim }).unwrap();
           world.set(fog, Fog, { color: [WATER_HORIZON[0] * (1 - 0.3 * slowLight), WATER_HORIZON[1] * (1 - 0.15 * slowLight), WATER_HORIZON[2] * (1 + 0.15 * slowLight)] }).unwrap();
@@ -462,7 +494,7 @@ export const combat: Plugin = {
               staminaMax: DEFAULT_COMBAT.staminaMax,
               flash: snap.flashSerial,
               lotus: snap.lotus,
-              lotusMax: DEFAULT_COMBAT.lotus.count,
+              lotusMax: Math.round(tuning.current.difficulty.lotus),
               sashCd: Math.ceil(cd / 60),
               sashCdMax: DEFAULT_COMBAT.sash.cooldown / 60,
               hurt: hurtSerial,
@@ -531,7 +563,10 @@ export const combat: Plugin = {
           return result;
         },
         reset: () => {
+          machine.setConfig(config());
           machine.reset();
+          bindsSinceReset = 0;
+          floatScale = 1;
           state = { kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: { x: 0, z: 0 } };
           for (const slot of afterimages) {
             slot.life = 0;
@@ -541,6 +576,10 @@ export const combat: Plugin = {
         },
         hp: () => machine.snapshot().hp,
         action: () => machine.snapshot().action,
+        setPresentation: (p) => {
+          floatScale = p.floatScale ?? 1;
+        },
+        usage: () => ({ lotusLeft: machine.snapshot().lotus, lotusMax: Math.round(tuning.current.difficulty.lotus), binds: bindsSinceReset }),
         hitSerial: () => hitSerial,
         bindSerial: () => bindSerial,
         sashCooldown: () => ({ left: machine.snapshot().sashCd, total: DEFAULT_COMBAT.sash.cooldown }),

@@ -17,6 +17,13 @@ import {
 import { createDebugPanel, type DebugPanel } from './debug-panel.ts';
 import { createCombatAudio } from './audio.ts';
 
+/** Run time shown as m:ss.s (language-neutral). */
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds - m * 60;
+  return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`;
+}
+
 type Host = Pick<GameHost, 'uiRoot' | 'controlMode' | 'port' | 'presentationPort'>;
 
 /** Control rows: key caps are language-neutral (`@key` caps are translated). */
@@ -30,6 +37,7 @@ const CONTROL_ROWS: readonly { readonly keys: readonly string[]; readonly action
   { keys: ['R'], action: 'menu.controls.lock' },
   { keys: ['Q'], action: 'menu.controls.lotus' },
   { keys: ['1'], action: 'menu.controls.sash' },
+  { keys: ['Enter'], action: 'menu.controls.skip' },
   { keys: ['Esc'], action: 'menu.controls.pause' },
 ];
 
@@ -78,6 +86,19 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   let hintKey: string | undefined;
   let hintTimer: ReturnType<typeof setTimeout> | undefined;
   let wasLocked = false;
+  let lastSubtitle = '';
+  let lastRecordSerial = 0;
+  const RUNS_KEY = 'nezha.runs.v1';
+  const canvas = () => document.querySelector('canvas');
+  const relock = () => {
+    try {
+      void (canvas()?.requestPointerLock?.() as unknown as Promise<void> | undefined)?.catch?.(() => undefined);
+    } catch {
+      /* the click-to-lock on the game still works */
+    }
+  };
+  /** A menu with buttons is up (defeat banner, result): losing the pointer there is not a pause. */
+  const menuUp = () => !!state?.run && (state.run.banner || state.run.stage === 'result');
   let status: FrontendStatus = {
     lang: first.lang,
     langSource: first.source,
@@ -113,6 +134,11 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       if (action === 'start' || action === 'resume') audio.unlock();
       if (action === 'start') send('start');
       else if (action === 'resume') send('resume');
+      else if (action === 'retry' || action === 'restart') {
+        send(action);
+        // The button click is a user gesture: take the pointer back at once (the menu released it).
+        relock();
+      } else if (action === 'toTitle') send('toTitle');
       else if (action === 'lang-zh' || action === 'lang-en') void setLanguage(action.slice(5) as GameLanguage, 'manual');
       // Keep keyboard focus off overlay buttons so WASD / R reach the game.
       const active = ui.host.shadowRoot?.activeElement;
@@ -252,7 +278,51 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     const boss = next.boss;
     part('boss-panel')!.classList.toggle('show', !!boss?.visible);
     if (boss) part('boss-fill')!.style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.hpMax) * 100)).toFixed(1)}%`;
-    part('defeat')!.classList.toggle('show', next.defeat === true);
+    const run = next.run;
+    ui.host.classList.toggle('run-hud-off', !!run && !run.hud);
+    ui.host.classList.toggle('run-menu', !!run && (run.banner || !!run.result));
+    part('defeat')!.classList.toggle('show', !!run?.banner);
+    part('skip-hint')!.classList.toggle('show', !!run?.skip);
+    part('result')!.classList.toggle('show', !!run?.result);
+    part('pause-seconds')!.textContent = run ? formatTime(run.seconds) : '';
+    const sub = run?.subtitle;
+    const subKey = sub ? `${sub.key}|${sub.speaker}|${status.lang}` : '';
+    if (subKey !== lastSubtitle) {
+      lastSubtitle = subKey;
+      const box = part('subtitle')!;
+      box.classList.toggle('show', !!sub);
+      if (sub) {
+        const speaker = part('speaker')!;
+        speaker.textContent = t(sub.speaker === 'dragonKing' ? 'terms:boss.dragonKingSpeaker' : 'terms:hero.nezha');
+        speaker.className = `speaker ${sub.speaker}`;
+        part('line')!.textContent = t(sub.key);
+      }
+    }
+    if (run?.result) {
+      part('res-time')!.textContent = formatTime(run.result.seconds);
+      part('res-hits')!.textContent = `${run.result.hits}`;
+      part('res-perfect')!.textContent = `${run.result.perfects}`;
+      const letter = part('res-rating')!;
+      letter.textContent = run.result.rating;
+      letter.className = `rating-letter ${run.result.rating}`;
+    }
+    // Defeat: the world greys (65 % desaturated); the HUD layer stays in colour.
+    const gameCanvas = canvas();
+    if (gameCanvas) {
+      const filter = run?.desaturate ? 'saturate(0.35)' : '';
+      if (gameCanvas.style.filter !== filter) gameCanvas.style.filter = filter;
+    }
+    // Run records (M4 §11): every finished attempt is kept in local storage for the difficulty pass.
+    if (run && run.recordSerial !== lastRecordSerial && run.record) {
+      lastRecordSerial = run.recordSerial;
+      try {
+        const list = JSON.parse(storage?.getItem(RUNS_KEY) ?? '[]') as unknown[];
+        list.push({ ...(run.record as object), savedAt: new Date().toISOString(), lang: status.lang });
+        storage?.setItem(RUNS_KEY, JSON.stringify(list.slice(-200)));
+      } catch {
+        /* storage full or blocked: the QA projection still has the history */
+      }
+    }
     // QA mirror of the Engine read projection (static preview has no inspection bridge).
     if (next.projection !== undefined) {
       ui.host.dataset.nezha = JSON.stringify(next.projection);
@@ -277,7 +347,14 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     ui.host.classList.toggle('pointer-locked', locked);
     if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
     if (locked !== status.pointerLocked) publishStatus({ pointerLocked: locked });
-    if (wasLocked && !locked && state?.phase === 'playing' && !status.debugOpen) send('pause');
+    // The engine itself frees the pointer when a menu with buttons comes up; its state message can
+    // land a frame after the pointer event, so the pause decision waits a moment and checks again.
+    if (wasLocked && !locked && state?.phase === 'playing' && !status.debugOpen && !menuUp()) {
+      view.setTimeout(() => {
+        const stillFree = (host.controlMode?.read() ?? 'pointer') !== 'pointer-locked';
+        if (stillFree && state?.phase === 'playing' && !status.debugOpen && !menuUp()) send('pause');
+      }, 150);
+    }
     if (locked) audio.unlock();
     if (locked && state?.phase === 'paused') send('resume');
     if (locked && status.debugOpen) setDebugOpen(false);
@@ -292,7 +369,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       return;
     }
     // Esc always pauses (and releases the pointer); resuming is an explicit click or the Resume button.
-    if (event.code !== 'Escape' || state?.phase !== 'playing') return;
+    if (event.code !== 'Escape' || state?.phase !== 'playing' || menuUp()) return;
     if (status.debugOpen) {
       setDebugOpen(false);
       return;

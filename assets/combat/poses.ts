@@ -216,6 +216,15 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
     case 'sash':
       pose = sample(SASH, f);
       break;
+    case 'dead': {
+      // M4 §7: falls back over 20 steps (the wheels stay under him), spear dropped low.
+      const t = Math.min(1, f / 20);
+      const e = 1 - (1 - t) ** 3;
+      rotation = axisAngle([1, 0, 0], 78 * DEG * e);
+      pivotY = 0.1;
+      pose = { spear: { pos: [0.35, 0.55, 0.2], rx: SPEAR_REST.rx + 70 * DEG * e, ry: 0 }, body: BODY_REST };
+      break;
+    }
     case 'roll': {
       const d = toRootLocal(state.rollDir, facing);
       const axis: P3 = [d.z, 0, -d.x];
@@ -242,14 +251,14 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
     default:
       break;
   }
-  if (state.kind !== 'roll') {
+  if (state.kind !== 'roll' && state.kind !== 'dead') {
     rotation = mulQ(axisAngle([0, 1, 0], pose.body.twist), axisAngle([1, 0, 0], pose.body.pitch));
   }
   return {
     spear: { ...pose.spear, quat: spearQuat(pose.spear) },
     rotation,
     pivotY,
-    offset: state.kind === 'roll' ? [0, rollUp, 0] : [0, pose.body.up, -pose.body.fwd],
+    offset: state.kind === 'roll' ? [0, rollUp, 0] : state.kind === 'dead' ? [0, -0.45 * Math.min(1, f / 20), 0] : [0, pose.body.up, -pose.body.fwd],
     flame,
     wheelsFull,
     floatGate: state.kind === 'free' ? 1 : 0,

@@ -91,6 +91,30 @@ export function createCombatAudio(view: Window): CombatAudio {
     },
     roll: (ctx) => whoosh(ctx, 700, 1600, 0.2, 0.18),
     hurt: (ctx) => tone(ctx, 'sine', 110, 50, 0.25, 0.5),
+    // M4 telegraph cues (placeholder, one per attack, at telegraph step 0): tell the attack off screen.
+    'tell-bite': (ctx) => {
+      tone(ctx, 'sawtooth', 180, 240, 0.35, 0.08);
+      tone(ctx, 'sine', 360, 480, 0.3, 0.06, 0.05);
+    },
+    'tell-lash': (ctx) => whoosh(ctx, 300, 1400, 0.6, 0.2),
+    'tell-charge': (ctx) => {
+      tone(ctx, 'sine', 70, 120, 0.7, 0.4);
+      whoosh(ctx, 400, 900, 0.7, 0.1);
+    },
+    'tell-coil': (ctx) => {
+      tone(ctx, 'triangle', 110, 220, 0.9, 0.2);
+      tone(ctx, 'sine', 55, 110, 1.0, 0.3, 0.1);
+    },
+    // Phase change roar (2 s), the coil's water burst, the intro wall breach.
+    roar: (ctx) => {
+      tone(ctx, 'sawtooth', 90, 60, 1.8, 0.16);
+      tone(ctx, 'sine', 45, 38, 2.0, 0.4);
+    },
+    'coil-burst': (ctx) => whoosh(ctx, 2000, 300, 0.8, 0.3),
+    breach: (ctx) => {
+      whoosh(ctx, 2600, 400, 0.9, 0.35);
+      tone(ctx, 'sine', 60, 40, 0.8, 0.4);
+    },
     // M3: defeat (「败」) — a low, dull drop; the dragon falling — a long descending sigh.
     defeat: (ctx) => {
       tone(ctx, 'sine', 70, 38, 0.9, 0.55);

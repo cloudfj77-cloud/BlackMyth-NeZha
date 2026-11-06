@@ -28,8 +28,12 @@ import {
   type P3,
   type Polygon,
   type V2,
+  type Zone,
+  COIL,
+  smooth,
+  zoneDistance,
 } from './body.ts';
-import { BRAIN, createBrain, type DragonEvent } from './brain.ts';
+import { BRAIN, createBrain, INTRO, type DragonEvent } from './brain.ts';
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 const DEG = Math.PI / 180;
@@ -54,7 +58,18 @@ export interface DragonService {
   readonly frontNearest: (x: number, z: number) => { readonly x: number; readonly z: number; readonly y: number };
   /** Push (x, z) out of low body parts (Nezha cannot hover through the body). */
   readonly pushOut: (x: number, z: number, margin: number) => { readonly x: number; readonly z: number };
-  readonly damage: (amount: number, segment: number) => void;
+  /** A landed hit: 'phase' at half health (the phase change starts), 'ignored' while invulnerable. */
+  readonly damage: (amount: number, segment: number) => 'ignored' | 'hurt' | 'phase' | 'dead';
+  readonly phase: () => 1 | 2;
+  readonly vulnerable: () => boolean;
+  /** Intro (M4 §1): leave the lurk and play the script; skip jumps the body along it. */
+  readonly beginIntro: () => void;
+  readonly skipIntroTo: (k: number) => void;
+  /** Defeat: drop the attack in progress and stop threatening. */
+  readonly calm: () => void;
+  /** Extra condition for the fight being on (the run's stage). */
+  readonly setEngagedRule: (rule: (() => boolean) | undefined) => void;
+  readonly head: () => P3;
   /** Sash Bind: the dragon's clock stops for `steps` (world-clock) steps. */
   readonly bind: (steps: number) => void;
   readonly bound: () => boolean;
@@ -64,7 +79,8 @@ export interface DragonService {
   readonly engaged: () => boolean;
   /** Events since the last call (telegraph, hit, opening-end, dead, dead-done). */
   readonly drain: () => DragonEvent[];
-  readonly reset: () => void;
+  /** A new dragon: 'lurk' behind the wall for the intro, or 'fight' (retry, intro skipped). */
+  readonly reset: (start: 'fight' | 'lurk', transitionSeen: boolean) => void;
   /** 1 normally, falls to 0 while the dragon dies (the vortex stops at step 150). */
   readonly vortexSpeed: () => number;
 }
@@ -86,48 +102,76 @@ const FADES = [1, 0.75, 0.5, 0.35] as const;
 /** A body part whose surface is this close to the lens is not drawn (the camera never sits inside the dragon). */
 const LENS_HIDE = 0.5;
 
-/** Flat fan mesh of a convex polygon at y = 0 (warning fill). */
-function polygonMesh(poly: Polygon, inset = 0, centre?: V2): MeshAsset {
-  const c = centre ?? { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, z: poly.reduce((a, p) => a + p.z, 0) / poly.length };
-  const n = poly.length;
-  const position: number[] = [], normal: number[] = [], uv: number[] = [], indices: number[] = [];
-  if (inset <= 0) {
-    position.push(c.x - (centre ? c.x : 0), 0, c.z - (centre ? c.z : 0));
-    normal.push(0, 1, 0);
-    uv.push(0, 0);
-    for (const p of poly) {
-      position.push(p.x - (centre ? c.x : 0), 0, p.z - (centre ? c.z : 0));
-      normal.push(0, 1, 0);
-      uv.push(p.x, p.z);
-    }
-    for (let i = 0; i < n; i += 1) indices.push(0, 1 + i, 1 + ((i + 1) % n));
-  } else {
-    // Band between the outline and an inset copy (vertex normals from the neighbouring edges).
-    const inner = poly.map((p, i) => {
-      const a = poly[(i - 1 + n) % n]!, b = poly[(i + 1) % n]!;
-      const ex = b.x - a.x, ez = b.z - a.z;
-      const len = Math.hypot(ex, ez) || 1;
-      // CCW in (x, z): the inward normal of the tangent (ex, ez) is (-ez, ex).
-      return { x: p.x - (ez / len) * inset, z: p.z + (ex / len) * inset };
-    });
-    for (const list of [poly, inner]) for (const p of list) {
-      position.push(p.x - (centre ? c.x : 0), 0, p.z - (centre ? c.z : 0));
-      normal.push(0, 1, 0);
-      uv.push(p.x, p.z);
-    }
-    for (let i = 0; i < n; i += 1) {
-      const j = (i + 1) % n;
-      indices.push(i, j, n + j, i, n + j, n + i);
-    }
+/** Warning mesh capacity: outline points (the lash hull has ~180; the coil circle uses 128). */
+const WARN_CAP = 256;
+const RING_POINTS = 128;
+
+/**
+ * Warning meshes are built once and reused (M4 §12: no mesh creation in the frame a telegraph
+ * starts). A telegraph only rewrites the positions; unused outline slots repeat the last point,
+ * so their triangles collapse to nothing.
+ */
+function warnMesh(kind: 'fan' | 'band'): MeshAsset {
+  const n = WARN_CAP;
+  const count = kind === 'fan' ? n + 1 : 2 * n;
+  const position = new Float32Array(count * 3);
+  const normal = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) normal[i * 3 + 1] = 1;
+  const indices: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const j = (i + 1) % n;
+    if (kind === 'fan') indices.push(0, 1 + i, 1 + j);
+    else indices.push(i, j, n + j, i, n + j, n + i);
   }
   const built = createMeshBuilder({
-    attributes: { position: new Float32Array(position), normal: new Float32Array(normal), uv: new Float32Array(uv) },
+    attributes: { position, normal, uv: new Float32Array(count * 2) },
     indices: new Uint32Array(indices),
-    submeshes: [{ indexOffset: 0, indexCount: indices.length, vertexCount: position.length / 3, topology: 'triangle-list', materialSlot: 0 }],
+    submeshes: [{ indexOffset: 0, indexCount: indices.length, vertexCount: count, topology: 'triangle-list', materialSlot: 0 }],
     materialSlots: [{ slotName: 'warning' }],
   }).build();
   if (!built.ok) throw built.error;
   return { ...built.value, aabb: new Float32Array([-40, -1, -40, 40, 1, 40]) };
+}
+
+/** Inward offset of a CCW outline (vertex normals from the neighbouring edges). */
+function insetOf(poly: Polygon, inset: number): V2[] {
+  const n = poly.length;
+  return poly.map((p, i) => {
+    const a = poly[(i - 1 + n) % n]!, b = poly[(i + 1) % n]!;
+    const ex = b.x - a.x, ez = b.z - a.z;
+    const len = Math.hypot(ex, ez) || 1;
+    // CCW in (x, z): the inward normal of the tangent (ex, ez) is (-ez, ex).
+    return { x: p.x - (ez / len) * inset, z: p.z + (ex / len) * inset };
+  });
+}
+const at = (list: readonly V2[], i: number) => list[Math.min(i, list.length - 1)]!;
+/** Fan positions: centre + outline (relative to `origin`). */
+function fanPositions(poly: Polygon, origin: V2): Float32Array {
+  const out = new Float32Array((WARN_CAP + 1) * 3);
+  const c = { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, z: poly.reduce((a, p) => a + p.z, 0) / poly.length };
+  out.set([c.x - origin.x, 0, c.z - origin.z], 0);
+  for (let i = 0; i < WARN_CAP; i += 1) {
+    const p = at(poly, i);
+    out.set([p.x - origin.x, 0, p.z - origin.z], (1 + i) * 3);
+  }
+  return out;
+}
+/** Band positions between two outlines with the same point count (relative to `origin`). */
+function bandPositions(outer: readonly V2[], inner: readonly V2[], origin: V2): Float32Array {
+  const out = new Float32Array(2 * WARN_CAP * 3);
+  for (let i = 0; i < WARN_CAP; i += 1) {
+    const a = at(outer, i), b = at(inner, i);
+    out.set([a.x - origin.x, 0, a.z - origin.z], i * 3);
+    out.set([b.x - origin.x, 0, b.z - origin.z], (WARN_CAP + i) * 3);
+  }
+  return out;
+}
+/** CCW circle (angle 0 = +Z toward +X is clockwise seen from above, so walk it backwards). */
+function circle(c: V2, r: number): V2[] {
+  return Array.from({ length: RING_POINTS }, (_, k) => {
+    const a = -(k / RING_POINTS) * Math.PI * 2;
+    return { x: c.x + Math.sin(a) * r, z: c.z + Math.cos(a) * r };
+  });
 }
 
 function lookQuat(dir: P3): [number, number, number, number] {
@@ -176,6 +220,7 @@ export const dragon: Plugin = {
       fin: await load(guidText(geometryGuid('dragon-fin')), 'mesh'),
       head: await load(guidText(geometryGuid('dragon-head')), 'mesh'),
       eyes: await load(guidText(geometryGuid('dragon-eyes')), 'mesh'),
+      coilWall: await load(guidText(geometryGuid('coil-wall')), 'mesh'),
     };
     const mat = {
       bands: [await load(guidText(materialGuid('dragon-front')), 'material'), await load(guidText(materialGuid('dragon-mid')), 'material'), await load(guidText(materialGuid('dragon-tail')), 'material')],
@@ -187,6 +232,7 @@ export const dragon: Plugin = {
       fill: await load(guidText(materialGuid('warn-fill')), 'material'),
       edge: await load(guidText(materialGuid('warn-edge')), 'material'),
       shrink: await load(guidText(materialGuid('warn-shrink')), 'material'),
+      wall: await load(guidText(materialGuid('water-wall')), 'material'),
     };
 
     await ctx.effect(function* () {
@@ -197,7 +243,7 @@ export const dragon: Plugin = {
         for (const e of spawned) world.despawn(e).unwrap();
         for (const c of copies) assets.release(c as never).unwrap();
         for (const m of meshes) assets.release(m as never).unwrap();
-        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
+        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, mat.wall, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
       };
       const copy = (handle: never, values?: Record<string, unknown>) => {
         const c = assets.copy(handle).unwrap() as unknown as number;
@@ -229,52 +275,89 @@ export const dragon: Plugin = {
       const head = spawn(mesh.head, [bandMats[0]![0]!, mat.horn, mat.ridge]);
       const eyeMat = copy(mat.eye);
       const eyes = spawn(mesh.eyes, [eyeMat]);
-      // Warning entities (meshes are rebuilt per telegraph).
+      // Warning entities (M4 §12): meshes built once; a telegraph only rewrites positions.
       const fillMat = copy(mat.fill);
       const shrinkMat = copy(mat.shrink);
-      const warn = { fill: spawn(mesh.joint, [fillMat]), edge: spawn(mesh.joint, [mat.edge]), shrink: spawn(mesh.joint, [shrinkMat]) };
-      let warnMeshes: number[] = [];
+      const pool = { fan: assets.create(warnMesh('fan')).unwrap(), ring: assets.create(warnMesh('band')).unwrap(), edgeA: assets.create(warnMesh('band')).unwrap(), edgeB: assets.create(warnMesh('band')).unwrap(), shrink: assets.create(warnMesh('band')).unwrap() };
+      for (const m of Object.values(pool)) meshes.push(m as unknown as number);
+      const warn = {
+        fan: spawn(pool.fan as never, [fillMat]),
+        ring: spawn(pool.ring as never, [fillMat]),
+        edgeA: spawn(pool.edgeA as never, [mat.edge]),
+        edgeB: spawn(pool.edgeB as never, [mat.edge]),
+        shrink: spawn(pool.shrink as never, [shrinkMat]),
+      };
+      let warnUp = false;
       const clearWarning = () => {
-        // Point the entities back at a live mesh before releasing the warning meshes (never draw a freed one).
-        for (const e of Object.values(warn)) {
-          world.set(e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
-          world.set(e, MeshFilter, { assetHandle: mesh.joint } as never).unwrap();
-        }
-        for (const m of warnMeshes) assets.release(m as never).unwrap();
-        warnMeshes = [];
+        for (const e of Object.values(warn)) world.set(e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+        warnUp = false;
       };
       yield clearWarning;
       let warnCentre: V2 = { x: 0, z: 0 };
-      const showWarning = (poly: Polygon) => {
+      const write = (m: unknown, values: Float32Array) => assets.writeRange(m as never, { attribute: 'position', first: 0, values }).unwrap();
+      const ORIGIN: V2 = { x: 0, z: 0 };
+      const showWarning = (zone: Zone) => {
         clearWarning();
-        warnCentre = { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, z: poly.reduce((a, p) => a + p.z, 0) / poly.length };
-        const fill = assets.create(polygonMesh(poly)).unwrap() as unknown as number;
-        const edge = assets.create(polygonMesh(poly, 0.08)).unwrap() as unknown as number;
-        const shrink = assets.create(polygonMesh(poly, 0.05, warnCentre)).unwrap() as unknown as number;
-        warnMeshes = [fill, edge, shrink];
-        world.set(warn.fill, MeshFilter, { assetHandle: fill } as never).unwrap();
-        world.set(warn.edge, MeshFilter, { assetHandle: edge } as never).unwrap();
-        world.set(warn.shrink, MeshFilter, { assetHandle: shrink } as never).unwrap();
-        world.set(warn.fill, Transform, { pos: [0, FLOOR_Y + 0.05, 0], scale: [1, 1, 1] }).unwrap();
-        world.set(warn.edge, Transform, { pos: [0, FLOOR_Y + 0.052, 0], scale: [1, 1, 1] }).unwrap();
+        const place = (e: EntityHandle, y: number) => world.set(e, Transform, { pos: [0, FLOOR_Y + y, 0], scale: [1, 1, 1] }).unwrap();
+        if (zone.kind === 'poly') {
+          const poly = zone.poly;
+          warnCentre = { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, z: poly.reduce((a, p) => a + p.z, 0) / poly.length };
+          write(pool.fan, fanPositions(poly, ORIGIN));
+          write(pool.edgeA, bandPositions(poly, insetOf(poly, 0.08), ORIGIN));
+          write(pool.shrink, bandPositions(poly, insetOf(poly, 0.05), warnCentre));
+          place(warn.fan, 0.05);
+          place(warn.edgeA, 0.052);
+        } else {
+          // Coil ring (M4 §4): fill between 4.75 and 7 m, both edges outlined; the shrink ring is the outer edge.
+          warnCentre = zone.c;
+          const outer = circle(zone.c, zone.outer), inner = circle(zone.c, zone.inner);
+          write(pool.ring, bandPositions(outer, inner, ORIGIN));
+          write(pool.edgeA, bandPositions(outer, circle(zone.c, zone.outer - 0.08), ORIGIN));
+          write(pool.edgeB, bandPositions(circle(zone.c, zone.inner + 0.08), inner, ORIGIN));
+          write(pool.shrink, bandPositions(outer, circle(zone.c, zone.outer - 0.05), warnCentre));
+          place(warn.ring, 0.05);
+          place(warn.edgeA, 0.052);
+          place(warn.edgeB, 0.052);
+        }
+        warnUp = true;
       };
 
-      let brain = createBrain();
+      // Phase-2 coil water wall (visual only, M4 §4) and the intro breach splash.
+      const coilWallMat = copy(mat.wall);
+      const coilWall = spawn(mesh.coilWall, [coilWallMat]);
+      let coilWallAge = -1;
+      let coilWallAt: V2 = { x: 0, z: 0 };
+      const splash = spawn(mesh.joint, [copy(mat.wall)]);
+      let splashAge = -1;
+      let splashAt: V2 = { x: 0, z: 0 };
+
+      const difficulty = () => tuning.current.difficulty;
+      /** A new brain: knobs (dragon HP, attack gap) and labs apply at every fight start. */
+      const makeBrain = (start: 'fight' | 'lurk', transitionSeen: boolean) => {
+        const hpMax = Math.round(difficulty().dragonHp);
+        const labs = session.frontend().lab.split(',');
+        const opts = { hpMax, minGap: Math.round(difficulty().gapMin), start, transitionSeen };
+        if (labs.includes('phase2')) return createBrain({ ...opts, hp: Math.ceil(hpMax / 2) + 1 });
+        if (labs.includes('finish')) return createBrain({ ...opts, phase2: true, hp: 1 });
+        if (labs.includes('bosslow')) return createBrain({ ...opts, phase2: true, hp: 40 });
+        return createBrain(opts);
+      };
+      let brain = makeBrain('lurk', false);
       let prev = brain.points();
       let cur = prev;
       let acc = 0;
       let hold = 0;
       let queue: DragonEvent[] = [];
       let telegraphAt = 0;
-      let lastPoly: Polygon | null = null;
-      let lastHit: { kind: AttackKind; step: number; telegraphAt: number; polygonVertices: number } | null = null;
+      let lastZone: Zone | null = null;
+      let lastHit: { kind: AttackKind; step: number; telegraphAt: number; zone: string } | null = null;
       const shake = new Map<number, number>();
       let cpuMs = 0;
       let eye = 0.3;
       let worldTime = 0;
       let lensHidden = 0;
-      let labApplied = false;
       let seeThrough = 0;
+      let engagedRule: (() => boolean) | undefined;
 
       const capsules = () => hurtCapsules(cur);
       const nezhaXZ = (): V2 => {
@@ -283,7 +366,7 @@ export const dragon: Plugin = {
       };
       const engagedNow = () => {
         const n = nezhaXZ();
-        return Math.hypot(n.x, n.z) <= ARENA.boundary + 0.5;
+        return Math.hypot(n.x, n.z) <= ARENA.boundary + 0.5 && (engagedRule?.() ?? true);
       };
 
       world.addSystem(FixedUpdate, {
@@ -293,13 +376,9 @@ export const dragon: Plugin = {
         queries: [],
         fn: () => {
           if (!session.playing()) return;
-          // Dev lab (?dev=1&lab=bosslow): the dragon starts each fight with 40 HP, to verify the fall quickly.
-          if (!labApplied && session.frontend().lab === 'bosslow') {
-            labApplied = true;
-            brain.damage(BRAIN.hpMax - 40);
-          }
           const t0 = performance.now();
-          const scale = session.clock.worldScale();
+          // The fall plays on real steps (M4 §8: the victory slow motion is for Nezha and the water).
+          const scale = brain.snapshot().mode === 'dead' ? (session.clock.frozen() ? 0 : 1) : session.clock.worldScale();
           worldTime += scale / 60;
           if (hold > 0) {
             // Bound by the sash: the dragon's own clock is zero (wave, whiskers, warnings, opening all stop).
@@ -316,13 +395,21 @@ export const dragon: Plugin = {
             for (const [seg, left] of shake) left <= 1 ? shake.delete(seg) : shake.set(seg, left - 1);
             for (const e of events) {
               if (e.type === 'telegraph') {
-                showWarning(e.polygon);
+                showWarning(e.zone);
                 telegraphAt = brain.snapshot().step;
-                lastPoly = e.polygon;
+                lastZone = e.zone;
               }
               if (e.type === 'hit') {
-                lastHit = { kind: e.kind, step: brain.snapshot().step, telegraphAt, polygonVertices: e.polygon.length };
+                lastHit = { kind: e.kind, step: brain.snapshot().step, telegraphAt, zone: e.zone.kind };
                 clearWarning();
+                if (e.kind === 'coil' && e.zone.kind === 'ring') {
+                  coilWallAge = 0;
+                  coilWallAt = e.zone.c;
+                }
+              }
+              if (e.type === 'breach') {
+                splashAge = 0;
+                splashAt = e.at;
               }
               queue.push(e);
             }
@@ -399,38 +486,69 @@ export const dragon: Plugin = {
             }
           }
           // Dorsal ridge fins along the back (#587A6D), keeping the tail readable against the vortex.
+          const snapV = brain.snapshot();
           fins.forEach((fin, k) => {
             const i = 2 + k * 2;
             const p = pts[i]!, q = pts[i + 1]!;
             const r = radius(i);
-            const h = Math.max(0.12, r * 0.55);
+            // Phase 2 (M4 §2): the fins rise ×1.4 one after another during the roar, neck to tail.
+            const rise = snapV.roarK !== null ? smooth((snapV.roarK - (12 + (84 / 19) * k)) / 8) : snapV.phase === 2 ? 1 : 0;
+            const h = Math.max(0.12, r * 0.55) * (1 + 0.4 * rise);
             world.set(fin, Transform, { pos: [p[0], p[1] + r + h * 0.4, p[2]], quat: lookQuat([q[0] - p[0], 0, q[2] - p[2]]), scale: [r * 0.5, h, r * 0.9] }).unwrap();
           });
           // Head: along the neck; in the opening it looks at Nezha.
-          const snap = brain.snapshot();
+          const snap = snapV;
           const p0 = pts[0]!, p1 = pts[1]!;
           let dir: P3 = [p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2]];
-          if (snap.opening) dir = [root[0] - p0[0], FLOOR_Y + 2.6 - p0[1], root[2] - p0[2]];
+          const atNezha: P3 = [root[0] - p0[0], FLOOR_Y + 2.6 - p0[1], root[2] - p0[2]];
+          if (snap.opening) dir = atNezha;
+          else if (snap.kind === 'coil') dir = [atNezha[0], atNezha[1] * 0.3, atNezha[2]];
+          else if (snap.introK !== null && snap.introK >= INTRO.turnFrom) {
+            // Intro (M4 §1): the head turns to face Nezha over 648–688 and holds her gaze.
+            const w = smooth((snap.introK - INTRO.turnFrom) / (INTRO.turnTo - INTRO.turnFrom));
+            const n0 = Math.hypot(...dir) || 1, n1 = Math.hypot(...atNezha) || 1;
+            dir = [dir[0] / n0 + (atNezha[0] / n1 - dir[0] / n0) * w, dir[1] / n0 + (atNezha[1] / n1 - dir[1] / n0) * w, dir[2] / n0 + (atNezha[2] / n1 - dir[2] / n0) * w];
+          }
           const hq = lookQuat(dir);
           world.set(head, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
           world.set(eyes, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
           // Eyes: 30 % steady, rise to 50 % in 6 steps on a telegraph, 15 % in the opening, close as it dies. Never flicker.
-          let want = 0.3;
-          if (snap.telegraph && snap.k !== null) want = 0.3 + 0.2 * Math.min(1, snap.k / 6);
+          // Phase 2 (M4 §2): the steady glow rises linearly 30 % → 45 % over the 120-step roar, never flickers.
+          const base = snap.roarK !== null ? 0.3 + 0.15 * Math.min(1, snap.roarK / BRAIN.roarSteps) : snap.phase === 2 ? 0.45 : 0.3;
+          let want = base;
+          if (snap.telegraph && snap.k !== null) want = base + 0.2 * Math.min(1, snap.k / 6);
           else if (snap.opening) want = 0.15;
-          if (snap.mode === 'dead') want = Math.max(0, 0.3 * (1 - snap.deathK / BRAIN.deathEyesClose));
+          if (snap.mode === 'dead') want = Math.max(0, base * (1 - snap.deathK / BRAIN.deathEyesClose));
           if (Math.abs(want - eye) > 1e-3) {
-            eye = snap.telegraph || snap.mode === 'dead' ? want : eye + (want - eye) * Math.min(1, dt * 20);
+            eye = snap.telegraph || snap.mode === 'dead' || snap.roarK !== null ? want : eye + (want - eye) * Math.min(1, dt * 20);
             assets.update(eyeMat, { values: { intensity: eye } } as never).unwrap();
           }
           // Warning: flickering fill, cyan edge shrinking onto the outline exactly at the hit frame.
           // Only while a warning is up: on the hit step the warning is already cleared (k == hit still
           // reads as "telegraph"), and redrawing the shrink ring there left the last outline on the floor.
-          if (warnMeshes.length > 0 && snap.telegraph && snap.hitStep !== null && snap.k !== null) {
+          if (warnUp && snap.telegraph && snap.hitStep !== null && snap.k !== null) {
             const k = Math.min(1, (snap.k + a) / snap.hitStep);
             const s = 1.5 - 0.5 * k;
             world.set(warn.shrink, Transform, { pos: [warnCentre.x, FLOOR_Y + 0.054, warnCentre.z], scale: [s, 1, s] }).unwrap();
             assets.update(fillMat, { values: { intensity: 0.6 + 0.3 * (0.5 + 0.5 * Math.sin(worldTime * Math.PI * 12)) } } as never).unwrap();
+          }
+          // Coil water burst: 0 → 3 m in 12 steps from the hit, holds, falls back (world clock).
+          if (coilWallAge >= 0) {
+            coilWallAge += dt * 60 * session.clock.worldScale();
+            const h = coilWallAge < 12 ? 3 * smooth(coilWallAge / 12) : coilWallAge < 40 ? 3 : 3 * (1 - smooth((coilWallAge - 40) / 20));
+            if (coilWallAge > 60) {
+              coilWallAge = -1;
+              world.set(coilWall, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+            } else world.set(coilWall, Transform, { pos: [coilWallAt.x, FLOOR_Y, coilWallAt.z], scale: [5.9, Math.max(0.01, h), 5.9] }).unwrap();
+          }
+          // Intro breach: a flattened burst of water where the head comes through the wall.
+          if (splashAge >= 0) {
+            splashAge += dt * 60;
+            const t = Math.min(1, splashAge / 30);
+            if (t >= 1) {
+              splashAge = -1;
+              world.set(splash, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+            } else world.set(splash, Transform, { pos: [splashAt.x, FLOOR_Y + 4.0, splashAt.z], scale: [1 + 4 * t, (1 + 4 * t) * 0.6 * (1 - t), 1 + 4 * t] }).unwrap();
           }
           lensHidden = hiddenParts;
           seeThrough = joints.filter((j) => j.level > 0).length;
@@ -443,6 +561,8 @@ export const dragon: Plugin = {
         points: () => cur,
         strike: (x, z, facing, range, arcDeg) => {
           const fx = -Math.sin(facing), fz = -Math.cos(facing);
+          // Roaring, lurking, in the intro or fallen: strikes pass through (hollow lock marker).
+          const canHit = brain.vulnerable();
           let best: DragonStrike | undefined;
           let nearest = { distance: Infinity, angleDeg: 0, point: { x, z }, segment: -1, tail: false };
           for (const c of capsules()) {
@@ -451,7 +571,7 @@ export const dragon: Plugin = {
             const len = Math.hypot(p.x - x, p.z - z);
             const ang = len < 1e-6 ? 0 : (Math.acos(Math.max(-1, Math.min(1, ((p.x - x) * fx + (p.z - z) * fz) / len))) * 180) / Math.PI;
             if (d < nearest.distance) nearest = { distance: d, angleDeg: ang, point: p, segment: c.index, tail: c.tail };
-            if (c.bottom > HITTABLE_UNDERSIDE + 1e-9 || d > range + 1e-9 || ang > arcDeg + 1e-9) continue;
+            if (!canHit || c.bottom > HITTABLE_UNDERSIDE + 1e-9 || d > range + 1e-9 || ang > arcDeg + 1e-9) continue;
             if (!best || d < best.distance) best = { hit: true, distance: d, angleDeg: ang, point: p, segment: c.index, tail: c.tail };
           }
           return best ?? { hit: false, ...nearest };
@@ -496,8 +616,19 @@ export const dragon: Plugin = {
           return { x: px, z: pz };
         },
         damage: (amount, segment) => {
+          const result = brain.damage(amount);
+          if (result === 'ignored') return result;
           shake.set(segment, 6);
-          if (brain.damage(amount)) queue.push({ type: 'dead' });
+          if (result === 'phase') {
+            clearWarning();
+            hold = 0;
+            queue.push({ type: 'phase', steps: brain.snapshot().transitionLen });
+          }
+          if (result === 'dead') {
+            clearWarning();
+            queue.push({ type: 'dead' });
+          }
+          return result;
         },
         bind: (steps) => {
           hold = Math.max(hold, steps);
@@ -505,17 +636,34 @@ export const dragon: Plugin = {
         bound: () => hold > 0,
         opening: () => brain.snapshot().opening,
         alive: () => brain.snapshot().mode !== 'dead',
-        hp: () => ({ hp: brain.snapshot().hp, max: BRAIN.hpMax }),
+        hp: () => ({ hp: brain.snapshot().hp, max: brain.snapshot().hpMax }),
+        phase: () => brain.snapshot().phase,
+        vulnerable: () => brain.vulnerable(),
+        beginIntro: () => brain.beginIntro(),
+        skipIntroTo: (k) => {
+          brain.skipIntroTo(k);
+          prev = cur = brain.points();
+        },
+        calm: () => {
+          brain.abort();
+          hold = 0;
+          clearWarning();
+        },
+        setEngagedRule: (rule) => {
+          engagedRule = rule;
+        },
+        head: () => cur[0]!,
         engaged: engagedNow,
         drain: () => {
           const out = queue;
           queue = [];
           return out;
         },
-        reset: () => {
-          brain = createBrain();
-          labApplied = false;
+        reset: (start, transitionSeen) => {
+          brain = makeBrain(start, transitionSeen);
           prev = cur = brain.points();
+          coilWallAge = -1;
+          world.set(coilWall, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
           acc = 0;
           hold = 0;
           queue = [];
@@ -540,7 +688,16 @@ export const dragon: Plugin = {
         return {
           mode: s.mode,
           hp: s.hp,
-          hpMax: BRAIN.hpMax,
+          hpMax: s.hpMax,
+          phase: s.phase,
+          roarK: s.roarK,
+          transitionLen: s.transitionLen,
+          coilCd: s.coilCd,
+          coilPending: s.coilPending,
+          introK: s.introK,
+          second: s.second,
+          vulnerable: brain.vulnerable(),
+          coilWall: coilWallAge >= 0 ? r3(coilWallAge) : null,
           kind: s.kind,
           k: s.k,
           hitStep: s.hitStep,
@@ -565,13 +722,17 @@ export const dragon: Plugin = {
           frontUndersideMax: r3(Math.max(...caps.filter((c) => !c.tail).map((c) => c.bottom))),
           overheadUnderside: Number.isFinite(overhead) ? r3(overhead) : null,
           telegraphAt,
-          polygon: lastPoly ? lastPoly.map((p) => [r3(p.x), r3(p.z)]) : null,
+          polygon: lastZone?.kind === 'poly' ? lastZone.poly.map((p) => [r3(p.x), r3(p.z)]) : null,
+          ring: lastZone?.kind === 'ring' ? { c: [r3(lastZone.c.x), r3(lastZone.c.z)], inner: lastZone.inner, outer: lastZone.outer } : null,
+          nezhaZoneDistance: lastZone ? r3(zoneDistance(lastZone, root[0], root[2])) : null,
           lastHit,
           log: s.log.slice(-12),
           cpuMs: r3(cpuMs),
           seeThrough,
           lensHidden,
-          hitSteps: { bite: ATTACKS.bite.hit, lash: ATTACKS.lash.hit, charge: ATTACKS.charge.hit },
+          hitSteps: { bite: ATTACKS.bite.hit, lash: ATTACKS.lash.hit, charge: ATTACKS.charge.hit, coil: ATTACKS.coil.hit },
+          coilHeadY: s.kind === 'coil' ? r3(cur[0]![1]) : null,
+          coilRadius: COIL.outer,
         };
       });
       void CAPSULE_CENTER_Y;

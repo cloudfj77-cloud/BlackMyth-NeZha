@@ -146,6 +146,20 @@ button {
 :host(:lang(en)) .pause-panel h2 { letter-spacing: 0.08em; }
 .pause-hint { margin: 0; color: rgb(242 239 228 / 65%); font-size: 13px; }
 .pause-panel .controls { width: 100%; }
+.pause-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.secondary {
+  padding: 8px 18px;
+  color: #f2efe4;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid var(--fx-nezha-gold-soft);
+  border-radius: 2px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.secondary:hover { background: rgb(231 191 106 / 16%); }
+.pause-time { margin-left: 6px; color: rgb(242 239 228 / 65%); font-size: 13px; }
+.pause-time b { font: 600 13px ui-monospace, Menlo, monospace; color: #fbf6e8; }
 
 /* --- HUD ----------------------------------------------------------------------- */
 
@@ -260,14 +274,7 @@ button {
 .cooldown { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgb(0 0 0 / 70%) var(--fx-nezha-cd, 0%), transparent 0); z-index: 1; }
 .item-count { font: 700 13px ui-monospace, Menlo, monospace; color: #fbf6e8; text-shadow: 0 1px 2px #000; min-height: 16px; }
 .item-label { font-size: 12px; color: rgb(242 239 228 / 75%); white-space: nowrap; text-shadow: 0 1px 2px #000; }
-.item-label kbd {
-  padding: 0 5px;
-  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
-  color: #f7ecd2;
-  background: rgb(255 255 255 / 8%);
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 3px;
-}
+
 /* Boss bar (M3): name + health only, top centre. */
 .boss-panel {
   position: absolute;
@@ -282,29 +289,146 @@ button {
 .boss-panel.show { opacity: 1; }
 .boss-name { justify-self: center; color: #e6e3da; font-size: 15px; letter-spacing: 0.24em; text-shadow: 0 1px 3px #000; white-space: nowrap; }
 :host(:lang(en)) .boss-name { letter-spacing: 0.08em; }
-.boss-bar { position: relative; height: 9px; background: rgb(0 0 0 / 60%); border: 1px solid var(--fx-nezha-gold-soft); overflow: hidden; }
-.boss-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(180deg, #a9c9bc, #4f7466); transition: width 160ms linear; }
+.boss-bar { position: relative; height: 9px; background: #25342e; border: 1px solid #3e4a3c; }
+.boss-tick { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #a88b4e; }
+.boss-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: #7fa295; transition: width 160ms linear; }
 
-/* Defeat banner「败」(M3): 1 s, then the fight resets. */
+/* Run HUD (M4): combat bars hide in the intro, the defeat and the victory. */
+.player-panel, .items-panel, .lock-marker, .boss-panel { transition: opacity 500ms ease-out; }
+:host(.run-menu) .look-tip, :host(.run-hud-off) .look-tip { display: none !important; }
+:host(.run-hud-off) .player-panel, :host(.run-hud-off) .items-panel, :host(.run-hud-off) .lock-marker { opacity: 0; }
+
+/* Subtitles (M4 §6): bottom centre at 84 %, no plate, outlined; speaker on its own small line. */
+.subtitle-box {
+  position: absolute;
+  left: 50%; top: 84%;
+  width: min(760px, 80vw);
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  text-align: center;
+}
+.subtitle-box.show { opacity: 1; }
+.subtitle-box .speaker { font-size: 13px; letter-spacing: 0.2em; text-shadow: -1px 0 #0d1e33, 1px 0 #0d1e33, 0 -1px #0d1e33, 0 1px #0d1e33, 0 0 5px #0d1e33; }
+:host(:lang(en)) .subtitle-box .speaker { letter-spacing: 0.06em; }
+.subtitle-box .speaker.dragonKing { color: #7fa295; }
+.subtitle-box .speaker.nezha { color: #d4a03a; }
+.subtitle-box .line {
+  color: #f2ece0;
+  font-size: 22px;
+  line-height: 1.45;
+  white-space: pre-line;
+  text-shadow: -1px 0 #0d1e33, 1px 0 #0d1e33, 0 -1px #0d1e33, 0 1px #0d1e33, 0 0 6px #0d1e33;
+}
+:host(:lang(en)) .subtitle-box .line { font-size: 20px; }
+
+.skip-hint {
+  position: absolute;
+  right: 30px; bottom: 26px;
+  font-size: 13px;
+  color: rgb(242 239 228 / 70%);
+  text-shadow: 0 1px 2px #000;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.skip-hint.show { opacity: 1; }
+kbd {
+  padding: 0 5px;
+  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
+  color: #f7ecd2;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 3px;
+}
+
+/* Defeat (M4 §7):「败」in lotus white, 18 % of the screen height; the world is greyed by the canvas filter. */
 .defeat {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
-  background: radial-gradient(ellipse at center, rgb(10 4 6 / 35%) 0%, rgb(10 4 6 / 70%) 100%);
+  place-content: center;
+  justify-items: center;
+  gap: 4vh;
+  background: radial-gradient(ellipse at center, rgb(6 10 14 / 20%) 0%, rgb(6 10 14 / 62%) 100%);
   opacity: 0;
-  transition: opacity 120ms ease-out;
+  pointer-events: none;
+  transition: opacity 240ms ease-out;
 }
-.defeat.show { opacity: 1; }
-.defeat span {
-  font: 700 128px/1 "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-  color: #b8142a;
-  text-shadow: 0 0 24px rgb(184 20 42 / 55%), 0 3px 6px #000;
-  transform: scale(1.08);
-  transition: transform 300ms ease-out;
+.defeat.show { opacity: 1; pointer-events: auto; }
+.defeat-word {
+  font: 700 18vh/1 "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  color: #f2ece0;
+  text-shadow: 0 0 22px rgb(13 30 51 / 70%), 0 3px 6px #000;
 }
-:host(:lang(en)) .defeat span { font-size: 72px; letter-spacing: 0.12em; }
-.defeat.show span { transform: scale(1); }
+:host(:lang(en)) .defeat-word { font-size: 10vh; letter-spacing: 0.12em; }
+.retry {
+  padding: 9px 26px;
+  color: #f2ece0;
+  background: rgb(10 14 18 / 55%);
+  border: 1px solid #e7bf6a;
+  border-radius: 2px;
+  font-size: 17px;
+  letter-spacing: 0.14em;
+}
+:host(:lang(en)) .retry { letter-spacing: 0.05em; }
+.retry:hover { background: rgb(231 191 106 / 16%); }
+
+/* Result「东海潮平」(M4 §8): fades in, never flashes. */
+.result {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(2 8 14 / 55%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease-out;
+}
+.result.show { opacity: 1; pointer-events: auto; }
+.result-panel {
+  width: min(760px, 88vw);
+  padding: 30px 34px 26px;
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 22px 30px;
+  background: var(--fx-nezha-ink);
+  border: 1px solid rgb(231 191 106 / 32%);
+  border-radius: 3px;
+}
+.result-main h2 { margin: 0 0 18px; font-size: 34px; letter-spacing: 0.32em; color: #fbf6e8; font-weight: 700; }
+:host(:lang(en)) .result-main h2 { letter-spacing: 0.06em; font-size: 30px; }
+.stats { display: grid; gap: 8px; }
+.stat, .rating { display: flex; align-items: baseline; gap: 8px; font-size: 16px; }
+.stat-label { color: rgb(242 239 228 / 70%); }
+.stat-label::after { content: ":"; }
+.stat b { font: 600 18px ui-monospace, Menlo, monospace; color: #fbf6e8; }
+.rating { margin-top: 16px; }
+.rating-letter { font: 700 54px/1 "Songti SC", Georgia, serif; margin-left: 6px; }
+.rating-letter.S { color: #e7bf6a; }
+.rating-letter.A { color: #f2ece0; }
+.rating-letter.B { color: #587a6d; }
+.reward {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  padding: 16px 14px;
+  border: 1px solid #6b5a3a;
+  background: linear-gradient(180deg, rgb(37 52 46 / 70%), rgb(13 20 18 / 85%));
+}
+.reward-label { color: rgb(242 239 228 / 60%); font-size: 12px; letter-spacing: 0.2em; }
+.scale-icon {
+  width: 46px; height: 54px;
+  background: linear-gradient(160deg, #a9c9bc, #4f7466 55%, #25342e);
+  clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%);
+}
+.reward-name { color: #e7bf6a; font-size: 16px; letter-spacing: 0.12em; text-align: center; }
+:host(:lang(en)) .reward-name { letter-spacing: 0.02em; }
+.reward-desc { margin: 0; color: rgb(242 239 228 / 75%); font-size: 13px; text-align: center; white-space: pre-line; }
+.result-actions { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; }
 
 /* --- Development panel (dev builds only, ?dev=1; not localized) ---------------- */
 

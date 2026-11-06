@@ -25,6 +25,8 @@ export interface TargetService {
   readonly touching: (x: number, z: number) => number;
   /** Drop the lock (defeat / reset). */
   readonly release: () => void;
+  /** Lock on now (M4: the intro hand-back and every retry start locked). */
+  readonly lock: () => void;
   /** Yaw toward the nearest body point when within `range` and ±90° of facing, else undefined. */
   readonly autoTarget: (x: number, z: number, facing: number, range: number) => number | undefined;
   readonly locked: () => boolean;
@@ -167,10 +169,8 @@ export const lockOn: Plugin = {
             if (session.phase() === 'title' && active) engage(false);
             return;
           }
-          if (!dragon.alive() && active) {
-            engage(false);
-            raise('unlocked');
-          }
+          // The dragon fell: the lock drops quietly (the victory has its own shot, no hint).
+          if (!dragon.alive() && active) engage(false);
           if (player.input().lockPressed) {
             if (active) {
               engage(false);
@@ -228,6 +228,9 @@ export const lockOn: Plugin = {
         touching: (x, z) => dragon.lowDistance(x, z),
         release: () => {
           if (active) engage(false);
+        },
+        lock: () => {
+          if (!active && dragon.alive()) engage(true);
         },
         autoTarget: (x, z, facing, range) => {
           const hit = dragon.strike(x, z, facing, range, 90);

@@ -16,7 +16,9 @@ import {
   type Disc,
   type Polygon,
 } from '../dragon/body.ts';
-import { BRAIN, createBrain } from '../dragon/brain.ts';
+import { attackZone, COIL, zoneHits } from '../dragon/body.ts';
+import { BRAIN, createBrain, INTRO, introHead } from '../dragon/brain.ts';
+import { ARENA } from '../shared/layout.ts';
 
 /** Raster check on a 5 cm grid: warning polygon vs the true union of damaging body discs. */
 function coverage(poly: Polygon, discs: readonly Disc[]) {
@@ -200,12 +202,133 @@ describe('dragon AI', () => {
     }
   });
   it('dies at 0 hp and finishes the fall after 180 steps', () => {
-    const brain = createBrain();
-    expect(brain.damage(799)).toBe(false);
-    expect(brain.damage(5)).toBe(true);
+    const brain = createBrain({ phase2: true, hp: 400 });
+    expect(brain.damage(399)).toBe('hurt');
+    expect(brain.damage(5)).toBe('dead');
     let done = 0;
     for (let s = 1; s <= 200 && !done; s += 1) if (brain.step({ nezha: { x: 0, z: 0 }, engaged: true }).some((e) => e.type === 'dead-done')) done = s;
     expect(done).toBe(BRAIN.deathSteps);
     expect(Math.max(...brain.points().map((p, i) => p[1] - radius(i)))).toBeLessThan(0.1);
+  });
+});
+
+const NEZ = (x = 0, z = 0) => ({ nezha: { x, z }, engaged: true });
+
+describe('dragon phase 2 (M4)', () => {
+  it('stops at half health: the excess is dropped, the attack in progress never lands, no damage while roaring', () => {
+    const brain = createBrain();
+    let tele = false;
+    for (let s = 0; s < 600 && !tele; s += 1) tele = brain.step(NEZ()).some((e) => e.type === 'telegraph');
+    expect(tele).toBe(true);
+    expect(brain.damage(395)).toBe('hurt');
+    expect(brain.damage(30)).toBe('phase');
+    expect(brain.snapshot()).toMatchObject({ hp: 400, mode: 'roar', transitionLen: BRAIN.transitionFirst, telegraph: false });
+    expect(brain.vulnerable()).toBe(false);
+    expect(brain.damage(50)).toBe('ignored');
+    let hits = 0, end = 0;
+    for (let s = 1; s <= 700 && !end; s += 1) {
+      for (const e of brain.step(NEZ(3, 2))) {
+        if (e.type === 'hit') hits += 1;
+        if (e.type === 'transition-end') end = s;
+      }
+    }
+    expect(hits).toBe(0);
+    expect(end).toBe(BRAIN.transitionFirst);
+    expect(brain.snapshot().phase).toBe(2);
+  });
+  it('raises the head while roaring and laps the band, then comes back onto the vortex', () => {
+    const brain = createBrain({ hp: 401 });
+    brain.damage(5);
+    for (let s = 0; s < 60; s += 1) brain.step(NEZ(0, 8));
+    expect(brain.points()[0]![1]).toBeGreaterThan(5.5);
+    let maxR = 0;
+    for (let s = 60; s < 400; s += 1) {
+      brain.step(NEZ(0, 8));
+      maxR = Math.max(maxR, Math.hypot(brain.points()[0]![0], brain.points()[0]![2]));
+    }
+    expect(maxR).toBeGreaterThan(ARENA.radius);
+  });
+  it('opens phase 2 with the coil within 30 steps of the change (570 first, 240 when the lines were seen)', () => {
+    for (const seen of [false, true]) {
+      const brain = createBrain({ hp: 401, transitionSeen: seen });
+      brain.damage(5);
+      const len = seen ? BRAIN.transitionRepeat : BRAIN.transitionFirst;
+      let coilAt = 0;
+      for (let s = 1; s <= len + 60 && !coilAt; s += 1) for (const e of brain.step(NEZ(2, 6))) if (e.type === 'telegraph') coilAt = e.kind === 'coil' ? s : -s;
+      expect(coilAt).toBeGreaterThan(len);
+      expect(coilAt).toBeLessThanOrEqual(len + BRAIN.coilWindow);
+    }
+  });
+  it('coil: head up to ~7.5 m, ring on the floor around the centre, judged on the 4.75–7 m ring at step 60 only', () => {
+    const chain = straightBody({ x: 0, z: 0 }, { x: 0, z: -1 });
+    const att = createAttack('coil', chain, 0, 1, { x: 0, z: -6 });
+    const pose = attackFrame(att, ATTACKS.coil.windup + 5).points;
+    expect(pose[0]![1]).toBeGreaterThan(7.3);
+    expect(pose[0]![1]).toBeLessThan(8);
+    for (let i = COIL.neck; i < 41; i += 1) {
+      expect(Math.hypot(pose[i]![0], pose[i]![2]) + radius(i)).toBeLessThan(3.6);
+      expect(pose[i]![1] - radius(i)).toBeLessThan(0.2);
+    }
+    const zone = attackZone(att);
+    for (const [d, hit] of [[0, false], [3.6, false], [4.74, false], [4.75, true], [6.99, true], [7.01, false]] as const) {
+      for (const a of [0, 1.3, 2.6, 4.2]) expect(zoneHits(zone, Math.sin(a) * d, Math.cos(a) * d, 0.35), `${d} m`).toBe(hit);
+    }
+    const brain = createBrain({ phase2: true, hp: 400 });
+    let hitEvents = 0;
+    for (let s = 0; s < 3000; s += 1) for (const e of brain.step(NEZ(0, 3))) if (e.type === 'hit' && e.kind === 'coil') hitEvents += 1;
+    expect(hitEvents).toBeGreaterThan(0);
+  });
+  it('keeps the coil 720 steps apart', () => {
+    const brain = createBrain({ phase2: true, hp: 400 });
+    const coils: number[] = [];
+    for (let s = 1; s <= 8000; s += 1) for (const e of brain.step(NEZ(5 * Math.sin(s / 300), 5 * Math.cos(s / 300)))) if (e.type === 'hit' && e.kind === 'coil') coils.push(s);
+    expect(coils.length).toBeGreaterThan(1);
+    for (let i = 1; i < coils.length; i += 1) expect(coils[i]! - coils[i - 1]!).toBeGreaterThan(BRAIN.coilCooldown);
+  });
+  it('phase 2 charges twice: the second telegraph starts 24 steps after the first hit; one 48-step opening at the end', () => {
+    const brain = createBrain({ phase2: true, hp: 400 });
+    const tele: { s: number; second: boolean; kind: string }[] = [];
+    const hits: { s: number; kind: string }[] = [];
+    let ends = 0;
+    for (let s = 1; s <= 12000; s += 1) {
+      const far = { x: 13 * Math.sin(s / 900), z: 13 * Math.cos(s / 900) };
+      for (const e of brain.step({ nezha: far, engaged: true })) {
+        if (e.type === 'telegraph') tele.push({ s, second: e.second, kind: e.kind });
+        if (e.type === 'hit') hits.push({ s, kind: e.kind });
+        if (e.type === 'opening-end') ends += 1;
+      }
+    }
+    const seconds = tele.filter((t) => t.second);
+    expect(seconds.length).toBeGreaterThan(0);
+    for (const t of seconds) {
+      const firstHit = hits.filter((h) => h.kind === 'charge' && h.s < t.s).at(-1)!;
+      expect(t.s - firstHit.s).toBe(BRAIN.chargeTurn + 1);
+    }
+    expect(brain.snapshot().openingSteps).toBe(BRAIN.opening2);
+    expect(ends).toBeGreaterThan(0);
+  });
+  it('intro: lurks behind the wall, orbits at 29 m, breaks through and rests 8 m in front of the checkpoint at 2.2 m', () => {
+    const brain = createBrain({ start: 'lurk' });
+    expect(brain.vulnerable()).toBe(false);
+    for (let s = 0; s < 100; s += 1) expect(brain.step(NEZ(0, 16.5)).length).toBe(0);
+    expect(Math.hypot(brain.points()[0]![0], brain.points()[0]![2])).toBeGreaterThan(ARENA.wallRadius);
+    brain.beginIntro();
+    let breach = 0, end = 0;
+    for (let s = 1; s <= INTRO.end && !end; s += 1) {
+      for (const e of brain.step(NEZ(0, 16.5))) {
+        if (e.type === 'breach') breach = s;
+        if (e.type === 'intro-end') end = s;
+      }
+      if (s <= INTRO.sealEnd) expect(Math.hypot(brain.points()[0]![0], brain.points()[0]![2])).toBeGreaterThan(ARENA.wallRadius);
+    }
+    expect(breach).toBeGreaterThan(INTRO.sealEnd);
+    expect(breach).toBeLessThan(INTRO.breachEnd);
+    expect(end).toBe(INTRO.end);
+    expect(introHead(INTRO.breachEnd)).toEqual(INTRO.headRest);
+    // The tail lies across the canyon mouth when the seal ends.
+    const sealed = createBrain({ start: 'lurk' });
+    sealed.beginIntro();
+    sealed.skipIntroTo(INTRO.sealEnd);
+    expect(sealed.points().some((p) => Math.abs(p[0]) < 1.5 && p[2] > ARENA.wallRadius)).toBe(true);
   });
 });

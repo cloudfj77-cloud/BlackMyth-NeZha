@@ -95,6 +95,8 @@ export default definePack({
       'mesh/seabed': single(unwrapMesh(createBoxGeometry(240, 0.4, 240)), 'seabed'),
       'mesh/vortex': vortexDisc(),
       'mesh/water-wall': waterWall(),
+      'mesh/water-seal': waterSeal(),
+      'mesh/coil-wall': coilWall(),
       'mesh/lamp': chentangLamp(),
       'mesh/walls': walls(),
       'mesh/trench': trench(),
@@ -262,6 +264,49 @@ function vortexDisc(): MeshAsset {
 }
 
 /** Inward-facing water wall (r = 26 m), open at the canyon mouth. uv.x = angle / 2π, uv.y = height. */
+/** The canyon mouth's piece of the water wall (M4: the arena seals after the intro), scaled up in Y. */
+function waterSeal(): MeshAsset {
+  const gap = ((ARENA.entranceHalfAngleDeg + 1.5) * Math.PI) / 180;
+  const sectors = 12, rows = 8;
+  const position: number[] = [], normal: number[] = [], uv: number[] = [], indices: number[] = [];
+  for (let k = 0; k <= sectors; k += 1) {
+    const a = -gap + (k / sectors) * 2 * gap;
+    for (let j = 0; j <= rows; j += 1) {
+      position.push(Math.sin(a) * ARENA.wallRadius, (j / rows) * ARENA.wallHeight, Math.cos(a) * ARENA.wallRadius);
+      normal.push(-Math.sin(a), 0, -Math.cos(a));
+      uv.push(a / (Math.PI * 2), j / rows);
+    }
+  }
+  for (let k = 0; k < sectors; k += 1) {
+    for (let j = 0; j < rows; j += 1) {
+      const i0 = k * (rows + 1) + j, i1 = (k + 1) * (rows + 1) + j;
+      indices.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1);
+    }
+  }
+  return raw(position, normal, uv, indices, 'Water', 'water-wall');
+}
+
+/** Coil water burst (M4 §4): open unit cylinder (r 1, h 1), scaled to r 5.9 m and 0 → 3 m. */
+function coilWall(): MeshAsset {
+  const sectors = 48, rows = 4;
+  const position: number[] = [], normal: number[] = [], uv: number[] = [], indices: number[] = [];
+  for (let k = 0; k <= sectors; k += 1) {
+    const a = (k / sectors) * Math.PI * 2;
+    for (let j = 0; j <= rows; j += 1) {
+      position.push(Math.sin(a), j / rows, Math.cos(a));
+      normal.push(Math.sin(a), 0, Math.cos(a));
+      uv.push(k / sectors, j / rows);
+    }
+  }
+  for (let k = 0; k < sectors; k += 1) {
+    for (let j = 0; j < rows; j += 1) {
+      const i0 = k * (rows + 1) + j, i1 = (k + 1) * (rows + 1) + j;
+      indices.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1);
+    }
+  }
+  return raw(position, normal, uv, indices, 'Water', 'water-wall');
+}
+
 function waterWall(): MeshAsset {
   const gap = ((ARENA.entranceHalfAngleDeg + 1) * Math.PI) / 180;
   const sectors = 120, rows = 8;

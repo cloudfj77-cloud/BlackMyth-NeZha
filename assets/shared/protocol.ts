@@ -16,8 +16,11 @@ export type GameLanguage = 'zh' | 'en' | 'pseudo';
 /** Frontend -> Engine: phase requests. */
 export interface ControlMessage {
   readonly channel: typeof CONTROL_CHANNEL;
-  readonly kind: 'start' | 'pause' | 'resume' | 'inspect';
+  readonly kind: ControlKind;
 }
+/** Phase requests, plus the run commands of M4 (defeat / result / pause-menu buttons). */
+export type ControlKind = 'start' | 'pause' | 'resume' | 'inspect' | 'retry' | 'restart' | 'toTitle';
+const CONTROL_KINDS: readonly string[] = ['start', 'pause', 'resume', 'inspect', 'retry', 'restart', 'toTitle'];
 
 /** Frontend -> Engine: development panel edits (clamped by the Engine). */
 export type TuningMessage =
@@ -67,8 +70,8 @@ export interface HudState {
   readonly lock: { readonly active: boolean; readonly marker: ScreenPoint; readonly opening?: boolean };
   /** Boss bar (M3): name + health only. */
   readonly boss?: { readonly hp: number; readonly hpMax: number; readonly visible: boolean };
-  /** Defeat banner「败」is showing. */
-  readonly defeat?: boolean;
+  /** The run (M4): stage, subtitle, banners, result, intro skip prompt. */
+  readonly run?: RunHud;
   /** Monotonic counter per newly raised hint, so repeated hints re-animate. */
   readonly hint?: { readonly key: HintKey; readonly serial: number };
   /** Live tuning values, mirrored for the development panel. */
@@ -98,6 +101,25 @@ export interface HudState {
   readonly projection?: unknown;
 }
 
+export interface RunHud {
+  readonly stage: 'canyon' | 'intro' | 'fight' | 'transition' | 'defeat' | 'victory' | 'result';
+  /** The line on screen (language-table key) and who says it. */
+  readonly subtitle: { readonly key: string; readonly speaker: 'dragonKing' | 'nezha' } | null;
+  /** Combat bars and items are shown. */
+  readonly hud: boolean;
+  /** 「败」+「再战」(defeat) is up and accepts Enter / click. */
+  readonly banner: boolean;
+  /** The world is greyed out (defeat). */
+  readonly desaturate: boolean;
+  readonly skip: boolean;
+  /** Shown run time in seconds (pause menu / result). */
+  readonly seconds: number;
+  readonly result: { readonly seconds: number; readonly hits: number; readonly perfects: number; readonly rating: 'S' | 'A' | 'B' } | null;
+  /** Serial of the latest finished attempt record (the frontend stores it). */
+  readonly recordSerial: number;
+  readonly record?: unknown;
+}
+
 export interface StateMessage {
   readonly channel: typeof STATE_CHANNEL;
   readonly kind: 'state';
@@ -110,7 +132,8 @@ export function isControlMessage(value: unknown): value is ControlMessage {
   return (
     record(value) &&
     value.channel === CONTROL_CHANNEL &&
-    (value.kind === 'start' || value.kind === 'pause' || value.kind === 'resume' || value.kind === 'inspect')
+    typeof value.kind === 'string' &&
+    CONTROL_KINDS.includes(value.kind)
   );
 }
 

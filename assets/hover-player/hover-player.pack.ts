@@ -96,6 +96,12 @@ export interface PlayerService {
   readonly setObstacle: (clamp: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined) => void;
   /** Reset placement (defeat / victory): root at (x, z), facing `yaw`, standing still. */
   readonly teleport: (x: number, z: number, yaw: number) => void;
+  /** M4: player input ignored (intro, defeat, victory, result). */
+  readonly setInputLock: (locked: boolean) => void;
+  /** M4: scripted root motion (intro fly-in, victory turn); wins over combat control. */
+  readonly setAutopilot: (pilot: { readonly velocity: Velocity; readonly facing?: number } | undefined) => void;
+  /** M4: the arena is sealed after the intro — the root stays within this clamp. */
+  readonly setBounds: (clamp: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined) => void;
 }
 
 declare module '@forgeax/engine/plugin' {
@@ -182,6 +188,9 @@ export const hoverPlayer: Plugin = {
       let floatGate = 1;
       let wasLocked = false;
       let leanGate = 1;
+      let inputLocked = false;
+      let autopilot: { readonly velocity: Velocity; readonly facing?: number } | undefined;
+      let bounds: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined;
       const tmpQ = quat.create();
       const samples: { t: number; speed: number; yaw: number; modelY: number; capsuleY: number; x: number; z: number }[] = [];
       const delta = vec3.create();
@@ -204,9 +213,10 @@ export const hoverPlayer: Plugin = {
           const shiftDown = key('ShiftLeft', 'ShiftRight');
           const gesture = shift.update(shiftDown && session.playing(), dt, tuning.current.move.sprintHoldThreshold);
           if (gesture.tap) taps += 1;
-          if (!session.playing()) {
+          if (!session.playing() || inputLocked) {
             frameInput = IDLE;
             pendingLock = false;
+            wasLocked = snapshot.mouse.pointerLocked;
             return;
           }
           const locked = snapshot.mouse.pointerLocked;
@@ -257,17 +267,27 @@ export const hoverPlayer: Plugin = {
             target = { x: dir.x * top, z: dir.z * top };
             if (dir.length > 0.001) desiredFacing = facingYaw(dir.x, dir.z);
           }
-          if (control?.velocity) {
+          if (autopilot) {
+            velocity = autopilot.velocity;
+            stepper.reset();
+            desiredFacing = undefined;
+          } else if (control?.velocity) {
             // Actions (attacks, roll, lunge) own the root motion this step; the stick only aims.
             velocity = control.velocity;
             stepper.reset();
             desiredFacing = undefined;
           } else velocity = stepper.step(velocity, target, top, move, dt);
-          if (control?.facing !== undefined) facing = control.facing;
+          if (autopilot?.facing !== undefined) facing = turnToward(facing, autopilot.facing, 360, dt);
+          else if (control?.facing !== undefined) facing = control.facing;
           vec3.set(delta, velocity.x * dt, 0, velocity.z * dt);
           const actual = physics.moveAndSlide(player, delta);
           let ax = actual[0] ?? 0, az = actual[2] ?? 0;
-          const clamp = lock?.clamp ?? obstacle;
+          const pushOut = lock?.clamp ?? obstacle;
+          const clamp = pushOut || bounds ? (x: number, z: number) => {
+            let p = pushOut ? pushOut(x, z) : { x, z };
+            if (bounds) p = bounds(p.x, p.z);
+            return p;
+          } : undefined;
           if (clamp) {
             const after = world.get(player, Transform).unwrap().pos;
             const fixedPos = clamp(after[0] ?? 0, after[2] ?? 0);
@@ -417,6 +437,16 @@ export const hoverPlayer: Plugin = {
           floatGate = gate;
         },
         floatGate: () => floatGate,
+        setInputLock: (on) => {
+          inputLocked = on;
+          if (on) edges = { ...NO_EDGES };
+        },
+        setAutopilot: (pilot) => {
+          autopilot = pilot;
+        },
+        setBounds: (clamp) => {
+          bounds = clamp;
+        },
         teleport: (x, z, yaw) => {
           velocity = { x: 0, z: 0 };
           speed = 0;
