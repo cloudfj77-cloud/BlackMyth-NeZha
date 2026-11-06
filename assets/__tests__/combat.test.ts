@@ -365,6 +365,26 @@ describe('jump, plunge and 灵息 (v1.4.0 port)', () => {
     expect(hit!.step).toBe(land!.step);
     expect(c.snapshot().action).toBe('free');
   });
+  it('the plunge costs 14 more stamina, hits for its own 16 (not the charge curve) and has 11 steps of landing lag', () => {
+    const c = createCombat();
+    const r = run(c, [press({ jump: true }), ...idle(10), press({ light: true })]);
+    expect(c.snapshot().action).toBe('airatk');
+    expect(c.snapshot().stamina).toBeCloseTo(C.staminaMax - C.jump.cost - C.jump.slamCost, 0);
+    const base = c.snapshot().step;
+    const rest = run(c, idle(80));
+    const land = rest.events.find((x) => x.event.type === 'land')!;
+    const hit = rest.events.find((x) => x.event.type === 'hit')!.event as { damage: number; hitstop: number; kind: string };
+    expect(hit.kind).toBe('heavy');
+    expect(hit.damage).toBe(C.jump.slamDamage);
+    expect(hit.hitstop).toBe(C.jump.slamHitstop);
+    const after = rest.states.slice(land.step - base - 1);
+    // Still in the plunge (spear driven down) right after landing, free once the lag is over.
+    expect(after[1]).toMatch(/^airatk/);
+    const freeAt = after.findIndex((x) => x.startsWith('free'));
+    expect(freeAt).toBeGreaterThanOrEqual(C.jump.slamRecover - 1);
+    expect(freeAt).toBeLessThanOrEqual(C.jump.slamRecover + 2);
+    void r;
+  });
   it('can jump out of a roll and roll in the air', () => {
     const c = createCombat();
     const r = run(c, [press({ roll: true }), NONE, press({ jump: true }), ...idle(5), press({ roll: true }), ...idle(60)]);

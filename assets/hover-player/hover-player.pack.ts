@@ -86,6 +86,7 @@ export interface PlayerService {
   readonly setFloat: (offsetY: number, roll: number, pitch: number) => void;
   /** Jump height above the hover line (visual; the judgement root stays on the floor). */
   readonly setAirLift: (y: number) => void;
+  readonly airLift: () => number;
   readonly setLock: (frame: LockFrame | undefined) => void;
   /** Take (and clear) the combat edges collected since the last call. */
   readonly takeEdges: () => CombatEdges;
@@ -410,6 +411,7 @@ export const hoverPlayer: Plugin = {
         speed: () => speed,
         mode: () => mode,
         facing: () => facing,
+        airLift: () => airLift,
         setAirLift: (y) => {
           airLift = y;
         },

@@ -95,6 +95,7 @@ export const camera: Plugin = {
         lineClear: true,
         wallGap: null as number | null,
       };
+      let airFollow = 0;
       const origin = vec3.create();
       const direction = vec3.create();
       const rotation = quat.create();
@@ -132,7 +133,9 @@ export const camera: Plugin = {
           const groundY = (matrix[13] ?? 0) - CAPSULE_CENTER_Y;
           const locked = lockView !== undefined && phase === 'playing';
           const focusHeight = locked ? cam.focusHeightLocked : cam.focusHeight;
-          const target: [number, number, number] = [matrix[12] ?? 0, groundY + focusHeight, matrix[14] ?? 0];
+          // Jumps (v1.4.0): the aim rises 75 % of the jump height, smoothed (rate 6/s) so the camera does not bob.
+          airFollow += (playerService.airLift() - airFollow) * (1 - Math.exp(-6 * dt));
+          const target: [number, number, number] = [matrix[12] ?? 0, groundY + focusHeight + airFollow * 0.75, matrix[14] ?? 0];
           // Tight horizontal follow (the root already moves smoothly); height follows exactly.
           if (!focus) focus = [...target];
           const follow = 1 - Math.exp(-24 * dt);

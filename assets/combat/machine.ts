@@ -46,7 +46,12 @@ export interface CombatConfig {
   readonly lotus: { readonly count: number; readonly steps: number; readonly heal: number; readonly speedScale: number };
   readonly sash: { readonly castHold: number; readonly steps: number; readonly cooldown: number; readonly holdSteps: number };
   /** Jump (v1.4.0 port): take-off speed (m/s), gravity (m/s²), stamina cost, plunging air attack. */
-  readonly jump: { readonly velocity: number; readonly gravity: number; readonly cost: number; readonly slamHang: number; readonly airSpeed: number };
+  readonly jump: {
+    readonly velocity: number; readonly gravity: number; readonly cost: number; readonly slamHang: number; readonly airSpeed: number;
+    /** Plunge (v1.4.0 跳劈): extra stamina, landing strike (range m, arc °, damage, hitstop, shake), landing lag. */
+    readonly slamCost: number; readonly slamRange: number; readonly slamArc: number; readonly slamDamage: number;
+    readonly slamHitstop: number; readonly slamShake: number; readonly slamRecover: number;
+  };
   /** 灵息 after a perfect dodge (v1.4.0): steps of no regen delay and double regen. */
   readonly boostSteps: number;
 }
@@ -85,7 +90,8 @@ export const DEFAULT_COMBAT: CombatConfig = {
   regenPerSecond: 25,
   lotus: { count: 3, steps: 60, heal: 40, speedScale: 0.4 },
   sash: { castHold: 12, steps: 22, cooldown: 1200, holdSteps: 180 },
-  jump: { velocity: 9.8, gravity: 24, cost: 10, slamHang: 12, airSpeed: 3 },
+  // v1.4.0: 14 stamina, 3.1 m / 150°, 46 dmg (scaled to our table: between light 3 = 14 and heavy min = 20), 0.18 s lag.
+  jump: { velocity: 9.8, gravity: 24, cost: 10, slamHang: 12, airSpeed: 3, slamCost: 14, slamRange: 3.1, slamArc: 150, slamDamage: 16, slamHitstop: 6, slamShake: 0.045, slamRecover: 11 },
   boostSteps: 150,
 };
 
@@ -187,8 +193,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let lotus = config.lotus.count;
   let sashCd = 0;
   let idle = config.regenDelay;
-  let state: { kind: ActionKind; frame: number; stage: number; charge: number; rollDir: V2; rollStart: number; released: boolean; lunged: number; healed: boolean } = {
-    kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: ZERO, rollStart: -1000, released: false, lunged: 0, healed: false,
+  let state: { kind: ActionKind; frame: number; stage: number; charge: number; rollDir: V2; rollStart: number; released: boolean; lunged: number; healed: boolean; landed: number } = {
+    kind: 'free', frame: 0, stage: 0, charge: 0, rollDir: ZERO, rollStart: -1000, released: false, lunged: 0, healed: false, landed: -1,
   };
   let comboStage = 0;
   let comboWindow = 0;
@@ -204,7 +210,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let airY = 0, airVy = 0, boost = 0;
 
   const enter = (kind: ActionKind, extra: Partial<typeof state> = {}) => {
-    state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, ...extra };
+    state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, landed: -1, ...extra };
   };
   const spend = (amount: number): boolean => {
     if (stamina < amount) {
@@ -249,9 +255,10 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     return true;
   };
 
-  const resolveStrike = (kind: 'light' | 'heavy', env: CombatEnv, root: V2, facing: number) => {
-    const range = kind === 'light' ? config.lightRange : config.heavyRange;
-    const strike = env.strike(root, facing, range, config.arcDeg);
+  const resolveStrike = (kind: 'light' | 'heavy', env: CombatEnv, root: V2, facing: number, slam = false) => {
+    const J = config.jump;
+    const range = slam ? J.slamRange : kind === 'light' ? config.lightRange : config.heavyRange;
+    const strike = env.strike(root, facing, range, slam ? J.slamArc : config.arcDeg);
     const f = forward(facing);
     const judgeLine = { x: root.x + f.x * range, z: root.z + f.z * range };
     lastJudge = judgeLine;
@@ -262,7 +269,15 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     }
     const tail = strike.tail === true;
     const tailDamage = (d: number) => Math.max(1, Math.round(d * TAIL.damageMultiplier));
-    if (kind === 'light') {
+    if (slam) {
+      // Plunge landing: its own numbers (not the charge curve — charge 0 would extrapolate below the minimum).
+      events.push({
+        type: 'hit', kind: 'heavy', stage: 0, strike, judgeLine, tail,
+        damage: tail ? tailDamage(J.slamDamage) : J.slamDamage,
+        hitstop: tail ? TAIL.heavyHitstop : J.slamHitstop,
+        shake: tail ? 0 : J.slamShake,
+      });
+    } else if (kind === 'light') {
       const s = config.light[state.stage - 1]!;
       events.push({
         type: 'hit', kind, stage: state.stage, strike, judgeLine, tail,
@@ -362,7 +377,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
             }
             if (take('roll') && startRoll(input, env)) return;
             // In the air a light press is the plunging attack (v1.4.0 跳劈): hang, then slam down.
-            if (airY > 0 && take('light')) {
+            if (airY > 0 && take('light') && spend(config.jump.slamCost)) {
               enter('airatk');
               airVy = Math.max(airVy, 2);
               facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
@@ -512,7 +527,9 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         case 'airatk': {
           if (env.lockedFacing() !== undefined) facingOverride = env.lockedFacing();
           const f = forward(env.facing);
-          velocity = s.frame <= config.jump.slamHang ? { x: f.x * config.jump.airSpeed, z: f.z * config.jump.airSpeed } : ZERO;
+          velocity = s.landed < 0 && s.frame <= config.jump.slamHang ? { x: f.x * config.jump.airSpeed, z: f.z * config.jump.airSpeed } : ZERO;
+          // Landing lag (v1.4.0 land t = -0.18 s): the spear stays driven down, then free.
+          if (s.landed >= 0 && s.frame - s.landed >= config.jump.slamRecover) enter('free');
           break;
         }
         case 'lotus': {
@@ -550,9 +567,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           const slam = state.kind === 'airatk';
           events.push({ type: 'land', slam });
           if (slam) {
-            state = { ...state, charge: 0 };
-            resolveStrike('heavy', env, env.root, env.facing);
-            enter('free');
+            resolveStrike('heavy', env, env.root, env.facing, true);
+            state = { ...state, landed: state.frame };
           }
         }
       }
