@@ -9,7 +9,7 @@ import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import type {} from '@forgeax/engine/assets-runtime';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
-import { WATER_HORIZON } from '../environment.pack.ts';
+import { SEA_FOG } from '../environment.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import type { TargetService } from '../lock-on/lock-on.pack.ts';
 import { characterGuid, geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
@@ -547,7 +547,7 @@ export const combat: Plugin = {
           const dim = (1 - 0.3 * slowLight) * session.ambience().light;
           world.set(sun, DirectionalLight, { intensity: sunIntensity * dim, color: [sunColor[0]! * (1 - 0.15 * slowLight), sunColor[1]!, sunColor[2]! * (1 + 0.1 * slowLight)] }).unwrap();
           world.set(skylight, Skylight, { intensity: skyIntensity * dim }).unwrap();
-          world.set(fog, Fog, { color: [WATER_HORIZON[0] * (1 - 0.3 * slowLight), WATER_HORIZON[1] * (1 - 0.15 * slowLight), WATER_HORIZON[2] * (1 + 0.15 * slowLight)] }).unwrap();
+          world.set(fog, Fog, { color: [SEA_FOG[0] * (1 - 0.3 * slowLight) * dim, SEA_FOG[1] * (1 - 0.15 * slowLight) * dim, SEA_FOG[2] * (1 + 0.15 * slowLight) * dim] }).unwrap();
 
           const snap = machine.snapshot();
           const cd = snap.sashCd;

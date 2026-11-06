@@ -16,7 +16,9 @@ import type { DragonService } from '../dragon/dragon.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import type { TargetService } from '../lock-on/lock-on.pack.ts';
 import { geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
-import { ARENA, CANYON, CHECKPOINT, FLOOR_Y, SPAWN } from '../shared/layout.ts';
+import { CHECKPOINT, FLOOR_Y, SPAWN } from '../shared/layout.ts';
+import { onPlatform } from '../shared/sea-layout.ts';
+import type { SeaService } from '../sea/sea.pack.ts';
 import type { RunHud } from '../shared/protocol.ts';
 import { createRun, RUN, type RunAction, type RunInput } from './run.ts';
 
@@ -60,7 +62,7 @@ function victoryShot(nezha: V3, head: V3): CameraShot {
  */
 export const fight: Plugin = {
   name: 'nezha/fight',
-  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera', 'nezhaDragon', 'nezhaTarget', 'nezhaCombat'],
+  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera', 'nezhaDragon', 'nezhaTarget', 'nezhaCombat', 'nezhaSea'],
   async apply(ctx) {
     const world = ctx.world;
     const session = ctx.nezhaSession as SessionService | undefined;
@@ -71,8 +73,9 @@ export const fight: Plugin = {
     const dragon = ctx.nezhaDragon as DragonService | undefined;
     const target = ctx.nezhaTarget as TargetService | undefined;
     const combat = ctx.nezhaCombat as CombatService | undefined;
+    const sea = ctx.nezhaSea as SeaService | undefined;
     const host = ctx.gameHost;
-    if (!host || !session || !tuning || !telemetry || !player || !camera || !dragon || !target || !combat) throw new Error('nezha/fight requires core, player, camera, dragon, target and combat services');
+    if (!host || !session || !tuning || !telemetry || !player || !camera || !dragon || !target || !combat || !sea) throw new Error('nezha/fight requires core, player, camera, dragon, target, combat and sea services');
 
     const assets = host.assets;
     const load = async (guid: string, kind: 'material' | 'mesh') => {
@@ -80,15 +83,8 @@ export const fight: Plugin = {
       if (!loaded.ok) throw loaded.error;
       return loaded.value as never;
     };
-    const vortexMat = await load(guidText(materialGuid('vortex')), 'material');
-    const wallMat = await load(guidText(materialGuid('water-wall')), 'material');
-    const beamMat = await load(guidText(materialGuid('light-beam')), 'material');
-    const sealMesh = await load(guidText(geometryGuid('water-seal')), 'mesh');
 
     await ctx.effect(function* () {
-      yield () => {
-        for (const h of [vortexMat, wallMat, beamMat, sealMesh]) assets.release(h).unwrap();
-      };
       const run = createRun();
       let vortexTime = 0;
       let wallPhase = 0;
@@ -108,26 +104,18 @@ export const fight: Plugin = {
       const actionLog: { step: number; stage: string; type: string }[] = [];
       let bindSeen = combat.bindSerial();
 
-      // The canyon mouth's water seal (M4 §1: rises 300–330 of the intro; the arena stays sealed after).
-      const seal: EntityHandle = world.spawn(
-        { component: Transform, data: { pos: [0, FLOOR_Y, 0], scale: [1, 0, 1] } },
-        { component: MeshFilter, data: { assetHandle: sealMesh } as never },
-        { component: MeshRenderer, data: { materials: [wallMat] } as never },
-      ).unwrap();
-      yield () => world.despawn(seal).unwrap();
+      // 陈塘关: the entry mist seals the platform (M4 §1 timing: rises 300–330 of the intro, stays after).
+      // The sea plugin owns the walking limits; until the 巡海夜叉 waves are ported the water gate stands open.
+      sea.setGate(true);
       const setSeal = (rise: number) => {
         sealRise = rise;
-        world.set(seal, Transform, { scale: [1, Math.max(0, rise), 1] }).unwrap();
-      };
-      const bounds = (x: number, z: number) => {
-        const r = Math.hypot(x, z);
-        return r <= ARENA.boundary ? { x, z } : { x: (x / r) * ARENA.boundary, z: (z / r) * ARENA.boundary };
+        sea.setSealed(rise > 0.5 || sealed);
       };
       const setSealed = (on: boolean) => {
         sealed = on;
-        player.setBounds(on ? bounds : undefined);
+        sea.setSealed(on);
       };
-      yield () => player.setBounds(undefined);
+      yield () => sea.setSealed(false);
 
       dragon.setEngagedRule(() => {
         const st = run.snapshot().stage;
@@ -284,7 +272,7 @@ export const fight: Plugin = {
           // Dev lab: straight into the fight at the checkpoint.
           if (st === 'canyon' && session.frontend().lab.split(',').includes('skipintro')) input.restart = true;
           const root = player.root();
-          if (st === 'canyon') input.entered = root[2] < CANYON.zStart + 0.5;
+          if (st === 'canyon') input.entered = onPlatform(root[0], root[2]);
           if (combat.bindSerial() !== bindSeen) {
             bindSeen = combat.bindSerial();
             dragon.bind(combat.bindHoldSteps());
@@ -385,27 +373,19 @@ export const fight: Plugin = {
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-fight-hud').unwrap();
 
-      // Arena motion (every frame, world clock): only the pattern turns; it stops as the dragon dies.
+      // Stage lights follow the run (runes brighten, the arena light rises) — the sea plugin animates them.
       world.addSystem(Update, {
         name: 'nezha-arena-flow',
         after: [FixedUpdate],
         queries: [],
         fn: () => {
-          if (session.phase() === 'paused') return;
-          assets.update(beamMat, { values: { intensity: BEAM_INTENSITY * session.ambience().beams } } as never).unwrap();
-          const dt = Math.min(world.getResource(Time).delta, 0.1) * (session.clock.frozen() ? 0 : session.clock.worldScale()) * dragon.vortexSpeed();
-          if (dt <= 0) return;
-          vortexTime = (vortexTime + dt) % VORTEX_PERIOD;
-          wallPhase = (wallPhase + dt / wallTurn) % 1;
-          const tb = (vortexTime + VORTEX_PERIOD / 2) % VORTEX_PERIOD;
-          const wa = 1 - Math.abs((2 * vortexTime) / VORTEX_PERIOD - 1);
-          assets.update(vortexMat, { values: { ta: vortexTime, tb, wa } } as never).unwrap();
-          assets.update(wallMat, { values: { phase: wallPhase } } as never).unwrap();
+          const st = run.snapshot().stage;
+          sea.setFightLight(st === 'intro' || st === 'fight' || st === 'transition' || st === 'defeat');
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-arena-flow').unwrap();
 
-      yield telemetry.section('arena', () => ({ vortexTime: r3(vortexTime), wallPhase: r3(wallPhase), wallTurn: r3(wallTurn), grade: r3(grade), vortexSpeed: r3(dragon.vortexSpeed()), sealed, seal: r3(sealRise), ambience: session.ambience() }));
+      yield telemetry.section('arena', () => ({ grade: r3(grade), sealed, seal: r3(sealRise), ambience: session.ambience() }));
       yield telemetry.section('fight', () => {
         const s = run.snapshot();
         return {

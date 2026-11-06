@@ -4,6 +4,13 @@ import { Materials } from '@forgeax/engine/render';
 import type { MaterialRootAsset } from '@forgeax/engine/types';
 import { ok, RenderQueue } from '@forgeax/engine/types';
 import { PACKAGE_IDS } from './shared/asset-refs.ts';
+import { LEVEL_SCALE, SEA } from './shared/sea-layout.ts';
+
+/** v1.4.0 colour × its texture's average brightness, scene-linear. */
+const sc = (hex: number, k: number): RGB => { const c = linearRgb(hex); return [c[0] * k, c[1] * k, c[2] * k]; };
+const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+/** v1.4.0 shader colours were display values. */
+const lin3 = (r: number, g: number, b: number): [number, number, number] => [lin(r), lin(g), lin(b)];
 
 import { FIRE_GOLD, PILLAR_COLOR, WHEEL_FULL_INTENSITY, type RGB } from './shared/palette.ts';
 
@@ -239,6 +246,52 @@ export default definePack({
         values: { waterColor: [0.013, 0.0595, 0.117, 1], phase: 0 },
         renderState: { ...ALPHA_BLEND, cullMode: 'none' },
         queue: RenderQueue.Transparent + 5,
+      }),
+      // --- 东海 · 陈塘关 (v1.4.0 sea.js colours; its noise textures folded in as darker flat colours) ---
+      'material/sea-stone': std(sc(0x6a767c, 0.8), { roughness: 0.85 }),
+      'material/sea-rock': std(sc(0x6c7a80, 0.72), { roughness: 0.9 }),
+      'material/sea-wet-rock': std(sc(0x4a5a62, 0.75), { roughness: 0.45, metallic: 0.1 }),
+      'material/sea-wood': std(linearRgb(0x7a8480), { roughness: 0.82 }),
+      'material/sea-jade': std(linearRgb(0x1f5a5c), { roughness: 0.32, metallic: 0.55, emissive: linearRgb(0x021212), emissiveIntensity: 1 }),
+      'material/sea-jade-dark': std(linearRgb(0x1c4a52), { roughness: 0.5, metallic: 0.3 }),
+      'material/sea-gold': std(linearRgb(0xc9a24a), { roughness: 0.3, metallic: 1 }),
+      'material/sea-red-lac': std(linearRgb(0x8a1c14), { roughness: 0.55 }),
+      'material/sea-tile': std(sc(0x4a7a86, 0.55), { roughness: 0.6 }),
+      'material/sea-coral': std(linearRgb(0x9a4a3e), { roughness: 0.8, emissive: linearRgb(0x0a0202), emissiveIntensity: 1 }),
+      'material/sea-lamp-glow': std(linearRgb(0x9ff6ff), { emissive: linearRgb(0x3ad8ff), emissiveIntensity: 2.4 }),
+      'material/sea-lotus': std(linearRgb(0xf6b0c0), { roughness: 0.5, emissive: linearRgb(0x6a1a2a), emissiveIntensity: 0.6 }),
+      'material/sea-lotus-pad': std(linearRgb(0x3f7a3a), { roughness: 0.7, twoSided: true }),
+      'material/sea-pond': std(linearRgb(0x1a4a4a), { roughness: 0.15, metallic: 0.3 }),
+      'material/sea-plaque': std(linearRgb(0x0f2a2c), { roughness: 0.5, metallic: 0.2 }),
+      'material/sea-far': std(linearRgb(0x3a5a62), { roughness: 0.7, metallic: 0.2 }),
+      'material/sea-far-roof': std(sc(0x2a4048, 0.7), { roughness: 0.6 }),
+      'material/sea-far-gold': std(linearRgb(0x8a7a4a), { roughness: 0.4, metallic: 0.8 }),
+      'material/sea-spray': Materials.unlit([...lin3(0.81, 0.96, 1.0), 0.45], { renderState: ADDITIVE, queue: RenderQueue.Transparent }),
+      'material/sea-rune': glow(linearRgb(0x3aa8c0), 0.3),
+      'material/sea-taiji': Materials.unlit([...linearRgb(0x0e2a30), 0.5], { renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
+      'material/sea-water': Materials.standard({
+        surfaceModule: 'nezha::sea_surface',
+        parameters: [
+          { name: 'deepColor', type: 'color' },
+          { name: 'shallowColor', type: 'color' },
+          { name: 'foamColor', type: 'color' },
+          { name: 'seaY', type: 'f32' },
+          { name: 'swell', type: 'f32' },
+          { name: 'glow', type: 'f32' },
+        ],
+        values: { deepColor: [...lin3(0.02, 0.09, 0.12), 1], shallowColor: [...lin3(0.07, 0.3, 0.33), 1], foamColor: [...lin3(0.88, 0.94, 0.95), 1], seaY: SEA.seaY, swell: 1.0 * LEVEL_SCALE, glow: 0.35 },
+      }),
+      'material/sea-veil': Materials.standard({
+        surfaceModule: 'nezha::sea_veil_surface',
+        parameters: [
+          { name: 'lowColor', type: 'color' },
+          { name: 'highColor', type: 'color' },
+          { name: 'op', type: 'f32' },
+          { name: 'intensity', type: 'f32' },
+        ],
+        values: { lowColor: [...lin3(0.2, 0.6, 0.7), 1], highColor: [...lin3(0.8, 1, 1), 1], op: 1, intensity: 1 },
+        renderState: { blend: GLOW.blend, depthWriteEnabled: false, cullMode: 'none' },
+        queue: RenderQueue.Transparent + 6,
       }),
       'material/lamp-glow': std([1.0, 0.78, 0.45], { emissive: [1.0, 0.62, 0.28], emissiveIntensity: 3 }),
       // Dragon body bands (#7FA295 / #587A6D / #25342E), ridge #587A6D, horns & whiskers #E6E3DA.

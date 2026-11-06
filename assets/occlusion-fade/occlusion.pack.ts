@@ -13,7 +13,9 @@ import { PILLAR_RAY_FILTER } from '../shared/collision.ts';
 
 /** Level geometry (group 1) + pillars (group 5): what can hide Nezha from the lens. */
 const VIEW_RAY_FILTER = 0xffff_0011 >>> 0;
-import { PILLARS } from '../shared/layout.ts';
+import { ARENA_PILLARS as PILLARS } from '../shared/sea-layout.ts';
+/** Platform dragon pillars have four material slots (stone, shaft, scales, gold); a fade covers all. */
+const PILLAR_SLOTS = 4;
 import { resolveGameEntity } from '../shared/scene-refs.ts';
 
 /**
@@ -106,12 +108,12 @@ export const occlusion: Plugin = {
           return;
         }
         if (selected === 'glass') {
-          if (pillar.route !== 'glass') world.set(pillar.entity, MeshRenderer, { materials: [glassMaterial] }).unwrap();
+          if (pillar.route !== 'glass') world.set(pillar.entity, MeshRenderer, { materials: Array(PILLAR_SLOTS).fill(glassMaterial) }).unwrap();
         } else {
           if (pillar.instance === undefined) pillar.instance = assets.copy(fadeMaterial).unwrap() as unknown as number;
           const shown = selected === 'steps' ? Math.max(tuning.current.occlusion.fadeOpacity, Math.ceil(opacity * 4) / 4) : opacity;
           assets.update(pillar.instance as never, { values: { fade: shown } } as never).unwrap();
-          if (pillar.route !== selected) world.set(pillar.entity, MeshRenderer, { materials: [pillar.instance as never] }).unwrap();
+          if (pillar.route !== selected) world.set(pillar.entity, MeshRenderer, { materials: Array(PILLAR_SLOTS).fill(pillar.instance as never) }).unwrap();
         }
         pillar.route = selected;
       };

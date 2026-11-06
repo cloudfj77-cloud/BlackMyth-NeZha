@@ -16,6 +16,8 @@ import {
 } from './shared/layout.ts';
 import { axisAngle, fromTo, MeshKit, yawQ, type V3 } from './shared/mesh-kit.ts';
 import { canyonWallSegments, trenchSegments } from './shared/greybox.ts';
+import { ARENA_PILLAR_HEIGHTS, seaArena, seaArenaPillar, seaCoral, seaCurtain, seaFar, seaGate, seaLotus, seaLotusPond, seaPalace, seaRocks, seaRunes, seaWalk } from './sea/sea-geometry.ts';
+import { LEVEL_SCALE } from './shared/sea-layout.ts';
 
 
 const single = (mesh: MeshAsset, material: string): MeshAsset => ({ ...mesh, materialSlots: [slot('Surface', material)] });
@@ -93,6 +95,20 @@ export default definePack({
   build: () =>
     ok({
       'mesh/seabed': single(unwrapMesh(createBoxGeometry(240, 0.4, 240)), 'seabed'),
+      // --- 东海 · 陈塘关 (v1.4.0 port) ---
+      'mesh/sea-walk': seaWalk(),
+      'mesh/sea-rocks': seaRocks(),
+      'mesh/sea-gate': seaGate(),
+      'mesh/sea-arena': seaArena(),
+      'mesh/sea-runes': seaRunes(),
+      'mesh/sea-lotus-pond': seaLotusPond(),
+      'mesh/sea-lotus': seaLotus(),
+      'mesh/sea-coral': seaCoral(),
+      'mesh/sea-palace': seaPalace(),
+      'mesh/sea-far': seaFar(),
+      'mesh/sea-veil': seaCurtain((4.2 * 2 + 1) * LEVEL_SCALE, 7.5 * LEVEL_SCALE),
+      'mesh/sea-mist': seaCurtain((4.2 * 2 + 1) * LEVEL_SCALE, 6 * LEVEL_SCALE),
+      ...Object.fromEntries(ARENA_PILLAR_HEIGHTS.map((h) => [`mesh/sea-pillar-${Math.round(h * 100)}`, seaArenaPillar(h)])),
       'mesh/vortex': vortexDisc(),
       'mesh/water-wall': waterWall(),
       'mesh/water-seal': waterSeal(),

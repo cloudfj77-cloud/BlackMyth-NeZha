@@ -31,6 +31,7 @@ export const PACKAGE_IDS = Object.freeze({
   dragonPlugin: definePackageId('019fb7ce-4a00-7000-8000-000000000000'),
   fightPlugin: definePackageId('019fb7ce-4b00-7000-8000-000000000000'),
   rigPlugin: definePackageId('019fb7ce-4c00-7000-8000-000000000000'),
+  seaPlugin: definePackageId('019fb7ce-4d00-7000-8000-000000000000'),
 });
 
 export const materialGuid = (key: string): AssetGuidType => assetGuid(PACKAGE_IDS.materials, `material/${key}`);
@@ -39,7 +40,8 @@ export const characterGuid = (key: string): AssetGuidType => assetGuid(PACKAGE_I
 export const pluginGuid = (packageId: PackageId, key: string): string => guidText(assetGuid(packageId, `plugin/${key}`));
 
 /** Direction stored by DirectionalLight: outgoing from the sea-surface glow toward the seabed. */
-export const SUN_OUTGOING_DIRECTION = [-0.22, -0.94, -0.26] as const;
+/** 陈塘关 low cold sun in the south-east behind the boss platform (v1.4.0 sunDir (0.45, 0.28, −0.85), reversed). */
+export const SUN_OUTGOING_DIRECTION = [-0.449, -0.28, 0.849] as const;
 
 /** Mesh material slot; source keys must be unique per mesh, so derive them from the slot name and material. */
 export const slot = (name: string, material: string): MeshMaterialSlot => ({

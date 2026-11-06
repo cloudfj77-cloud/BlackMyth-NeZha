@@ -75,7 +75,8 @@ export function canyonHalfWidth(z: number): number {
   return 3.2 + 0.8 * Math.sin((Math.PI * (z - 20)) / 11 + 1);
 }
 
-export const SPAWN: Vec3 = [canyonCenterX(CANYON.spawnZ), FLOOR_Y, CANYON.spawnZ];
+/** 陈塘关 spawn on the boardwalk (v1.4.0 showcase (0, 128) × 0.86; see sea-layout.ts SEA.spawn). */
+export const SPAWN: Vec3 = [0, FLOOR_Y, 128 * 0.86];
 
 /** Standing dragon pillars: only the two in the canyon remain (no palace; none overhead). */
 export interface PillarSpec {
