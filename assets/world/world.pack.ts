@@ -49,6 +49,7 @@ export default definePack({
           { $asset: pluginGuid(PACKAGE_IDS.dragonPlugin, 'dragon') },
           { $asset: pluginGuid(PACKAGE_IDS.lockOnPlugin, 'lock-on') },
           { $asset: pluginGuid(PACKAGE_IDS.combatPlugin, 'combat') },
+          { $asset: pluginGuid(PACKAGE_IDS.yakshaPlugin, 'yaksha') },
           { $asset: pluginGuid(PACKAGE_IDS.fightPlugin, 'fight') },
           { $asset: pluginGuid(PACKAGE_IDS.rigPlugin, 'rig') },
           { $asset: pluginGuid(PACKAGE_IDS.floatFxPlugin, 'float-fx') },

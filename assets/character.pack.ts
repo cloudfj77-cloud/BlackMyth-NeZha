@@ -12,7 +12,8 @@ import { PACKAGE_IDS, slot } from './shared/asset-refs.ts';
 import { axisAngle, fromTo, MeshKit, type V3 } from './shared/mesh-kit.ts';
 import { NEZHA } from './shared/nezha-shape.ts';
 import { createCapsuleGeometry } from '@forgeax/engine/geometry';
-import { JOINT_PARTS, kebab, partPlace, rigMaterialKey, slotsOf, spearParts, type Part, type Prim } from './nezha-rig/rig-def.ts';
+import { JOINT_PARTS, kebab, partPlace, qEuler, rigMaterialKey, slotsOf, spearParts, type Part, type Prim } from './nezha-rig/rig-def.ts';
+import { YJOINT_PARTS, yMaterialKey, type YMaterial, type YPart } from './yaksha/rig-def.ts';
 
 function primMesh(prim: Prim) {
   switch (prim.kind) {
@@ -33,6 +34,15 @@ function rigMesh(parts: readonly Part[]): MeshAsset {
     kit.add(primMesh(part.prim), { t: place.t, r: place.r, s: part.s ?? [1, 1, 1] }, slots.indexOf(part.mat));
   }
   return kit.build(slots.map((m) => slot(m, rigMaterialKey(m))));
+}
+
+/** One yaksha joint's parts merged into one mesh (v1.4.0 buildYaksha). */
+function yRigMesh(parts: readonly YPart[]): MeshAsset {
+  const kit = new MeshKit();
+  const slots: YMaterial[] = [];
+  for (const p of parts) if (!slots.includes(p.mat)) slots.push(p.mat);
+  for (const part of parts) kit.add(primMesh(part.prim), { t: part.p ?? [0, 0, 0], r: qEuler(...(part.r ?? [0, 0, 0])), s: part.s ?? [1, 1, 1] }, slots.indexOf(part.mat));
+  return kit.build(slots.map((m) => slot(m, yMaterialKey(m))));
 }
 
 /** Cylinder segment between two points (factory cylinders run along local Y). */
@@ -154,5 +164,6 @@ export default definePack({
       'mesh/contact-glow': glowDisc(),
       'mesh/nz-spear': rigMesh(spearParts()),
       ...Object.fromEntries(Object.entries(JOINT_PARTS).map(([joint, parts]) => [`mesh/nz-${kebab(joint)}`, rigMesh(parts!)])),
+      ...Object.fromEntries(Object.entries(YJOINT_PARTS).map(([joint, parts]) => [`mesh/yk-${kebab(joint)}`, yRigMesh(parts!)])),
     }),
 });

@@ -15,7 +15,31 @@ import type { DragonService, DragonStrike } from '../dragon/dragon.pack.ts';
 type V3 = readonly [number, number, number];
 
 /** The Dragon King as a combat target (M3). */
+/**
+ * Anything Nezha can lock onto and strike (v1.4.0 port: the boss and the 巡海夜叉 share one interface).
+ * The boss registers itself here; mobs register / unregister as they spawn and die.
+ */
+export interface Foe {
+  readonly id: string;
+  readonly kind: 'boss' | 'mob';
+  /** Lockable and strikable now (spawned, not dying). */
+  readonly targetable: () => boolean;
+  readonly surfaceDistance: (x: number, z: number) => number;
+  /** Nearest body point from (x, z): the lock pivot (y = aim height above the floor). */
+  readonly nearest: (x: number, z: number) => { readonly x: number; readonly z: number; readonly y: number };
+  readonly strike: (x: number, z: number, facing: number, range: number, arcDeg: number) => DragonStrike;
+  readonly damage: (amount: number, segment: number) => void;
+  readonly touching: (x: number, z: number) => number;
+  readonly pushOut: (x: number, z: number, margin: number) => { readonly x: number; readonly z: number };
+  /** Points that frame it on screen (lock framing proof). */
+  readonly framePoints: () => readonly V3[];
+}
+
 export interface TargetService {
+  /** Add a foe (mobs as they spawn); returns its removal. */
+  readonly register: (foe: Foe) => () => void;
+  /** Id of the locked foe, if any. */
+  readonly lockedId: () => string | undefined;
   /** Horizontal distance to the front 11 m surface (lock / sash range). */
   readonly surfaceDistance: (x: number, z: number) => number;
   readonly strike: (x: number, z: number, facing: number, range: number, arcDeg: number) => DragonStrike;
@@ -96,7 +120,33 @@ export const lockOn: Plugin = {
       let look: [number, number, number] | undefined;
       let frame = { nezha: { minX: 0, maxX: 0, minY: 0, maxY: 0, inFrame: false }, target: { minX: 0, maxX: 0, minY: 0, maxY: 0, inFrame: false } };
 
-      const pivotOf = (x: number, z: number) => dragon.frontNearest(x, z);
+      // --- Foes: the boss first, mobs as they register. `current` is the locked one.
+      const boss: Foe = {
+        id: 'boss',
+        kind: 'boss',
+        targetable: () => dragon.alive(),
+        surfaceDistance: (x, z) => dragon.frontDistance(x, z),
+        nearest: (x, z) => dragon.frontNearest(x, z),
+        strike: (x, z, f, range, arc) => dragon.strike(x, z, f, range, arc),
+        damage: (amount, segment) => { dragon.damage(amount, segment); },
+        touching: (x, z) => dragon.lowDistance(x, z),
+        pushOut: (x, z, m) => dragon.pushOut(x, z, m),
+        framePoints: () => dragon.points().slice(0, 25).map((p) => [p[0], p[1], p[2]] as V3),
+      };
+      const foes: Foe[] = [boss];
+      let current: Foe = boss;
+      let struck: { foe: Foe; hit: DragonStrike }[] = [];
+      const live = () => foes.filter((f) => f.targetable());
+      const nearestFoe = (x: number, z: number, within: number, except?: Foe): Foe | undefined => {
+        let best: Foe | undefined, bd = within;
+        for (const f of live()) {
+          if (f === except) continue;
+          const d = f.surfaceDistance(x, z);
+          if (d <= bd) { bd = d; best = f; }
+        }
+        return best;
+      };
+      const pivotOf = (x: number, z: number) => current.nearest(x, z);
       const lookPoint = (): V3 => look ?? [0, 2, 0];
       const margin = () => tuning.current.move.capsuleRadius + 0.05;
       const raise = (key: 'noTarget' | 'targetLost' | 'locked' | 'unlocked') => {
@@ -127,7 +177,7 @@ export const lockOn: Plugin = {
                 hh /= n;
                 vv /= n;
               }
-              if (vv > 0 && dragon.frontDistance(x, z) <= tuning.current.lock.minOrbitGap) vv = 0;
+              if (vv > 0 && current.surfaceDistance(x, z) <= tuning.current.lock.minOrbitGap) vv = 0;
               let vx = (rz * hh - rx * vv) * speed;
               let vz = (-rx * hh - rz * vv) * speed;
               if (vv === 0) {
@@ -140,14 +190,18 @@ export const lockOn: Plugin = {
             facing: facingTo,
           });
           // Head above 5 m (bite rear-up): tilt the aim up by 0.6 m per metre, at most 1.5 m.
-          camera.setLockView({ target: lookPoint, raise: () => Math.min(1.5, Math.max(0, (dragon.points()[0]![1] - FLOOR_Y - 5) * 0.6)) });
+          camera.setLockView({ target: lookPoint, raise: () => (current === boss ? Math.min(1.5, Math.max(0, (dragon.points()[0]![1] - FLOOR_Y - 5) * 0.6)) : 0) });
         } else {
           player.setLock(undefined);
           camera.setLockView(undefined);
         }
       };
       // Nezha cannot hover through the low parts of the body.
-      player.setObstacle((x, z) => dragon.pushOut(x, z, margin()));
+      player.setObstacle((x, z) => {
+        let p = { x, z };
+        for (const f of foes) if (f.targetable() || f === boss) p = f.pushOut(p.x, p.z, margin());
+        return p;
+      });
       yield () => player.setObstacle(undefined);
       yield () => engage(false);
 
@@ -160,7 +214,13 @@ export const lockOn: Plugin = {
           const dt = Math.min(world.getResource(Time).delta, 0.1);
           const l = tuning.current.lock;
           const root = player.root();
-          distance = dragon.frontDistance(root[0], root[2]);
+          // The locked mob fell: hop to the nearest live foe in range, else drop the lock quietly.
+          if (active && !current.targetable() && current !== boss) {
+            const next = nearestFoe(root[0], root[2], tuning.current.lock.acquireRange);
+            if (next) current = next;
+            else engage(false);
+          }
+          distance = current.surfaceDistance(root[0], root[2]);
           const p = pivotOf(root[0], root[2]);
           const want: [number, number, number] = [p.x, FLOOR_Y + Math.min(4, Math.max(1.5, p.y)), p.z];
           const k = 1 - Math.exp(-dt / 0.1); // ≈ 0.3 s to settle
@@ -170,18 +230,21 @@ export const lockOn: Plugin = {
             return;
           }
           // The dragon fell: the lock drops quietly (the victory has its own shot, no hint).
-          if (!dragon.alive() && active) engage(false);
+          if (current === boss && !dragon.alive() && active) engage(false);
           if (player.input().lockPressed) {
+            const pick = active ? undefined : nearestFoe(root[0], root[2], l.acquireRange);
             if (active) {
               engage(false);
               raise('unlocked');
-            } else if (dragon.alive() && distance <= l.acquireRange) {
+            } else if (pick) {
+              current = pick;
+              distance = pick.surfaceDistance(root[0], root[2]);
               engage(true);
               raise('locked');
             } else raise('noTarget');
           }
           // Boss field: no automatic release by distance. Outside it the usual 30 m rule applies.
-          const inField = Math.hypot(root[0], root[2]) <= ARENA.wallRadius;
+          const inField = current === boss && Math.hypot(root[0], root[2]) <= ARENA.wallRadius;
           if (active && !inField && distance > l.breakRange) {
             engage(false);
             raise('targetLost');
@@ -213,29 +276,61 @@ export const lockOn: Plugin = {
             at(-0.28, 1.3, 0), at(0.3, 1.3, 0), at(0, HEAD_TOP_Y, 0),
             at(NEZHA.grip[0], NEZHA.grip[1] + above * Math.cos(tilt), NEZHA.grip[2] - above * Math.sin(tilt)),
           ].map((p) => project(p, pose, aspect));
-          const front = dragon.points().slice(0, 25).map((p) => project([p[0], p[1], p[2]], pose, aspect));
+          const front = current.framePoints().map((p) => project(p, pose, aspect));
           frame = { nezha: box(nezhaPoints), target: box(front) };
           const marker = project(lookPoint(), pose, aspect);
-          session.contribute({ lock: { active, marker, opening: active && dragon.opening() } });
+          session.contribute({ lock: { active, marker, opening: active && current === boss && dragon.opening() } });
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-lock-frame').unwrap();
 
       yield ctx.provide('nezhaTarget', {
+        register: (foe) => {
+          foes.push(foe);
+          return () => {
+            const i = foes.indexOf(foe);
+            if (i >= 0) foes.splice(i, 1);
+            if (current === foe) {
+              current = boss;
+              if (active) engage(false);
+            }
+          };
+        },
+        lockedId: () => (active ? current.id : undefined),
+        // Sash Bind reaches the boss only.
         surfaceDistance: (x, z) => dragon.frontDistance(x, z),
-        strike: (x, z, facing, range, arcDeg) => dragon.strike(x, z, facing, range, arcDeg),
-        damage: (amount, segment) => dragon.damage(amount, segment),
-        touching: (x, z) => dragon.lowDistance(x, z),
+        // One swing hits every foe in its arc (v1.4.0 hitSet); the nearest decides the judge line.
+        strike: (x, z, facing, range, arcDeg) => {
+          struck = [];
+          for (const f of live()) {
+            const hit = f.strike(x, z, facing, range, arcDeg);
+            if (hit.hit) struck.push({ foe: f, hit });
+          }
+          struck.sort((a, b) => a.hit.distance - b.hit.distance);
+          return struck[0]?.hit ?? boss.strike(x, z, facing, range, arcDeg);
+        },
+        damage: (amount, segment) => {
+          struck.forEach((s, i) => s.foe.damage(amount, i === 0 ? segment : s.hit.segment));
+          struck = [];
+        },
+        touching: (x, z) => Math.min(...live().map((f) => f.touching(x, z)), Infinity),
         release: () => {
           if (active) engage(false);
         },
         lock: () => {
-          if (!active && dragon.alive()) engage(true);
+          if (!active && dragon.alive()) {
+            current = boss;
+            engage(true);
+          }
         },
         autoTarget: (x, z, facing, range) => {
-          const hit = dragon.strike(x, z, facing, range, 90);
-          if (!hit.hit) return undefined;
-          return Math.atan2(-(hit.point.x - x), -(hit.point.z - z));
+          let best: DragonStrike | undefined;
+          for (const f of live()) {
+            const hit = f.strike(x, z, facing, range, 90);
+            if (hit.hit && (!best || hit.distance < best.distance)) best = hit;
+          }
+          if (!best) return undefined;
+          return Math.atan2(-(best.point.x - x), -(best.point.z - z));
         },
         locked: () => active,
         facingFrom: facingTo,
@@ -246,7 +341,9 @@ export const lockOn: Plugin = {
         const p = pivotOf(root[0], root[2]);
         return {
           active,
-          opening: active && dragon.opening(),
+          foe: active ? current.id : null,
+          foes: live().map((f) => f.id),
+          opening: active && current === boss && dragon.opening(),
           distance: r3(distance),
           hint: lastHint ?? null,
           orbitAngleDeg: r3((Math.atan2(root[0] - p.x, root[2] - p.z) * 180) / Math.PI),

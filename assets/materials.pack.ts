@@ -1,5 +1,6 @@
 import { definePack } from '@forgeax/engine/pack/source';
 import { linearRgb, RIG_MATERIALS, rigMaterialKey } from './nezha-rig/rig-def.ts';
+import { Y_MATERIALS, yMaterialKey, type YMaterial } from './yaksha/rig-def.ts';
 import { Materials } from '@forgeax/engine/render';
 import type { MaterialRootAsset } from '@forgeax/engine/types';
 import { ok, RenderQueue } from '@forgeax/engine/types';
@@ -266,6 +267,12 @@ export default definePack({
       'material/sea-far': std(linearRgb(0x3a5a62), { roughness: 0.7, metallic: 0.2 }),
       'material/sea-far-roof': std(sc(0x2a4048, 0.7), { roughness: 0.6 }),
       'material/sea-far-gold': std(linearRgb(0x8a7a4a), { roughness: 0.4, metallic: 0.8 }),
+      // 巡海夜叉 (v1.4.0 buildYaksha colours) and its red wind-up fan.
+      ...Object.fromEntries((Object.keys(Y_MATERIALS) as YMaterial[]).map((m) => {
+        const d = Y_MATERIALS[m] as { color: number; rough: number; metal?: number; emissive?: number; emissiveIntensity?: number; twoSided?: boolean };
+        return [`material/${yMaterialKey(m)}`, std(linearRgb(d.color), { roughness: d.rough, metallic: d.metal ?? 0, ...(d.emissive !== undefined ? { emissive: linearRgb(d.emissive), emissiveIntensity: d.emissiveIntensity ?? 1 } : {}), twoSided: d.twoSided ?? false })];
+      })),
+      'material/yaksha-warn': glow(linearRgb(0xff3010), 0.6),
       'material/sea-spray': Materials.unlit([...lin3(0.81, 0.96, 1.0), 0.45], { renderState: ADDITIVE, queue: RenderQueue.Transparent }),
       'material/sea-rune': glow(linearRgb(0x3aa8c0), 0.3),
       'material/sea-taiji': Materials.unlit([...linearRgb(0x0e2a30), 0.5], { renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),

@@ -187,6 +187,17 @@ button {
 }
 @keyframes pulse { 50% { transform: rotate(45deg) scale(0.82); } }
 
+/* 巡海夜叉 overhead health (v1.4.0 mobBar): thin red bar above each live yaksha. */
+.mob-bars { position: absolute; inset: 0; pointer-events: none; }
+.mob-bar {
+  position: absolute;
+  width: 60px; height: 5px; margin: -2px 0 0 -30px;
+  background: rgb(0 0 0 / 55%);
+  border: 1px solid rgb(255 255 255 / 25%);
+}
+.mob-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8321c, #e0623a); }
+:host(.run-hud-off) .mob-bars, :host(.run-menu) .mob-bars { display: none; }
+
 .hint {
   position: absolute;
   left: 50%; top: 64%;

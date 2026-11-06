@@ -28,6 +28,7 @@ import type { AssetGuid, SceneAsset, SceneEntity } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
 import { SEA_FOG } from './environment.pack.ts';
 import { pillarSpan } from './sea/sea-geometry.ts';
+import { MOB_SLOTS, mobKey, YJOINT_NAMES, YJOINT_PARTS, YJOINTS } from './yaksha/rig-def.ts';
 import { ARENA_PILLARS, LEVEL_SCALE, SEA, SEA_LAMPS } from './shared/sea-layout.ts';
 import { assetGuid, characterGuid, geometryGuid, guidText, PACKAGE_IDS, SUN_OUTGOING_DIRECTION } from './shared/asset-refs.ts';
 import { GROUPS } from './shared/collision.ts';
@@ -126,6 +127,21 @@ function dragonPalace(): SceneAsset {
   });
   add('light/lotus', { Name: { value: 'Lotus Light' }, Transform: { pos: [SEA.lotus[0], 1.2 * LEVEL_SCALE, SEA.lotus[1]] }, PointLight: { color: [1.0, 0.54, 0.63], intensity: 10, range: 7 * LEVEL_SCALE, decay: 2 } });
   add('light/arena', { Name: { value: 'Arena Light' }, Transform: { pos: [0, 8 * LEVEL_SCALE, 0] }, PointLight: { color: [0.29, 0.82, 1.0], intensity: 0, range: 40 * LEVEL_SCALE, decay: 1.5 } });
+
+  // --- 巡海夜叉: five rigs parked under the floor until a wave calls them (the plugin poses them).
+  for (let slotIndex = 0; slotIndex < MOB_SLOTS; slotIndex += 1) {
+    add(mobKey(slotIndex), { Name: { value: `Sea Yaksha ${slotIndex}` }, Transform: { pos: [0, -60, 0], scale: [LEVEL_SCALE, LEVEL_SCALE, LEVEL_SCALE] } });
+    add(`${mobKey(slotIndex)}/fan`, { Name: { value: `Yaksha Fan ${slotIndex}` }, Transform: { pos: [0, 0, 0], scale: [0, 0, 0] }, ChildOf: { parent: mobKey(slotIndex) }, ...mesh(geometryGuid('yaksha-fan')) });
+    for (const joint of YJOINT_NAMES) {
+      const j = YJOINTS[joint];
+      add(mobKey(slotIndex, joint), {
+        Name: { value: `Yaksha ${slotIndex} ${joint}` },
+        Transform: { pos: [...j.pos] },
+        ChildOf: { parent: j.parent ? mobKey(slotIndex, j.parent) : mobKey(slotIndex) },
+        ...(YJOINT_PARTS[joint] ? mesh(characterGuid(`yk-${joint.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`)) : {}),
+      });
+    }
+  }
 
   // --- Nezha: root = kinematic capsule on the seabed; model child floats above it.
   const capsuleRadius = TUNING.move.capsuleRadius;

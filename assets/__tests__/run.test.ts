@@ -133,4 +133,17 @@ describe('one run (M4)', () => {
       }
     }
   });
+  it('falling on the boardwalk shows 「败」 (no lines, no record) and retry goes back to the road', () => {
+    const run = createRun();
+    const a = run.step({ playerDead: true });
+    expect(a).toEqual([{ type: 'defeat', first: false, road: true }]);
+    expect(run.snapshot().stage).toBe('defeat');
+    expect(run.snapshot().records.length).toBe(0);
+    for (let i = 0; i < RUN.defeatBannerLater; i += 1) run.step({});
+    expect(run.step({ enter: true })).toEqual([{ type: 'to-road' }]);
+    expect(run.snapshot().stage).toBe('canyon');
+    // The boss fight's own defeat still retries into the fight.
+    run.step({ entered: true });
+    expect(run.snapshot().stage).toBe('intro');
+  });
 });

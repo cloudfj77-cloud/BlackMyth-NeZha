@@ -245,6 +245,24 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     marker.classList.toggle('on-screen', next.lock.marker.visible);
     marker.style.left = `${(next.lock.marker.x * 100).toFixed(2)}%`;
     marker.style.top = `${(next.lock.marker.y * 100).toFixed(2)}%`;
+    // 巡海夜叉 bars (one element per live yaksha, reused).
+    const barsHost = part('mob-bars')!;
+    const mobBars = next.mobs ?? [];
+    while (barsHost.children.length < mobBars.length) {
+      const bar = document.createElement('div');
+      bar.className = 'mob-bar';
+      bar.append(document.createElement('i'));
+      barsHost.append(bar);
+    }
+    Array.from(barsHost.children).forEach((el, i) => {
+      const b = mobBars[i];
+      const node = el as HTMLElement;
+      node.style.display = b && b.on ? 'block' : 'none';
+      if (!b) return;
+      node.style.left = `${(b.x * 100).toFixed(2)}%`;
+      node.style.top = `${(b.y * 100).toFixed(2)}%`;
+      (node.firstElementChild as HTMLElement).style.width = `${(b.hp * 100).toFixed(1)}%`;
+    });
     if (next.hint && next.hint.serial !== lastHintSerial) {
       lastHintSerial = next.hint.serial;
       showHint(next.hint.key);
@@ -306,7 +324,9 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     const stage = run?.stage;
     audio.setMusic(
       next.phase === 'title' || !stage ? 'none'
-      : stage === 'canyon' || stage === 'intro' ? 'explore'
+      // 陈塘关 road: battle while yaksha are up (v1.4.0 setMode('battle') on an ambush).
+      : stage === 'canyon' ? ((next.mobs?.length ?? 0) > 0 ? 'battle' : 'explore')
+      : stage === 'intro' ? 'explore'
       : stage === 'fight' || stage === 'transition' ? (stage === 'transition' || next.boss?.phase === 2 ? 'battle2' : 'battle')
       : stage === 'victory' || stage === 'result' ? 'victory'
       : 'none',

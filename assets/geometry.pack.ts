@@ -97,6 +97,17 @@ export default definePack({
       'mesh/seabed': single(unwrapMesh(createBoxGeometry(240, 0.4, 240)), 'seabed'),
       // --- 东海 · 陈塘关 (v1.4.0 port) ---
       'mesh/sea-walk': seaWalk(),
+      // 巡海夜叉 wind-up fan (v1.4.0 RingGeometry 0.3–3.0, 0.9 rad round +Z; the mob root scales it).
+      'mesh/yaksha-fan': (() => {
+        const n = 16, a0 = -0.45, a1 = 0.45, r0 = 0.3, r1 = 3.0;
+        const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+        for (let i = 0; i <= n; i += 1) {
+          const a = a0 + ((a1 - a0) * i) / n;
+          for (const r of [r0, r1]) { pos.push(Math.sin(a) * r, 0.07, Math.cos(a) * r); nor.push(0, 1, 0); uv.push(i / n, r === r0 ? 0 : 1); }
+        }
+        for (let i = 0; i < n; i += 1) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 2, k + 1, k + 3); }
+        return raw(pos, nor, uv, idx, 'Warn', 'yaksha-warn');
+      })(),
       'mesh/sea-rocks': seaRocks(),
       'mesh/sea-gate': seaGate(),
       'mesh/sea-arena': seaArena(),

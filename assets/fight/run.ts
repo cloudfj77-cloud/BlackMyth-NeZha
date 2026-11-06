@@ -90,7 +90,9 @@ export type RunAction =
   /** Back to a fresh fight at the checkpoint, intro skipped (retry / restart / result 「再战」). */
   | { readonly type: 'reset'; readonly reason: 'retry' | 'restart' }
   | { readonly type: 'to-canyon' }
-  | { readonly type: 'defeat'; readonly first: boolean }
+  /** Retry after falling on the boardwalk (陈塘关 yaksha): back on the road, waves and gate reset. */
+  | { readonly type: 'to-road' }
+  | { readonly type: 'defeat'; readonly first: boolean; readonly road?: boolean }
   | { readonly type: 'victory' }
   | { readonly type: 'result' };
 
@@ -116,6 +118,8 @@ export function createRun() {
   const played = { intro: false, transition: false, defeat: false };
   /** This scene shows its lines (decided when it starts). */
   let withLines = false;
+  /** The current defeat happened on the boardwalk (yaksha), not in the boss fight. */
+  let onRoad = false;
   let introSkippable = false;
   let result: RunRecord | null = null;
   const records: RunRecord[] = [];
@@ -148,10 +152,12 @@ export function createRun() {
         perfects = 0;
         result = null;
         attempt += 1;
+        onRoad = false;
         out.push({ type: 'to-canyon' });
         return out;
       }
       if (input.restart) {
+        onRoad = false;
         attempt += 1;
         freshFight();
         out.push({ type: 'reset', reason: 'restart' });
@@ -161,6 +167,15 @@ export function createRun() {
       switch (stage) {
         case 'canyon':
           k = 0;
+          if (input.playerDead) {
+            // Fell to the yaksha: 「败」 without the boss's lines; no run record (the boss was never met).
+            deaths += 1;
+            onRoad = true;
+            withLines = false;
+            enterStage('defeat');
+            out.push({ type: 'defeat', first: false, road: true });
+            break;
+          }
           if (input.entered) {
             introSkippable = played.intro;
             played.intro = true;
@@ -211,9 +226,15 @@ export function createRun() {
         }
         case 'defeat':
           if (k >= (withLines ? RUN.defeatBannerFirst : RUN.defeatBannerLater) && (input.enter || input.retry)) {
-            attempt += 1;
-            freshFight();
-            out.push({ type: 'reset', reason: 'retry' });
+            if (onRoad) {
+              onRoad = false;
+              enterStage('canyon');
+              out.push({ type: 'to-road' });
+            } else {
+              attempt += 1;
+              freshFight();
+              out.push({ type: 'reset', reason: 'retry' });
+            }
           }
           break;
         case 'victory':

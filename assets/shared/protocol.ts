@@ -55,7 +55,9 @@ export interface FrontendMessage {
 }
 
 /** Hint keys shown by the HUD; each one is a language-table key under `hud.hint.*`. */
-export type HintKey = 'noTarget' | 'targetLost' | 'locked' | 'unlocked' | 'noStamina' | 'noLotusSeeds' | 'sashCooldown';
+export type HintKey = 'noTarget' | 'targetLost' | 'locked' | 'unlocked' | 'noStamina' | 'noLotusSeeds' | 'sashCooldown'
+  // 陈塘关 road (v1.4.0 messages): the two ambush waves, the gate opening, the lotus checkpoint.
+  | 'yakshaWave1' | 'yakshaWave2' | 'gateOpen' | 'checkpoint';
 
 /** Normalised screen position (0..1, top-left origin) and whether it is in front of the camera. */
 export interface ScreenPoint {
@@ -74,6 +76,8 @@ export interface HudState {
   readonly run?: RunHud;
   /** Monotonic counter per newly raised hint, so repeated hints re-animate. */
   readonly hint?: { readonly key: HintKey; readonly serial: number };
+  /** 巡海夜叉 overhead bars: normalised screen point above each live yaksha, health 0..1. */
+  readonly mobs?: readonly { readonly x: number; readonly y: number; readonly hp: number; readonly on: boolean }[];
   /** Live tuning values, mirrored for the development panel. */
   readonly tuning?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   /** Combat HUD (M2). */

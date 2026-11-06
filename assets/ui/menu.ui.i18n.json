@@ -83,7 +83,11 @@
             "unlocked": "解除锁定",
             "noStamina": "气力不足",
             "noLotusSeeds": "莲子已尽",
-            "sashCooldown": "混天绫冷却中"
+            "sashCooldown": "混天绫冷却中",
+            "yakshaWave1": "巡海夜叉自海中跃出！",
+            "yakshaWave2": "更多夜叉拦住了去路",
+            "gateOpen": "夜叉尽退 · 镇海水门已开",
+            "checkpoint": "太乙莲台 · 检查点已记录"
           },
           "tip": {
             "clickToLook": "点击画面锁定视角",
@@ -217,7 +221,11 @@
             "unlocked": "Lock released",
             "noStamina": "Not enough Stamina",
             "noLotusSeeds": "No Lotus Seeds left",
-            "sashCooldown": "Sash Bind on cooldown"
+            "sashCooldown": "Sash Bind on cooldown",
+            "yakshaWave1": "Yaksha leap from the sea!",
+            "yakshaWave2": "More yaksha bar the way",
+            "gateOpen": "Yaksha routed · Gate open",
+            "checkpoint": "Taiyi Lotus · checkpoint"
           },
           "tip": {
             "clickToLook": "Click the game to lock the camera",

@@ -32,6 +32,7 @@ export const PACKAGE_IDS = Object.freeze({
   fightPlugin: definePackageId('019fb7ce-4b00-7000-8000-000000000000'),
   rigPlugin: definePackageId('019fb7ce-4c00-7000-8000-000000000000'),
   seaPlugin: definePackageId('019fb7ce-4d00-7000-8000-000000000000'),
+  yakshaPlugin: definePackageId('019fb7ce-4e00-7000-8000-000000000000'),
 });
 
 export const materialGuid = (key: string): AssetGuidType => assetGuid(PACKAGE_IDS.materials, `material/${key}`);

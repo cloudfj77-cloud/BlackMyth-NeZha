@@ -9,6 +9,7 @@ import type {} from '@forgeax/engine/app';
 import type {} from '@forgeax/engine/assets-runtime';
 import type { CameraService, CameraShot } from '../camera/camera.pack.ts';
 import type { CombatService } from '../combat/combat.pack.ts';
+import { DEFAULT_COMBAT } from '../combat/machine.ts';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import { smooth, zoneDistance, zoneHits, type AttackKind } from '../dragon/body.ts';
 import { INTRO } from '../dragon/brain.ts';
@@ -19,6 +20,7 @@ import { geometryGuid, guidText, materialGuid, PACKAGE_IDS } from '../shared/ass
 import { CHECKPOINT, FLOOR_Y, SPAWN } from '../shared/layout.ts';
 import { onPlatform } from '../shared/sea-layout.ts';
 import type { SeaService } from '../sea/sea.pack.ts';
+import type { MobsService } from '../yaksha/yaksha.pack.ts';
 import type { RunHud } from '../shared/protocol.ts';
 import { createRun, RUN, type RunAction, type RunInput } from './run.ts';
 
@@ -62,7 +64,7 @@ function victoryShot(nezha: V3, head: V3): CameraShot {
  */
 export const fight: Plugin = {
   name: 'nezha/fight',
-  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera', 'nezhaDragon', 'nezhaTarget', 'nezhaCombat', 'nezhaSea'],
+  inject: ['world', 'gameHost', 'gameScene', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCamera', 'nezhaDragon', 'nezhaTarget', 'nezhaCombat', 'nezhaSea', 'nezhaMobs'],
   async apply(ctx) {
     const world = ctx.world;
     const session = ctx.nezhaSession as SessionService | undefined;
@@ -74,8 +76,9 @@ export const fight: Plugin = {
     const target = ctx.nezhaTarget as TargetService | undefined;
     const combat = ctx.nezhaCombat as CombatService | undefined;
     const sea = ctx.nezhaSea as SeaService | undefined;
+    const mobs = ctx.nezhaMobs as MobsService | undefined;
     const host = ctx.gameHost;
-    if (!host || !session || !tuning || !telemetry || !player || !camera || !dragon || !target || !combat || !sea) throw new Error('nezha/fight requires core, player, camera, dragon, target, combat and sea services');
+    if (!host || !session || !tuning || !telemetry || !player || !camera || !dragon || !target || !combat || !sea || !mobs) throw new Error('nezha/fight requires core, player, camera, dragon, target, combat, sea and mobs services');
 
     const assets = host.assets;
     const load = async (guid: string, kind: 'material' | 'mesh') => {
@@ -105,8 +108,7 @@ export const fight: Plugin = {
       let bindSeen = combat.bindSerial();
 
       // 陈塘关: the entry mist seals the platform (M4 §1 timing: rises 300–330 of the intro, stays after).
-      // The sea plugin owns the walking limits; until the 巡海夜叉 waves are ported the water gate stands open.
-      sea.setGate(true);
+      // The sea plugin owns the walking limits; the yaksha plugin opens the water gate when its waves are cleared.
       const setSeal = (rise: number) => {
         sealRise = rise;
         sea.setSealed(rise > 0.5 || sealed);
@@ -181,6 +183,7 @@ export const fight: Plugin = {
             target.lock();
             break;
           case 'reset':
+            mobs.skipRoad();
             combat.reset();
             dragon.reset('fight', run.snapshot().played.transition);
             target.release();
@@ -202,6 +205,7 @@ export const fight: Plugin = {
             dragon.reset('lurk', run.snapshot().played.transition);
             target.release();
             camera.setScript(undefined, 0);
+            mobs.resetRoad(true);
             player.teleport(SPAWN[0], SPAWN[2], 0);
             camera.snap(0);
             player.setAutopilot(undefined);
@@ -212,11 +216,24 @@ export const fight: Plugin = {
             wallTurn = WALL_TURN;
             defeatAt = -1;
             break;
+          case 'to-road': {
+            // 陈塘关 road retry (v1.4.0): back at the lotus checkpoint if it was lit, else the start; waves and gate reset.
+            combat.reset();
+            const at = mobs.resetRoad();
+            target.release();
+            player.teleport(at.x, at.z, 0);
+            camera.snap(0);
+            player.setAutopilot(undefined);
+            player.setInputLock(false);
+            defeatAt = -1;
+            session.emit('reset');
+            break;
+          }
           case 'defeat':
             dragon.calm();
             player.setInputLock(true);
             defeatAt = step;
-            record('defeat');
+            if (!a.road) record('defeat');
             session.emit('defeat');
             break;
           case 'victory': {
@@ -272,7 +289,11 @@ export const fight: Plugin = {
           // Dev lab: straight into the fight at the checkpoint.
           if (st === 'canyon' && session.frontend().lab.split(',').includes('skipintro')) input.restart = true;
           const root = player.root();
-          if (st === 'canyon') input.entered = onPlatform(root[0], root[2]);
+          if (st === 'canyon') {
+            input.entered = onPlatform(root[0], root[2]);
+            // Fell to the yaksha on the road.
+            if (combat.hp() <= 0) input.playerDead = true;
+          }
           if (combat.bindSerial() !== bindSeen) {
             bindSeen = combat.bindSerial();
             dragon.bind(combat.bindHoldSteps());
@@ -356,7 +377,8 @@ export const fight: Plugin = {
           const runHud: RunHud = {
             stage: s.stage,
             subtitle: line ? { key: line.key, speaker: line.speaker } : null,
-            hud: run.hudVisible(),
+            // 陈塘关 road: the HUD comes up while yaksha are about or Nezha is hurt (v1.4.0 always showed it).
+            hud: run.hudVisible() || (run.snapshot().stage === 'canyon' && (mobs.alive() > 0 || combat.hp() < DEFAULT_COMBAT.hpMax)),
             banner: run.defeatBanner(),
             desaturate: s.stage === 'defeat',
             skip: run.skipHint(),

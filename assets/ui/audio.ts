@@ -399,6 +399,8 @@ export function createCombatAudio(view: Window): CombatAudio {
     defeat: () => S.death(),
     'boss-dead': () => S.fall(),
     // Telegraphs (one cue per attack, at telegraph step 0): tell attacks off screen.
+    growl: () => S.growl(0),
+    'mob-swing': () => S.swing(0.9),
     'tell-bite': () => S.growl(0),
     'tell-lash': () => S.growl(1),
     'tell-charge': () => S.dash(),
