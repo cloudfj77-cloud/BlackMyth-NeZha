@@ -115,8 +115,10 @@ export const floatFx: Plugin = {
       yield () => {
         assets.release(mesh).unwrap();
       };
+      // The M1 sash strands are kept (physics, telemetry) but not drawn: the v1.4.0 混天绫 loop on her
+      // shoulders (rig plugin) wears the same live material, so the cooldown look carries over.
       const ribbon: EntityHandle = world.spawn(
-        { component: Transform, data: { pos: [0, 0, 0] } },
+        { component: Transform, data: { pos: [0, 0, 0], scale: [0, 0, 0] } },
         { component: ChildOf, data: { parent: player.entity } },
         { component: MeshFilter, data: { assetHandle: mesh } as never },
         { component: MeshRenderer, data: { materials: [material.value] } as never },
@@ -171,7 +173,8 @@ export const floatFx: Plugin = {
           floatState = float.step(player.mode(), t.float, dt);
           // Approved bob (±15 cm, 0.8 Hz, quick rise) + the v1.4.0 inertia layer: state height, lean, bank.
           const inertia = rig?.hover();
-          player.setFloat(floatState.y * gate + (inertia?.dy ?? 0), floatState.roll * gate + (inertia?.roll ?? 0), -(inertia?.pitch ?? 0));
+          // v1.4.0 directly (boss 11-06 17:11): its HoverMotion is the whole float — height, bob, lean, bank.
+          player.setFloat(inertia?.dy ?? 0, inertia?.roll ?? 0, -(inertia?.pitch ?? 0));
           hoverY = r3((floatState.y * gate) / Math.max(dt, 1e-6) - lastY / Math.max(dt, 1e-6));
           lastY = floatState.y * gate;
 
@@ -190,7 +193,7 @@ export const floatFx: Plugin = {
             return [dx * cos - dz * sin, w[1]! - ry, dx * sin + dz * cos];
           };
           // Model space -> root-local: model origin sits hover + float above the seabed.
-          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + floatState.y * gate + (rig?.hover().dy ?? 0);
+          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + (rig?.hover().dy ?? 0);
           const anchorWorld = (a: readonly number[]): V3 => {
             const v = rotate(modelQ, [a[0]!, a[1]!, a[2]!]);
             return [(modelMatrix[12] ?? 0) + v[0], (modelMatrix[13] ?? 0) + v[1], (modelMatrix[14] ?? 0) + v[2]];

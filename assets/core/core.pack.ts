@@ -184,7 +184,7 @@ export const core: Plugin = {
       const receive = (event: MessageEvent) => {
         const data: unknown = event.data;
         if (isControlMessage(data)) {
-          if (data.kind === 'retry' || data.kind === 'restart' || data.kind === 'toTitle') {
+          if (data.kind === 'retry' || data.kind === 'restart' || data.kind === 'toTitle' || data.kind === 'roam') {
             commands.push(data.kind);
             // The pause-menu buttons also leave the pause; 「回到标题」goes back to the start screen.
             if (data.kind === 'toTitle') phase = 'title';

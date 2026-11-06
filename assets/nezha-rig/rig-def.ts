@@ -404,20 +404,20 @@ export class Spring {
 
 /** Per-state float profiles (v1.4.0): hover height (m), legs tuck 0..1, extra lean (rad), drift. */
 export const HOVER_PROFILES = {
-  idle: { hover: 0.58, legs: 0.35, lean: 0.0, drift: 1.0 },
-  move: { hover: 0.48, legs: 0.5, lean: 0.12, drift: 0.6 },
-  sprint: { hover: 0.4, legs: 0.85, lean: 0.3, drift: 0.3 },
-  attack: { hover: 0.42, legs: 0.55, lean: 0.1, drift: 0.2 },
-  heavy: { hover: 0.3, legs: 0.9, lean: 0.05, drift: 0.1 },
-  charge: { hover: 0.85, legs: 1.0, lean: -0.05, drift: 0.2 },
-  roll: { hover: 0.55, legs: 1.0, lean: 0.0, drift: 0 },
-  jump: { hover: 0.3, legs: 0.7, lean: 0.05, drift: 0.2 },
-  airatk: { hover: 0.2, legs: 1.0, lean: 0.25, drift: 0 },
-  land: { hover: 0.3, legs: 0.7, lean: 0.05, drift: 0.2 },
-  cast: { hover: 0.95, legs: 0.6, lean: -0.08, drift: 0.4 },
-  drink: { hover: 0.62, legs: 0.4, lean: -0.04, drift: 0.8 },
-  hurt: { hover: 0.38, legs: 0.6, lean: -0.3, drift: 0 },
-  dead: { hover: 0.12, legs: 0.2, lean: 0, drift: 0 },
+  idle: { hover: 0.58, bob: 0.065, freq: 0.5, legs: 0.35, lean: 0.0, drift: 1.0 },
+  move: { hover: 0.48, bob: 0.045, freq: 0.9, legs: 0.5, lean: 0.12, drift: 0.6 },
+  sprint: { hover: 0.4, bob: 0.025, freq: 1.4, legs: 0.85, lean: 0.3, drift: 0.3 },
+  attack: { hover: 0.42, bob: 0.015, freq: 1.2, legs: 0.55, lean: 0.1, drift: 0.2 },
+  heavy: { hover: 0.3, bob: 0.01, freq: 1.0, legs: 0.9, lean: 0.05, drift: 0.1 },
+  charge: { hover: 0.85, bob: 0.03, freq: 2.2, legs: 1.0, lean: -0.05, drift: 0.2 },
+  roll: { hover: 0.55, bob: 0, freq: 0, legs: 1.0, lean: 0.0, drift: 0 },
+  jump: { hover: 0.3, bob: 0, freq: 0, legs: 0.7, lean: 0.05, drift: 0.2 },
+  airatk: { hover: 0.2, bob: 0, freq: 0, legs: 1.0, lean: 0.25, drift: 0 },
+  land: { hover: 0.3, bob: 0, freq: 0, legs: 0.7, lean: 0.05, drift: 0.2 },
+  cast: { hover: 0.95, bob: 0.05, freq: 1.6, legs: 0.6, lean: -0.08, drift: 0.4 },
+  drink: { hover: 0.62, bob: 0.05, freq: 0.7, legs: 0.4, lean: -0.04, drift: 0.8 },
+  hurt: { hover: 0.38, bob: 0, freq: 0, legs: 0.6, lean: -0.3, drift: 0 },
+  dead: { hover: 0.12, bob: 0, freq: 0, legs: 0.2, lean: 0, drift: 0 },
 } as const;
 export type HoverState = keyof typeof HOVER_PROFILES;
 
@@ -485,7 +485,10 @@ export class HoverMotion {
     const drift = prof.drift * 0.02 * Math.sin(t * 0.37 + 2.1);
     const sink = -Math.min(0.12, Math.max(0, -aF) * 0.004);
     const o = this.out;
-    o.dy = this.h.step(prof.hover - HOVER_PROFILES.idle.hover + drift + sink, dt);
+    // v1.4.0 height: state base + two-frequency bob + drift + braking sink, on a soft spring.
+    // Our model origin already sits at the idle hover (move.hoverHeight = 0.58 × 0.86): dy is the rest, in metres.
+    const bob = prof.bob * (Math.sin(t * prof.freq * Math.PI * 2) * 0.7 + Math.sin(t * prof.freq * Math.PI * 2 * 1.618 + 1.3) * 0.3);
+    o.dy = this.h.step(prof.hover - HOVER_PROFILES.idle.hover + bob + drift + sink, dt) * RIG_SCALE;
     const leanA = Math.atan2(aF, G) * 0.35 + Math.min(0.14, speed * 0.014) + prof.lean * 0.5;
     o.pitch = this.pitchS.step(Math.max(-0.35, Math.min(0.38, leanA)), dt);
     // Turning left (yaw rate > 0 here) banks left: roll toward the inside of the turn.

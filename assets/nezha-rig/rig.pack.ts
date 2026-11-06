@@ -1,13 +1,13 @@
 import { definePack } from '@forgeax/engine/pack/source';
 import { Time, Update, type EntityHandle } from '@forgeax/engine/ecs';
 import { createMeshBuilder } from '@forgeax/engine/geometry';
-import { MeshFilter, MeshRenderer } from '@forgeax/engine/render';
+import { MeshFilter, MeshRenderer, PointLight } from '@forgeax/engine/render';
 import type {} from '@forgeax/engine/assets-runtime';
 import { Ribbon, ribbonSpec, stripIndices, type V3 as RV3 } from './ribbons.ts';
-import { guidText, materialGuid } from '../shared/asset-refs.ts';
+import { geometryGuid, guidText, materialGuid } from '../shared/asset-refs.ts';
 import { FLOOR_Y } from '../shared/layout.ts';
 import type { Plugin } from '@forgeax/engine/plugin';
-import { PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
+import { ChildOf, PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
 import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
 import type { CombatService } from '../combat/combat.pack.ts';
@@ -89,6 +89,13 @@ export const nezhaRig: Plugin = {
     const silkLoaded = await assets.load(guidText(materialGuid('nz-silk')), 'material');
     if (!silkLoaded.ok) throw silkLoaded.error;
     const silk = silkLoaded.value;
+    const sashLoaded = await assets.load(guidText(materialGuid('sash-live')), 'material');
+    if (!sashLoaded.ok) throw sashLoaded.error;
+    const sashMat = sashLoaded.value;
+    const haloLoaded = await assets.load(guidText(materialGuid('wheel-halo')), 'material');
+    if (!haloLoaded.ok) throw haloLoaded.error;
+    const haloMesh = await assets.load(guidText(geometryGuid('wheel-halo')), 'mesh');
+    if (!haloMesh.ok) throw haloMesh.error;
     const spearEntity = resolveGameEntity(world, ctx.gameScene, 'player/spear');
     worldPoint = (entity, local) => {
       const m = readPresentationWorldMatrix(world, entity);
@@ -103,6 +110,51 @@ export const nezhaRig: Plugin = {
 
     await ctx.effect(function* () {
       yield () => assets.release(silk).unwrap();
+      yield () => { assets.release(sashMat).unwrap(); assets.release(haloLoaded.value).unwrap(); assets.release(haloMesh.value).unwrap(); };
+      // --- 混天绫 (v1.4.0): both ends tied behind the shoulders, floating up and back into a loop. It wears
+      // the live sash material (cooldown dimming / gold fill / ready glint), uv.y root → middle → root.
+      const S0 = RIG_SCALE;
+      const loop = new Ribbon(ribbonSpec({ n: 32, len: 2.8 * S0, width: 0.17 * S0, gravity: 0.35, flutter: 6, taper: 0.3, twist: 0.9, back: 5.5 }, 0.7));
+      const loopPos = new Float32Array(32 * 2 * 3);
+      const loopNor = new Float32Array(32 * 2 * 3);
+      for (let v = 0; v < 64; v += 1) loopNor[v * 3 + 1] = 1;
+      const loopUv = new Float32Array(32 * 2 * 2);
+      for (let i = 0; i < 32; i += 1) { const y = 1 - Math.abs(i / 31 - 0.5) * 2; loopUv.set([0, y, 1, y], i * 4); }
+      const loopIdx = stripIndices([32]);
+      const loopBuilt = createMeshBuilder({
+        attributes: { position: loopPos, normal: loopNor, uv: loopUv },
+        indices: loopIdx,
+        submeshes: [{ indexOffset: 0, indexCount: loopIdx.length, vertexCount: 64, topology: 'triangle-list', materialSlot: 0 }],
+        materialSlots: [{ slotName: 'sash' }],
+      }).build();
+      if (!loopBuilt.ok) throw loopBuilt.error;
+      const loopMesh = assets.create({ ...loopBuilt.value, aabb: new Float32Array([-80, -10, -80, 80, 30, 80]) }).unwrap();
+      yield () => assets.release(loopMesh).unwrap();
+      const loopEntity = world.spawn(
+        { component: Transform, data: { pos: [0, 0, 0] } },
+        { component: MeshFilter, data: { assetHandle: loopMesh } as never },
+        { component: MeshRenderer, data: { materials: [sashMat] } as never },
+      ).unwrap();
+      yield () => world.despawn(loopEntity).unwrap();
+      // --- 风火轮 fire (v1.4.0 wheels): a flame halo round each rim (flickering) and a warm light.
+      const haloMat = assets.copy(haloLoaded.value).unwrap();
+      yield () => assets.release(haloMat).unwrap();
+      const wheelFx = (['lMount', 'rMount'] as const).map((mount) => {
+        const halo = world.spawn(
+          { component: Transform, data: { pos: [0, 0, 0] } },
+          { component: ChildOf, data: { parent: joints[mount] } },
+          { component: MeshFilter, data: { assetHandle: haloMesh.value } as never },
+          { component: MeshRenderer, data: { materials: [haloMat] } as never },
+        ).unwrap();
+        const light = world.spawn(
+          { component: Transform, data: { pos: [0, 0, 0.05] } },
+          { component: ChildOf, data: { parent: joints[mount] } },
+          { component: PointLight, data: { color: [1.0, 0.45, 0.12], intensity: 4, range: 3.2, decay: 2 } as never },
+        ).unwrap();
+        return { halo, light };
+      });
+      yield () => { for (const w of wheelFx) { world.despawn(w.light).unwrap(); world.despawn(w.halo).unwrap(); } };
+      let flick = 1;
       // --- Extra ribbons (v1.4.0): arm sash, waist sash, hair ribbons, spear tassel — one mesh, one draw.
       const S = RIG_SCALE;
       const ribbonDefs: { pin: () => RV3; spec: ReturnType<typeof ribbonSpec> }[] = [];
@@ -244,6 +296,16 @@ export const nezhaRig: Plugin = {
           const ql = qEuler(spin * 1.03, 0, 0), qr = qEuler(spin, 0, 0);
           world.set(joints.lWheel, Transform, { quat: [ql[0], ql[1], ql[2], ql[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
           world.set(joints.rWheel, Transform, { quat: [qr[0], qr[1], qr[2], qr[3]], scale: [wheelScale, wheelScale, wheelScale] }).unwrap();
+          // v1.4.0 flame flicker: halo 0.4–0.65 opacity, size 0.95–1.07 × (1 + speed), light flickers with it.
+          if (dt > 0) flick = 0.85 + Math.random() * 0.3;
+          const fl = 1 + Math.min(1.5, speed * 0.12);
+          const dead = combat.pose().kind === 'dead';
+          assets.update(haloMat, { values: { intensity: dead ? 0 : (0.4 + (flick - 0.85) * 0.8) * (full ? 1.6 : 1) } } as never).unwrap();
+          for (const w of wheelFx) {
+            const hs = (0.95 + (flick - 0.85) * 0.4 * fl) * wheelScale;
+            world.set(w.halo, Transform, { scale: [hs, hs, hs] }).unwrap();
+            world.set(w.light, PointLight, { intensity: dead ? 0 : (3 + speed * 0.25) * flick * (full ? 1.8 : 1) } as never).unwrap();
+          }
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-rig').unwrap();
@@ -266,6 +328,9 @@ export const nezhaRig: Plugin = {
             v = r.write(ribbonPos, v, ribbonTime);
           });
           assets.writeRange(ribbonMesh, { attribute: 'position', first: 0, values: ribbonPos }).unwrap();
+          loop.update(dt, ribbonTime, worldPoint(joints[PINS.backL.joint], PINS.backL.pos), wind, back, FLOOR_Y, worldPoint(joints[PINS.backR.joint], PINS.backR.pos));
+          loop.write(loopPos, 0, ribbonTime);
+          assets.writeRange(loopMesh, { attribute: 'position', first: 0, values: loopPos }).unwrap();
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-rig-ribbons').unwrap();

@@ -39,6 +39,8 @@ export interface CombatConfig {
   readonly roll: { readonly steps: number; readonly invuln: number; readonly moveSteps: number; readonly distance: number; readonly perfect: number };
   readonly slowmoSteps: number;
   readonly perfectRefund: number;
+  /** v1.4.0 P.invuln 0.6 s after being hurt: a second hit inside it does nothing. */
+  readonly hurtInvuln: number;
   readonly hurtSteps: number;
   readonly cost: { readonly light: number; readonly heavy: number; readonly roll: number; readonly sprintPerSecond: number };
   readonly regenDelay: number;
@@ -83,6 +85,7 @@ export const DEFAULT_COMBAT: CombatConfig = {
   roll: { steps: 27, invuln: 18, moveSteps: 12, distance: 3, perfect: 12 },
   slowmoSteps: 18,
   perfectRefund: 30,
+  hurtInvuln: 36,
   hurtSteps: 24,
   // Boss 22:12: attacks cost no stamina (17:46 had halved them; design 4.2 had light 12 / heavy 30).
   cost: { light: 0, heavy: 0, roll: 20, sprintPerSecond: 15 },
@@ -208,6 +211,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let knock: { readonly dir: V2; readonly distance: number } | undefined;
   /** Airborne height above the hover line (m) and vertical speed; 灵息 steps left. */
   let airY = 0, airVy = 0, boost = 0;
+  let lastHurt = -1000;
 
   const enter = (kind: ActionKind, extra: Partial<typeof state> = {}) => {
     state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, landed: -1, ...extra };
@@ -615,6 +619,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           return { type: 'dodged', frame };
         }
       }
+      if (step - lastHurt < config.hurtInvuln) return { type: 'dodged', frame: 0 };
+      lastHurt = step;
       hp = Math.max(0, hp - damage);
       comboStage = 0;
       comboWindow = 0;
@@ -632,6 +638,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
     /** Back to a fresh fight (defeat / victory reset). */
     reset() {
       hp = config.hpMax;
+      lastHurt = -1000;
       stamina = config.staminaMax;
       lotus = config.lotus.count;
       sashCd = 0;

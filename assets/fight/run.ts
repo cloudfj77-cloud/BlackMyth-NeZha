@@ -63,7 +63,7 @@ export function timerSeconds(steps: number): number {
   return Math.ceil(steps / 6) / 10;
 }
 
-export type Stage = 'canyon' | 'intro' | 'fight' | 'transition' | 'defeat' | 'victory' | 'result';
+export type Stage = 'canyon' | 'intro' | 'fight' | 'transition' | 'defeat' | 'victory' | 'result' | 'roam';
 
 export interface RunInput {
   /** Nezha crossed into the arena (canyon only). */
@@ -74,6 +74,8 @@ export interface RunInput {
   readonly retry?: boolean;
   readonly restart?: boolean;
   readonly toTitle?: boolean;
+  /** Result screen 「自由游览」 (v1.4.0 btnRoam): walk the terrace freely after the win. */
+  readonly roam?: boolean;
   readonly playerDead?: boolean;
   readonly phaseChange?: boolean;
   readonly transitionEnd?: boolean;
@@ -94,7 +96,8 @@ export type RunAction =
   | { readonly type: 'to-road' }
   | { readonly type: 'defeat'; readonly first: boolean; readonly road?: boolean }
   | { readonly type: 'victory' }
-  | { readonly type: 'result' };
+  | { readonly type: 'result' }
+  | { readonly type: 'roam' };
 
 export interface RunRecord {
   readonly attempt: number;
@@ -244,6 +247,11 @@ export function createRun() {
           }
           break;
         case 'result':
+          if (input.roam) {
+            enterStage('roam');
+            out.push({ type: 'roam' });
+            break;
+          }
           if (input.enter || input.retry) {
             attempt += 1;
             freshFight();
@@ -270,7 +278,7 @@ export function createRun() {
     },
     /** Combat HUD (bars, items): hidden in the intro, the defeat and the victory. */
     hudVisible(): boolean {
-      return stage === 'fight' || stage === 'transition';
+      return stage === 'fight' || stage === 'transition' || stage === 'roam';
     },
     /** Intro skip prompt: only while a skip would do something. */
     skipHint(): boolean {

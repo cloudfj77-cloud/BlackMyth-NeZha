@@ -145,6 +145,8 @@ export const yaksha: Plugin = {
           const slot = slots.find((s) => !s.mob);
           if (!slot) return;
           const m = mobs.spawn(x, z, true);
+          // Dev lab `weakmobs`: one hit each (release-gate road check).
+          if (session.frontend().lab.split(',').includes('weakmobs')) m.hp = 1;
           m.facing = 0;
           slot.mob = m;
           slot.pose = { ...M_ALERT };

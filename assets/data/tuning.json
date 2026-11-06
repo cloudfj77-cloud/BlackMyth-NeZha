@@ -6,7 +6,7 @@
     "decelTime": 0.15,
     "turnRate": 720,
     "sprintHoldThreshold": 0,
-    "hoverHeight": 1.15,
+    "hoverHeight": 0.5,
     "leanWalk": 10,
     "leanSprint": 20,
     "leanBlendTime": 0.15,
@@ -108,7 +108,7 @@
   "difficulty": {
     "gapMin": 60,
     "damageScale": 1,
-    "dragonHp": 800,
+    "dragonHp": 600,
     "lotus": 3
   }
 }

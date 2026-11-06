@@ -76,7 +76,7 @@ declare module '@forgeax/engine/plugin' {
   }
 }
 
-function sparkCloud(): MeshAsset {
+function sparkCloud(SPARKS = 16): MeshAsset {
   const position = new Float32Array(SPARKS * 3);
   const normal = new Float32Array(SPARKS * 3);
   const tangent = new Float32Array(SPARKS * 4);
@@ -158,6 +158,7 @@ export const combat: Plugin = {
       wheelGold: await load(guidText(materialGuid('nz-gold')), 'material'),
       wheelRed: await load(guidText(materialGuid('nz-red')), 'material'),
       wheelFull: await load(guidText(materialGuid('wheel-fire-full')), 'material'),
+      qi: await load(guidText(materialGuid('qi-spark')), 'material'),
       afterimage: await load(guidText(materialGuid('afterimage-cloud')), 'material'),
       ring: await load(guidText(materialGuid('perfect-ring')), 'material'),
       spark: await load(guidText(materialGuid('spark')), 'material'),
@@ -292,6 +293,21 @@ export const combat: Plugin = {
       const sparkPos = new Float32Array(SPARKS * 3);
       const sparkVel = new Float32Array(SPARKS * 3);
       let sparkAge = -1;
+      // 灵息 (v1.4.0 staminaReward): cyan qi gathers from a ring round Nezha into her chest over 0.6 s.
+      const QI = 40;
+      const qiMesh = assets.create(sparkCloud(QI)).unwrap();
+      yield () => assets.release(qiMesh).unwrap();
+      const qi = world.spawn(
+        { component: Transform, data: { pos: [0, 0, 0] } },
+        { component: MeshFilter, data: { assetHandle: qiMesh } as never },
+        { component: MeshRenderer, data: { materials: [mat.qi] } as never },
+        { component: Points, data: { size: 0.09, sizeUnits: PointSizeUnitsValue.world, shape: PointShapeValue.soft } as never },
+      ).unwrap();
+      spawned.push(qi);
+      const qiPos = new Float32Array(QI * 3);
+      const qiFrom = new Float32Array(QI * 3);
+      let qiAge = -1;
+      for (let i = 0; i < QI; i += 1) qiPos[i * 3 + 1] = -50;
       let sparkCount = SPARKS;
       let seed = 1;
       const rand = () => {
@@ -483,9 +499,11 @@ export const combat: Plugin = {
           else deadFor = -1;
           if (state.kind !== 'dead') wheelsFull = visual.wheelsFull;
           const glow = state.kind === 'dead' ? WHEEL_FIRE * Math.max(0, 1 - deadFor / 30) : wheelsFull ? WHEEL_FULL_INTENSITY : WHEEL_FIRE;
-          if (Math.abs(glow - wheelGlow) > 1e-3) {
-            wheelGlow = glow;
-            assets.update(wheelFire as never, { values: { emissiveIntensity: glow } } as never).unwrap();
+          // v1.4.0: the rim flames flicker every frame (0.7–1.3 ×).
+          const flickered = glow * (state.kind === 'dead' ? 1 : 0.8 + Math.random() * 0.4);
+          if (Math.abs(flickered - wheelGlow) > 1e-3) {
+            wheelGlow = flickered;
+            assets.update(wheelFire as never, { values: { emissiveIntensity: flickered } } as never).unwrap();
           }
           const snapAir = machine.snapshot();
           // Air height: interpolated toward the next step for smooth motion.
@@ -529,6 +547,27 @@ export const combat: Plugin = {
             } else assets.writeRange(sparkMesh, { attribute: 'position', first: 0, values: sparkPos }).unwrap();
           }
           // Perfect-dodge ring: radius 0 -> 1.2 m over 0.2 s at the root plane, once.
+          if (qiAge >= 0) {
+            qiAge += dt;
+            const rt = player.root();
+            const chest = [rt[0], rt[1] + 1.3, rt[2]];
+            if (qiAge > 0.7) {
+              qiAge = -1;
+              for (let i = 0; i < QI; i += 1) qiPos[i * 3 + 1] = -50;
+            } else {
+              for (let i = 0; i < QI; i += 1) {
+                const u = Math.min(1, Math.max(0, (qiAge - (i % 5) * 0.02) / 0.55));
+                const e = u * u * (3 - 2 * u);
+                const sw = Math.sin(u * Math.PI) * 0.35;
+                const fx = qiFrom[i * 3]!, fy = qiFrom[i * 3 + 1]!, fz = qiFrom[i * 3 + 2]!;
+                // Spiral in: a sideways swirl that vanishes at the chest.
+                const dx = fx - chest[0]!, dz = fz - chest[2]!;
+                qiPos.set([chest[0]! + dx * (1 - e) - dz * sw * (1 - e), fy + (chest[1]! - fy) * e, chest[2]! + dz * (1 - e) + dx * sw * (1 - e)], i * 3);
+                if (u >= 1) qiPos[i * 3 + 1] = -50;
+              }
+            }
+            assets.writeRange(qiMesh, { attribute: 'position', first: 0, values: qiPos }).unwrap();
+          }
           if (ringAge >= 0) {
             ringAge += dt;
             const t = Math.min(1, ringAge / 0.2);
@@ -582,6 +621,14 @@ export const combat: Plugin = {
         session.emit('perfect');
         ringAge = 0;
         perfectSerial += 1;
+        qiAge = 0;
+        {
+          const rt = player.root();
+          for (let i = 0; i < QI; i += 1) {
+            const a = rand() * Math.PI * 2, rr = 1.6 + rand() * 0.9;
+            qiFrom.set([rt[0] + Math.sin(a) * rr, rt[1] + 0.3 + rand() * 1.7, rt[2] + Math.cos(a) * rr], i * 3);
+          }
+        }
         // v1.4.0: the perfect-dodge trail turns pale cyan (and gets out of the way) for its lifetime.
         cyanLeft = tuning.current.combat.afterimageLife;
         assets.update(mat.afterimage, { values: { coreColor: [0.35, 0.85, 0.95, 1], rimColor: [0.75, 1.0, 1.0, 1], intensity: tuning.current.combat.afterimageIntensity * 0.6 } } as never).unwrap();

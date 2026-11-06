@@ -146,4 +146,19 @@ describe('one run (M4)', () => {
     run.step({ entered: true });
     expect(run.snapshot().stage).toBe('intro');
   });
+  it('the result screen can go to free roaming (v1.4.0 自由游览), HUD on, and back to a fresh fight', () => {
+    const run = createRun();
+    run.step({ entered: true });
+    run.step({ enter: true });
+    run.step({ enter: true });
+    for (let i = 0; i < RUN.introEnd; i += 1) run.step({});
+    run.step({ dragonDead: true });
+    for (let i = 0; i < RUN.victoryResult; i += 1) run.step({});
+    expect(run.snapshot().stage).toBe('result');
+    expect(run.step({ roam: true })).toEqual([{ type: 'roam' }]);
+    expect(run.snapshot().stage).toBe('roam');
+    expect(run.hudVisible()).toBe(true);
+    expect(run.step({ enter: true })).toEqual([]);
+    expect(run.step({ restart: true })[0]!.type).toBe('reset');
+  });
 });

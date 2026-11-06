@@ -400,6 +400,10 @@ export function createCombatAudio(view: Window): CombatAudio {
     'boss-dead': () => S.fall(),
     // Telegraphs (one cue per attack, at telegraph step 0): tell attacks off screen.
     growl: () => S.growl(0),
+    'boss-swing': () => S.swing(1.6),
+    break: () => S.slam(0.6),
+    'tell-smash': () => S.growl(1),
+    'tell-icering': () => S.ice(),
     'mob-swing': () => S.swing(0.9),
     'tell-bite': () => S.growl(0),
     'tell-lash': () => S.growl(1),

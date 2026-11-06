@@ -16,7 +16,6 @@ import { ARENA, FLOOR_Y } from '../shared/layout.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
 import {
-  ATTACKS,
   closestOnSegment,
   frontNearest,
   HITTABLE_UNDERSIDE,
@@ -24,16 +23,19 @@ import {
   hurtCapsules,
   POINTS,
   radius,
-  type AttackKind,
   type P3,
   type Polygon,
   type V2,
   type Zone,
-  COIL,
   smooth,
   zoneDistance,
 } from './body.ts';
-import { BRAIN, createBrain, INTRO, type DragonEvent } from './brain.ts';
+import { INTRO } from './brain.ts';
+import { AOBING, createAobing, ICE_RING, SPIKE, type AobingEvent, type AobingKind } from './aobing.ts';
+import { LEVEL_SCALE } from '../shared/sea-layout.ts';
+
+export type DragonEvent = AobingEvent;
+type AttackKind = AobingKind;
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 const DEG = Math.PI / 180;
@@ -278,6 +280,8 @@ export const dragon: Plugin = {
       head: await load(guidText(geometryGuid('dragon-head')), 'mesh'),
       eyes: await load(guidText(geometryGuid('dragon-eyes')), 'mesh'),
       coilWall: await load(guidText(geometryGuid('coil-wall')), 'mesh'),
+      spike: await load(guidText(geometryGuid('ice-spike')), 'mesh'),
+      ring: await load(guidText(geometryGuid('ring')), 'mesh'),
     };
     const mat = {
       bands: [await load(guidText(materialGuid('dragon-front')), 'material'), await load(guidText(materialGuid('dragon-mid')), 'material'), await load(guidText(materialGuid('dragon-tail')), 'material')],
@@ -290,6 +294,10 @@ export const dragon: Plugin = {
       edge: await load(guidText(materialGuid('warn-edge')), 'material'),
       shrink: await load(guidText(materialGuid('warn-shrink')), 'material'),
       wall: await load(guidText(materialGuid('water-wall')), 'material'),
+      iceSpike: await load(guidText(materialGuid('ice-spike')), 'material'),
+      iceGlow: await load(guidText(materialGuid('ice-glow')), 'material'),
+      iceShock: await load(guidText(materialGuid('ice-shock')), 'material'),
+      dustShock: await load(guidText(materialGuid('dust-shock')), 'material'),
     };
 
     await ctx.effect(function* () {
@@ -300,7 +308,7 @@ export const dragon: Plugin = {
         for (const e of spawned) world.despawn(e).unwrap();
         for (const c of copies) assets.release(c as never).unwrap();
         for (const m of meshes) assets.release(m as never).unwrap();
-        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, mat.wall, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
+        for (const h of [...Object.values(mesh), mat.ridge, mat.horn, mat.eye, mat.fade, mat.fill, mat.edge, mat.shrink, mat.wall, mat.iceSpike, mat.iceGlow, mat.iceShock, mat.dustShock, ...mat.bands, ...mat.glass]) assets.release(h).unwrap();
       };
       const copy = (handle: never, values?: Record<string, unknown>) => {
         const c = assets.copy(handle).unwrap() as unknown as number;
@@ -421,16 +429,61 @@ export const dragon: Plugin = {
       let splashAge = -1;
       let splashAt: V2 = { x: 0, z: 0 };
 
+      // --- 敖丙 ice hazards (v1.4.0 iceSpikes / ice ring / shockwaves), pooled -----------------
+      const SPIKE_POOL = 24;
+      const spikeEntities = Array.from({ length: SPIKE_POOL }, () => spawn(mesh.spike, [mat.iceSpike]));
+      // Spike warnings: one merged mesh, a small ring per slot (one draw for all).
+      const SEGS = 20;
+      const spikeWarn = (() => {
+        const count = SPIKE_POOL * SEGS * 2;
+        const position = new Float32Array(count * 3);
+        for (let i = 0; i < count; i += 1) position[i * 3 + 1] = -60;
+        const normal = new Float32Array(count * 3);
+        for (let i = 0; i < count; i += 1) normal[i * 3 + 1] = 1;
+        const indices: number[] = [];
+        for (let k = 0; k < SPIKE_POOL; k += 1) for (let j = 0; j < SEGS; j += 1) {
+          const o = k * SEGS * 2, a = o + j * 2, b = o + ((j + 1) % SEGS) * 2;
+          indices.push(a, b, a + 1, a + 1, b, b + 1);
+        }
+        const built = createMeshBuilder({
+          attributes: { position, normal, uv: new Float32Array(count * 2) },
+          indices: new Uint32Array(indices),
+          submeshes: [{ indexOffset: 0, indexCount: indices.length, vertexCount: count, topology: 'triangle-list', materialSlot: 0 }],
+          materialSlots: [{ slotName: 'spike-warn' }],
+        }).build();
+        if (!built.ok) throw built.error;
+        const handle = assets.create({ ...built.value, aabb: new Float32Array([-40, -1, -40, 40, 1, 40]) }).unwrap();
+        meshes.push(handle as unknown as number);
+        const entity = world.spawn(
+          { component: Transform, data: { pos: [0, FLOOR_Y + 0.07, 0] } },
+          { component: MeshFilter, data: { assetHandle: handle } as never },
+          { component: MeshRenderer, data: { materials: [copy(mat.iceGlow)] } as never },
+        ).unwrap();
+        spawned.push(entity);
+        return { handle, entity, position };
+      })();
+      const iceRingMat = copy(mat.iceGlow);
+      const iceRing = spawn(mesh.coilWall, [iceRingMat]);
+      const shocks = Array.from({ length: 4 }, (_, i) => ({ e: spawn(mesh.ring, [i < 2 ? copy(mat.iceShock) : copy(mat.dustShock)]), age: -1, at: { x: 0, z: 0 } as V2, r: 1, ice: i < 2 }));
+      const shockMats = shocks.map((sh) => (world.get(sh.e, MeshRenderer).unwrap() as unknown as { materials: never[] }).materials[0]!);
+      const fireShock = (at: V2, r: number, ice: boolean) => {
+        const pool = shocks.filter((s) => s.ice === ice);
+        const free = pool.find((s) => s.age < 0) ?? pool.sort((a, b) => b.age - a.age)[0]!;
+        free.age = 0; free.at = at; free.r = r;
+      };
+      let p2Glow = 0;
+
       const difficulty = () => tuning.current.difficulty;
       /** A new brain: knobs (dragon HP, attack gap) and labs apply at every fight start. */
       const makeBrain = (start: 'fight' | 'lurk', transitionSeen: boolean) => {
         const hpMax = Math.round(difficulty().dragonHp);
         const labs = session.frontend().lab.split(',');
         const opts = { hpMax, minGap: Math.round(difficulty().gapMin), start, transitionSeen };
-        if (labs.includes('phase2')) return createBrain({ ...opts, hp: Math.ceil(hpMax / 2) + 1 });
-        if (labs.includes('finish')) return createBrain({ ...opts, phase2: true, hp: 1 });
-        if (labs.includes('bosslow')) return createBrain({ ...opts, phase2: true, hp: 40 });
-        return createBrain(opts);
+        if (labs.includes('phase2')) return createAobing({ ...opts, hp: Math.ceil(hpMax / 2) + 1 });
+        if (labs.includes('p2')) return createAobing({ ...opts, phase2: true, transitionSeen: true });
+        if (labs.includes('finish')) return createAobing({ ...opts, phase2: true, hp: 1 });
+        if (labs.includes('bosslow')) return createAobing({ ...opts, phase2: true, hp: 40 });
+        return createAobing(opts);
       };
       let brain = makeBrain('lurk', false);
       let prev = brain.points();
@@ -448,6 +501,8 @@ export const dragon: Plugin = {
       let lensHidden = 0;
       let seeThrough = 0;
       let engagedRule: (() => boolean) | undefined;
+      let shownSerial = 0;
+      let breaksSeen = 0;
 
       const capsules = () => hurtCapsules(cur);
       const nezhaXZ = (): V2 => {
@@ -482,20 +537,34 @@ export const dragon: Plugin = {
             prev = cur;
             const events = brain.step({ nezha: nezhaXZ(), engaged: engagedNow() });
             cur = brain.points();
+            // The warning follows the wind-up turn (v1.4.0 placeTele): redraw when the zone moved.
+            const snapZ = brain.snapshot();
+            if (snapZ.telegraph && snapZ.zone && snapZ.zoneSerial !== shownSerial) {
+              shownSerial = snapZ.zoneSerial;
+              showWarning(snapZ.zone);
+              lastZone = snapZ.zone;
+            }
+            if (brain.snapshot().breaks !== breaksSeen) {
+              breaksSeen = brain.snapshot().breaks;
+              clearWarning();
+              queue.push({ type: 'break' });
+            }
             for (const [seg, left] of shake) left <= 1 ? shake.delete(seg) : shake.set(seg, left - 1);
             for (const e of events) {
               if (e.type === 'telegraph') {
                 showWarning(e.zone);
                 telegraphAt = brain.snapshot().step;
                 lastZone = e.zone;
+                shownSerial = brain.snapshot().zoneSerial;
               }
               if (e.type === 'hit') {
                 lastHit = { kind: e.kind, step: brain.snapshot().step, telegraphAt, zone: e.zone.kind };
-                clearWarning();
-                if (e.kind === 'coil' && e.zone.kind === 'ring') {
-                  coilWallAge = 0;
-                  coilWallAt = e.zone.c;
-                }
+                if (e.kind !== 'spike' && e.kind !== 'icering') clearWarning();
+              }
+              if (e.type === 'fx') {
+                if (e.fx === 'slam') fireShock(e.at, e.radius, brain.snapshot().phase === 2);
+                if (e.fx === 'spikes' || e.fx === 'icering') fireShock(e.at, e.radius * 0.6, true);
+                if (e.fx === 'roar') { fireShock(e.at, e.radius, true); fireShock({ ...e.at }, e.radius * 0.7, true); }
               }
               if (e.type === 'breach') {
                 splashAge = 0;
@@ -588,8 +657,7 @@ export const dragon: Plugin = {
           const p0 = pts[0]!, p1 = pts[1]!;
           let dir: P3 = [p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2]];
           const atNezha: P3 = [root[0] - p0[0], FLOOR_Y + 2.6 - p0[1], root[2] - p0[2]];
-          if (snap.opening) dir = atNezha;
-          else if (snap.kind === 'coil') dir = [atNezha[0], atNezha[1] * 0.3, atNezha[2]];
+          if (snap.opening || snap.mode === 'roar' || (snap.telegraph && snap.sp === 'wind')) dir = [atNezha[0], snap.mode === 'roar' ? Math.abs(atNezha[1]) + 2.5 : atNezha[1] * 0.4, atNezha[2]];
           else if (snap.introK !== null && snap.introK >= INTRO.turnFrom) {
             // Intro (M4 §1): the head turns to face Nezha over 648–688 and holds her gaze.
             const w = smooth((snap.introK - INTRO.turnFrom) / (INTRO.turnTo - INTRO.turnFrom));
@@ -601,11 +669,11 @@ export const dragon: Plugin = {
           world.set(eyes, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
           // Eyes: 30 % steady, rise to 50 % in 6 steps on a telegraph, 15 % in the opening, close as it dies. Never flicker.
           // Phase 2 (M4 §2): the steady glow rises linearly 30 % → 45 % over the 120-step roar, never flickers.
-          const base = snap.roarK !== null ? 0.3 + 0.15 * Math.min(1, snap.roarK / BRAIN.roarSteps) : snap.phase === 2 ? 0.45 : 0.3;
+          const base = snap.roarK !== null ? 0.3 + 0.15 * Math.min(1, snap.roarK / AOBING.roarSteps) : snap.phase === 2 ? 0.45 : 0.3;
           let want = base;
           if (snap.telegraph && snap.k !== null) want = base + 0.2 * Math.min(1, snap.k / 6);
           else if (snap.opening) want = 0.15;
-          if (snap.mode === 'dead') want = Math.max(0, base * (1 - snap.deathK / BRAIN.deathEyesClose));
+          if (snap.mode === 'dead') want = Math.max(0, base * (1 - snap.deathK / AOBING.deathEyesClose));
           if (Math.abs(want - eye) > 1e-3) {
             eye = snap.telegraph || snap.mode === 'dead' || snap.roarK !== null ? want : eye + (want - eye) * Math.min(1, dt * 20);
             assets.update(eyeMat, { values: { intensity: eye } } as never).unwrap();
@@ -619,14 +687,54 @@ export const dragon: Plugin = {
             world.set(warn.shrink, Transform, { pos: [warnCentre.x, FLOOR_Y + 0.054, warnCentre.z], scale: [s, 1, s] }).unwrap();
             assets.update(fillMat, { values: { intensity: 0.6 + 0.3 * (0.5 + 0.5 * Math.sin(worldTime * Math.PI * 12)) } } as never).unwrap();
           }
-          // Coil water burst: 0 → 3 m in 12 steps from the hit, holds, falls back (world clock).
-          if (coilWallAge >= 0) {
-            coilWallAge += dt * 60 * session.clock.worldScale();
-            const h = coilWallAge < 12 ? 3 * smooth(coilWallAge / 12) : coilWallAge < 40 ? 3 : 3 * (1 - smooth((coilWallAge - 40) / 20));
-            if (coilWallAge > 60) {
-              coilWallAge = -1;
-              world.set(coilWall, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
-            } else world.set(coilWall, Transform, { pos: [coilWallAt.x, FLOOR_Y, coilWallAt.z], scale: [5.9, Math.max(0.01, h), 5.9] }).unwrap();
+          // 敖丙 ice hazards: spikes (warning ring → erupt → stand → sink), the ice ring, shock waves.
+          const hz = brain.hazards();
+          for (let k = 0; k < SPIKE_POOL; k += 1) {
+            const sp = hz.spikes[k];
+            const o = k * SEGS * 2;
+            if (!sp || sp.t >= SPIKE.warn) {
+              if (spikeWarn.position[o * 3 + 1] !== -60) for (let v = 0; v < SEGS * 2; v += 1) spikeWarn.position[(o + v) * 3 + 1] = -60;
+            } else {
+              const shrinkK = 1 - Math.max(0, sp.t) / SPIKE.warn * 0.4;
+              const r0 = 0.5 * LEVEL_SCALE * shrinkK, r1 = 0.75 * LEVEL_SCALE * shrinkK;
+              for (let j2 = 0; j2 < SEGS; j2 += 1) {
+                const ang = (j2 / SEGS) * Math.PI * 2;
+                spikeWarn.position.set([sp.x + Math.sin(ang) * r1, 0, sp.z + Math.cos(ang) * r1], (o + j2 * 2) * 3);
+                spikeWarn.position.set([sp.x + Math.sin(ang) * r0, 0, sp.z + Math.cos(ang) * r0], (o + j2 * 2 + 1) * 3);
+              }
+            }
+            const u = sp ? sp.t - SPIKE.warn : -1;
+            if (!sp || u < 0) world.set(spikeEntities[k]!, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+            else {
+              const h = Math.min(1, u / 5) * (u > SPIKE.stand ? Math.max(0.001, 1 - (u - SPIKE.stand) / SPIKE.fade) : 1);
+              const yaw = (k * 2.399) % (Math.PI * 2);
+              world.set(spikeEntities[k]!, Transform, { pos: [sp.x, FLOOR_Y, sp.z], quat: [0.1 * Math.sin(k), Math.sin(yaw / 2), 0.08 * Math.cos(k), Math.cos(yaw / 2)], scale: [1, Math.max(0.001, h), 1] }).unwrap();
+            }
+          }
+          assets.writeRange(spikeWarn.handle as never, { attribute: 'position', first: 0, values: spikeWarn.position }).unwrap();
+          assets.update((world.get(spikeWarn.entity, MeshRenderer).unwrap() as unknown as { materials: never[] }).materials[0]!, { values: { intensity: 0.5 + 0.5 * Math.abs(Math.sin(worldTime * 18)) } } as never).unwrap();
+          const ring0 = hz.rings[0];
+          if (ring0) {
+            const fade = ring0.r / ICE_RING.maxR < 0.8 ? 1 : 1 - (ring0.r / ICE_RING.maxR - 0.8) / 0.2;
+            world.set(iceRing, Transform, { pos: [ring0.c.x, FLOOR_Y, ring0.c.z], scale: [ring0.r, 1.6 * LEVEL_SCALE, ring0.r] }).unwrap();
+            assets.update(iceRingMat, { values: { intensity: 1.1 * Math.max(0, fade) } } as never).unwrap();
+          } else world.set(iceRing, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+          shocks.forEach((sh, k) => {
+            if (sh.age < 0) return;
+            sh.age += dt * session.clock.worldScale();
+            const life = 0.55;
+            const t = Math.min(1, sh.age / life);
+            if (t >= 1) { sh.age = -1; world.set(sh.e, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap(); return; }
+            const rr = Math.max(0.2, sh.r * (0.25 + 0.75 * (1 - (1 - t) ** 3)));
+            world.set(sh.e, Transform, { pos: [sh.at.x, FLOOR_Y + 0.12, sh.at.z], scale: [rr, 1 + 2 * (1 - t), rr] }).unwrap();
+            assets.update(shockMats[k]!, { values: { intensity: (sh.ice ? 1.4 : 0.9) * (1 - t) } } as never).unwrap();
+          });
+          // 龙化 · 万龙甲: the scales glow ice-blue in phase 2 (rising through the roar), pulsing gently.
+          const wantGlow = snap.roarK !== null ? Math.min(1, Math.max(0, (snap.roarK - AOBING.roarAt) / 60)) : snap.phase === 2 ? 1 : 0;
+          const glowNow = wantGlow * (0.12 + 0.04 * Math.sin(worldTime * 4));
+          if (Math.abs(glowNow - p2Glow) > 0.004) {
+            p2Glow = glowNow;
+            for (const m of mat.bands) assets.update(m, { values: { emissiveIntensity: glowNow } } as never).unwrap();
           }
           // Intro breach: a flattened burst of water where the head comes through the wall.
           if (splashAge >= 0) {
@@ -682,16 +790,14 @@ export const dragon: Plugin = {
         },
         frontNearest: (x, z) => frontNearest(cur, x, z),
         pushOut: (x, z, margin) => {
-          // The strike (hold end → hit frame) never shoves Nezha out of the warned sweep: damage is
-          // settled on the hit frame against where she chose to be (M3 §5, single-frame settlement).
+          // Only the head and neck block her (v1.4.0's boss radius); the trailing body is passable,
+          // so the long low dragon never fences her in. The strike itself never shoves her out.
           const snap = brain.snapshot();
-          if (snap.mode === 'attack' && snap.kind && snap.k !== null && snap.k > ATTACKS[snap.kind].hold && snap.k <= ATTACKS[snap.kind].hit) return { x, z };
+          if (snap.mode === 'attack' && snap.sp === 'act') return { x, z };
           let px = x, pz = z;
-          // Solid below the 3.5 m pass-over clearance (Nezha spans ≈ 1.15–3.1 m): a part is either a wall
-          // or high enough to pass over her head — never in between.
-          for (let i = 0; i < POINTS; i += 1) {
+          for (let i = 0; i < AOBING.blockPoints; i += 1) {
             const p = cur[i]!;
-            if (p[1] - radius(i) >= BRAIN.overheadClear) continue;
+            if (p[1] - radius(i) >= 1.5) continue;
             const dx = px - p[0], dz = pz - p[2];
             const d = Math.hypot(dx, dz);
             const want = radius(i) + margin;
@@ -751,6 +857,8 @@ export const dragon: Plugin = {
           prev = cur = brain.points();
           coilWallAge = -1;
           world.set(coilWall, Transform, { pos: [0, -60, 0], scale: [0, 0, 0] }).unwrap();
+          shownSerial = 0;
+          breaksSeen = 0;
           acc = 0;
           hold = 0;
           queue = [];
@@ -759,7 +867,7 @@ export const dragon: Plugin = {
         },
         vortexSpeed: () => {
           const s = brain.snapshot();
-          return s.mode === 'dead' ? Math.max(0, 1 - s.deathK / BRAIN.deathEyesClose) : 1;
+          return s.mode === 'dead' ? Math.max(0, 1 - s.deathK / AOBING.deathEyesClose) : 1;
         },
       };
 
@@ -779,9 +887,21 @@ export const dragon: Plugin = {
           phase: s.phase,
           roarK: s.roarK,
           transitionLen: s.transitionLen,
-          coilCd: s.coilCd,
-          coilPending: s.coilPending,
           introK: s.introK,
+          move: s.move,
+          anim: s.anim,
+          sp: s.sp,
+          st: s.st,
+          stepIndex: s.stepIndex,
+          poise: r3(s.poise),
+          poiseMax: s.poiseMax,
+          breaks: s.breaks,
+          staggerK: s.staggerK,
+          lift: r3(s.lift),
+          pos: [r3(s.pos.x), r3(s.pos.z)],
+          spikes: s.spikes,
+          rings: s.rings,
+          last: s.last,
           second: s.second,
           vulnerable: brain.vulnerable(),
           coilWall: coilWallAge >= 0 ? r3(coilWallAge) : null,
@@ -792,8 +912,6 @@ export const dragon: Plugin = {
           opening: s.opening,
           forced: s.forced,
           since: s.since,
-          intent: s.intent,
-          repeat: s.repeat,
           bound: hold > 0,
           holdLeft: r3(Math.max(0, hold)),
           engaged: engagedNow(),
@@ -817,9 +935,7 @@ export const dragon: Plugin = {
           cpuMs: r3(cpuMs),
           seeThrough,
           lensHidden,
-          hitSteps: { bite: ATTACKS.bite.hit, lash: ATTACKS.lash.hit, charge: ATTACKS.charge.hit, coil: ATTACKS.coil.hit },
-          coilHeadY: s.kind === 'coil' ? r3(cur[0]![1]) : null,
-          coilRadius: COIL.outer,
+          bodyUnderside: r3(Math.min(...cur.slice(10).map((p, i) => p[1] - radius(i + 10)))),
         };
       });
       void CAPSULE_CENTER_Y;

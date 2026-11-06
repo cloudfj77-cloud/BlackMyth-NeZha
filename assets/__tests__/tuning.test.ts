@@ -4,7 +4,8 @@ import { defaultTuning, overrides, readPath, TUNING_RANGES, writePath } from '..
 describe('tuning.json', () => {
   it('keeps the locked design values', () => {
     const t = defaultTuning();
-    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0, hoverHeight: 1.15 });
+    expect(t.move).toMatchObject({ walkSpeed: 5, sprintSpeed: 9, accelTime: 0.1, decelTime: 0.15, turnRate: 720, sprintHoldThreshold: 0, hoverHeight: 0.5 });
+    // 11-06 17:11 boss: v1.4.0 float directly — idle wheel height 0.58 × 0.86 ≈ 0.5 m, the same band as the dragon.
     // M3 §8: hover 1.15 m, ±15 cm at 0.8 Hz rising over 35 % of the cycle, ±3° sway, ±10 cm moving, ±5 cm sprinting.
     expect(t.float).toMatchObject({ idleAmp: 0.15, idleFreq: 0.8, riseShare: 0.35, swayDeg: 3, swayFreq: 0.55, swayPhase: 90, moveAmp: 0.1, sprintAmp: 0.05 });
     expect(t.sash).toMatchObject({ length: 2.2, tipFreq: 1.6, rollLength: 1, rollCap: 3.45 });

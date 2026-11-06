@@ -83,6 +83,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   let lastFlash = 0;
   let lastHurt = 0;
   let lastPerfect = -1;
+  let lastStamina = 100;
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let hurtTimer: ReturnType<typeof setTimeout> | undefined;
   let lastHintSerial = 0;
@@ -142,6 +143,15 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
         // The button click is a user gesture: take the pointer back at once (the menu released it).
         relock();
       } else if (action === 'toTitle') send('toTitle');
+      else if (action === 'controls-toggle') ui.host.classList.toggle('controls-open');
+      else if (action === 'mute-toggle') {
+        audio.unlock();
+        ui.host.classList.toggle('muted', audio.toggleMute());
+      } else if (action === 'lang-toggle') void setLanguage(((i18n.resolvedLanguage ?? i18n.language) === 'zh' ? 'en' : 'zh') as GameLanguage, 'manual');
+      else if (action === 'roam') {
+        send('roam');
+        relock();
+      }
       else if (action === 'lang-zh' || action === 'lang-en') void setLanguage(action.slice(5) as GameLanguage, 'manual');
       // Keep keyboard focus off overlay buttons so WASD / R reach the game.
       const active = ui.host.shadowRoot?.activeElement;
@@ -186,6 +196,9 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     for (const node of shadow.querySelectorAll<HTMLElement>('[data-i18n]')) node.textContent = t(node.dataset.i18n!);
     for (const node of shadow.querySelectorAll<HTMLElement>('[data-i18n-aria]')) node.setAttribute('aria-label', t(node.dataset.i18nAria!));
     const lang = (i18n.resolvedLanguage ?? i18n.language ?? 'en') as GameLanguage;
+    // 中文版中英双语 (boss 11-06): in Chinese, key labels carry their English as a small sub-line.
+    const en = i18n.getFixedT('en');
+    for (const node of shadow.querySelectorAll<HTMLElement>('[data-i18n-sub]')) node.textContent = lang === 'zh' ? en(node.dataset.i18nSub!).replace(/\n/g, ' ') : '';
     ui.host.lang = lang === 'zh' ? 'zh-CN' : 'en';
     ui.host.dataset.lang = lang;
     for (const button of shadow.querySelectorAll<HTMLButtonElement>('[data-lang]')) {
@@ -300,6 +313,16 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
           meter.classList.remove('pulse');
           void meter.offsetWidth;
           meter.classList.add('pulse');
+          // v1.4.0: the newly gained stretch of the bar lights up and fades (left = before, width = gained).
+          const max = c.staminaMax || 100;
+          const before = Math.max(0, Math.min(c.stamina, lastStamina));
+          const gained = Math.max(0.5, c.stamina - before);
+          const gain = part('stamina-gain')!;
+          gain.style.left = `${((before / max) * 100).toFixed(1)}%`;
+          gain.style.width = `${((gained / max) * 100).toFixed(1)}%`;
+          gain.classList.remove('show');
+          void gain.offsetWidth;
+          gain.classList.add('show');
           const float = part('stamina-float')!;
           float.textContent = c.stamina >= c.staminaMax - 0.5 ? t('hud.float.staminaFull') : t('hud.float.stamina').replace('{n}', `${c.refund ?? 30}`);
           float.classList.remove('show');
@@ -307,6 +330,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
           float.classList.add('show');
         }
       }
+      lastStamina = c.stamina;
       if (c.hurt !== lastHurt) {
         lastHurt = c.hurt;
         const vignette = part('hurt-vignette')!;
@@ -317,6 +341,17 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
     }
     const boss = next.boss;
     part('boss-panel')!.classList.toggle('show', !!boss?.visible);
+    // 龙化 · 万龙甲: the bar takes the phase-two name (re-applied on language change by the data-i18n key).
+    const bossName = part('boss-name')!;
+    const nameKey = boss?.phase === 2 ? 'terms:boss.phase2Hud' : 'terms:boss.dragonKingHud';
+    if (bossName.dataset.i18n !== nameKey) {
+      bossName.dataset.i18n = nameKey;
+      bossName.textContent = t(nameKey);
+      const sub = part('boss-name-sub')!;
+      sub.dataset.i18nSub = nameKey;
+      sub.textContent = (i18n.resolvedLanguage ?? i18n.language) === 'zh' ? i18n.getFixedT('en')(nameKey) : '';
+    }
+    ui.host.classList.toggle('boss-p2', boss?.phase === 2);
     if (boss) part('boss-fill')!.style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.hpMax) * 100)).toFixed(1)}%`;
     const run = next.run;
     // Music follows the run (v1.4.0 score): explore on the way in, battle / phase-two battle,
@@ -329,6 +364,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       : stage === 'intro' ? 'explore'
       : stage === 'fight' || stage === 'transition' ? (stage === 'transition' || next.boss?.phase === 2 ? 'battle2' : 'battle')
       : stage === 'victory' || stage === 'result' ? 'victory'
+      : stage === 'roam' ? 'explore'
       : 'none',
     );
     ui.host.classList.toggle('run-hud-off', !!run && !run.hud);
@@ -416,7 +452,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   onMode();
   const onKey = (event: KeyboardEvent) => {
     // M: mute / unmute (v1.4.0).
-    if (event.code === 'KeyM' && !event.repeat && state?.phase !== 'title') audio.toggleMute();
+    if (event.code === 'KeyM' && !event.repeat && state?.phase !== 'title') ui.host.classList.toggle('muted', audio.toggleMute());
     if (event.code === 'F2' && dev) {
       event.preventDefault();
       setDebugOpen(!status.debugOpen);

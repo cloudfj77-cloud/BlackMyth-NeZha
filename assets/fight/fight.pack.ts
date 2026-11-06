@@ -11,7 +11,8 @@ import type { CameraService, CameraShot } from '../camera/camera.pack.ts';
 import type { CombatService } from '../combat/combat.pack.ts';
 import { DEFAULT_COMBAT } from '../combat/machine.ts';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
-import { smooth, zoneDistance, zoneHits, type AttackKind } from '../dragon/body.ts';
+import { smooth, zoneDistance, zoneHits } from '../dragon/body.ts';
+import type { AobingKind as AttackKind } from '../dragon/aobing.ts';
 import { INTRO } from '../dragon/brain.ts';
 import type { DragonService } from '../dragon/dragon.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
@@ -249,6 +250,17 @@ export const fight: Plugin = {
           case 'result':
             session.emit('result');
             break;
+          case 'roam':
+            // 东海已平 (v1.4.0 btnRoam): free on the terrace and the boardwalk, lock off, mist down, gate open.
+            camera.setScript(undefined, 30);
+            player.setAutopilot(undefined);
+            player.setInputLock(false);
+            target.release();
+            setSealed(false);
+            sea.setGate(true);
+            combat.setPresentation({ floatScale: 1 });
+            session.raiseHint('roam');
+            break;
         }
       };
 
@@ -282,6 +294,7 @@ export const fight: Plugin = {
           const input: { -readonly [K in keyof RunInput]: RunInput[K] } = { hurt: 0, perfect: 0 };
           input.retry = pending.includes('retry');
           input.restart = pending.includes('restart');
+          input.roam = pending.includes('roam');
           pending = [];
           input.enter = enterPressed;
           enterPressed = false;
@@ -306,7 +319,10 @@ export const fight: Plugin = {
             if (event.type === 'hit') {
               let result = 'clear';
               const inside = zoneHits(event.zone, root[0], root[2], radius);
-              if (inside && st === 'fight' && !changing) {
+              // v1.4.0: jumping high enough clears the spin (0.75 m), the leap (1.3 m), spikes, the ice ring.
+              const jumped = combat.airHeight() > event.maxAir;
+              if (inside && jumped && st === 'fight' && !changing) result = 'jumped';
+              else if (inside && st === 'fight' && !changing) {
                 const damage = Math.max(1, Math.round(event.damage * tuning.current.difficulty.damageScale));
                 const out = combat.incoming(damage, event.knock);
                 result = out.type;
@@ -319,13 +335,30 @@ export const fight: Plugin = {
               } else if (changing) result = 'cancelled';
               log.push({ step, kind: event.kind, inside, signed: r3(zoneDistance(event.zone, root[0], root[2])), result, damage: event.damage });
               while (log.length > 16) log.shift();
-              if (event.kind === 'coil') session.emit('coil-burst');
+              if (event.kind === 'icering' || event.kind === 'spike') session.emit('ice');
             } else if (event.type === 'telegraph') session.emit(`tell-${event.kind}`);
+            else if (event.type === 'fx') {
+              // v1.4.0 bossStrikeFX: slam / ice / roar sounds and shake by distance.
+              const near = Math.hypot(root[0] - event.at.x, root[2] - event.at.z) < 12;
+              if (event.fx === 'slam') { session.emit('slam'); session.shake(near ? 0.06 : 0.025); }
+              else if (event.fx === 'spikes' || event.fx === 'icering') session.emit('ice');
+              else if (event.fx === 'roar') { session.emit('roar'); session.shake(0.08); }
+              else if (event.fx === 'swing') session.emit('boss-swing');
+              else if (event.fx === 'dash' || event.fx === 'leap') session.emit('tell-thrust');
+            } else if (event.type === 'break') {
+              // 破势 (v1.4.0 banner + slam): the boss staggers 2.1 s.
+              session.emit('break');
+              session.raiseHint('bossBreak');
+              session.shake(0.06);
+            }
             else if (event.type === 'phase') {
               input.phaseChange = true;
               session.emit('roar');
               session.shake(0.05);
-            } else if (event.type === 'transition-end') input.transitionEnd = true;
+            } else if (event.type === 'transition-end') {
+              input.transitionEnd = true;
+              session.raiseHint('bossPhase2');
+            }
             else if (event.type === 'dead') input.dragonDead = true;
             else if (event.type === 'breach') {
               session.emit('breach');
@@ -388,7 +421,7 @@ export const fight: Plugin = {
             ...(lastRecord ? { record: lastRecord } : {}),
           };
           session.contribute({
-            boss: { hp: hp.hp, hpMax: hp.max, visible: session.playing() && run.hudVisible(), phase: dragon.phase() },
+            boss: { hp: hp.hp, hpMax: hp.max, visible: session.playing() && run.hudVisible() && run.snapshot().stage !== 'roam', phase: dragon.phase() },
             run: runHud,
           });
         },

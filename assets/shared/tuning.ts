@@ -63,7 +63,7 @@ export const TUNING_RANGES: Readonly<Partial<Record<TuningPath, readonly [number
   // M4 difficulty knobs (telegraph lengths never change).
   'difficulty.gapMin': [60, 90, 1],
   'difficulty.damageScale': [0.85, 1.15, 0.01],
-  'difficulty.dragonHp': [700, 900, 10],
+  'difficulty.dragonHp': [450, 750, 10],
   'difficulty.lotus': [1, 5, 1],
   'combat.hitstopLight1': [0, 12, 1],
   'combat.hitstopLight2': [0, 12, 1],

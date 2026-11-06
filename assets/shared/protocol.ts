@@ -19,8 +19,8 @@ export interface ControlMessage {
   readonly kind: ControlKind;
 }
 /** Phase requests, plus the run commands of M4 (defeat / result / pause-menu buttons). */
-export type ControlKind = 'start' | 'pause' | 'resume' | 'inspect' | 'retry' | 'restart' | 'toTitle';
-const CONTROL_KINDS: readonly string[] = ['start', 'pause', 'resume', 'inspect', 'retry', 'restart', 'toTitle'];
+export type ControlKind = 'start' | 'pause' | 'resume' | 'inspect' | 'retry' | 'restart' | 'toTitle' | 'roam';
+const CONTROL_KINDS: readonly string[] = ['start', 'pause', 'resume', 'inspect', 'retry', 'restart', 'toTitle', 'roam'];
 
 /** Frontend -> Engine: development panel edits (clamped by the Engine). */
 export type TuningMessage =
@@ -57,7 +57,9 @@ export interface FrontendMessage {
 /** Hint keys shown by the HUD; each one is a language-table key under `hud.hint.*`. */
 export type HintKey = 'noTarget' | 'targetLost' | 'locked' | 'unlocked' | 'noStamina' | 'noLotusSeeds' | 'sashCooldown'
   // 陈塘关 road (v1.4.0 messages): the two ambush waves, the gate opening, the lotus checkpoint.
-  | 'yakshaWave1' | 'yakshaWave2' | 'gateOpen' | 'checkpoint';
+  | 'yakshaWave1' | 'yakshaWave2' | 'gateOpen' | 'checkpoint'
+  // 敖丙: 「破势」 and the phase-two message (v1.4.0 banner / p2Msg).
+  | 'bossBreak' | 'bossPhase2' | 'roam';
 
 /** Normalised screen position (0..1, top-left origin) and whether it is in front of the camera. */
 export interface ScreenPoint {
@@ -110,7 +112,7 @@ export interface HudState {
 }
 
 export interface RunHud {
-  readonly stage: 'canyon' | 'intro' | 'fight' | 'transition' | 'defeat' | 'victory' | 'result';
+  readonly stage: 'canyon' | 'intro' | 'fight' | 'transition' | 'defeat' | 'victory' | 'result' | 'roam';
   /** The line on screen (language-table key) and who says it. */
   readonly subtitle: { readonly key: string; readonly speaker: 'dragonKing' | 'nezha' } | null;
   /** Combat bars and items are shown. */

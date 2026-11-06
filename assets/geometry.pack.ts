@@ -97,6 +97,18 @@ export default definePack({
       'mesh/seabed': single(unwrapMesh(createBoxGeometry(240, 0.4, 240)), 'seabed'),
       // --- 东海 · 陈塘关 (v1.4.0 port) ---
       'mesh/sea-walk': seaWalk(),
+      // 风火轮 flame halo (v1.4.0 TorusGeometry(0.2, 0.05)) in the wheel plane (wheels roll about local X).
+      'mesh/wheel-halo': (() => {
+        const kit = new MeshKit();
+        kit.add(createTorusGeometry(0.2, 0.05, 8, 32), { r: yawQ(Math.PI / 2) }, 0);
+        return kit.build([slot('Halo', 'wheel-halo')]);
+      })(),
+      // 敖丙 冰棱 (v1.4.0 ConeGeometry(0.28, 1.6, 5) standing on its base), × 0.86.
+      'mesh/ice-spike': (() => {
+        const kit = new MeshKit();
+        kit.add(createConeGeometry(0.28 * LEVEL_SCALE, 1.6 * LEVEL_SCALE, 5), { t: [0, 0.8 * LEVEL_SCALE, 0] }, 0);
+        return kit.build([slot('Ice', 'ice-spike')]);
+      })(),
       // 巡海夜叉 wind-up fan (v1.4.0 RingGeometry 0.3–3.0, 0.9 rad round +Z; the mob root scales it).
       'mesh/yaksha-fan': (() => {
         const n = 16, a0 = -0.45, a1 = 0.45, r0 = 0.3, r1 = 3.0;

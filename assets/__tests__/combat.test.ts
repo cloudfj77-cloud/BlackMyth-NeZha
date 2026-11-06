@@ -174,7 +174,7 @@ describe('roll and perfect dodge', () => {
   });
   it('is defeated at zero health (M3), takes no input, and reset() starts a fresh fight', () => {
     const c = createCombat();
-    for (let i = 0; i < 5; i += 1) c.incoming(18);
+    for (let i = 0; i < 5; i += 1) { c.incoming(18); run(c, idle(C.hurtInvuln)); }
     expect(c.incoming(18).type).toBe('dead');
     expect(c.snapshot().hp).toBe(0);
     expect(c.step(press({ roll: true }), env()).state.kind).toBe('dead');
@@ -216,6 +216,7 @@ describe('lotus seeds and sash bind', () => {
   it('heals 40 at the end of 60 steps, 3 seeds, then only a hint', () => {
     const c = createCombat();
     c.incoming(18);
+    run(c, idle(C.hurtInvuln));
     c.incoming(18);
     run(c, [...idle(24), press({ lotus: true }), ...idle(59)]);
     expect(c.snapshot().hp).toBe(64); // not yet: heals exactly 60 steps (1 s) after the press
@@ -398,5 +399,13 @@ describe('jump, plunge and 灵息 (v1.4.0 port)', () => {
     expect(c.incoming(10).type).toBe('perfect');
     expect(c.snapshot().stamina).toBe(Math.min(C.staminaMax, before + 30));
     expect(c.snapshot().boost).toBe(C.boostSteps);
+  });
+  it('is invulnerable for 36 steps after a hit (v1.4.0 0.6 s)', () => {
+    const c = createCombat();
+    expect(c.incoming(10).type).toBe('hurt');
+    run(c, idle(20));
+    expect(c.incoming(10).type).toBe('dodged');
+    run(c, idle(20));
+    expect(c.incoming(10).type).toBe('hurt');
   });
 });

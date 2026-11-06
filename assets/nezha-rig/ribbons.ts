@@ -35,23 +35,27 @@ export class Ribbon {
       this.q.push([0, 0, 0]);
     }
   }
-  reset(pin: V3) {
+  reset(pin: V3, pinB?: V3) {
     for (let i = 0; i < this.spec.n; i += 1) {
       const u = i / (this.spec.n - 1);
-      this.p[i] = [pin[0], pin[1] - u * this.spec.len, pin[2]];
+      // Both ends pinned (v1.4.0 混天绫 loop): start as a sagging arc between the pins.
+      this.p[i] = pinB
+        ? [pin[0] + (pinB[0] - pin[0]) * u, pin[1] + (pinB[1] - pin[1]) * u - Math.sin(u * Math.PI) * this.spec.len * 0.3, pin[2] + (pinB[2] - pin[2]) * u]
+        : [pin[0], pin[1] - u * this.spec.len, pin[2]];
       this.q[i] = [...this.p[i]!];
     }
     this.inited = true;
   }
   /** Advance by dt (s) at time t; `back` is the direction behind the body (unit, horizontal). */
-  update(dt: number, t: number, pin: V3, wind: V3, back: V3, floorY: number) {
+  update(dt: number, t: number, pin: V3, wind: V3, back: V3, floorY: number, pinB?: V3) {
     const s = this.spec;
     const d0 = this.p[0]!;
-    if (!this.inited || Math.hypot(pin[0] - d0[0], pin[1] - d0[1], pin[2] - d0[2]) > 4) this.reset(pin);
+    if (!this.inited || Math.hypot(pin[0] - d0[0], pin[1] - d0[1], pin[2] - d0[2]) > 4) this.reset(pin, pinB);
     if (dt <= 0) return;
     const seg = s.len / (s.n - 1), steps = 3, h = Math.min(dt, 0.05) / steps;
+    const last = pinB ? s.n - 1 : s.n;
     for (let st = 0; st < steps; st += 1) {
-      for (let i = 1; i < s.n; i += 1) {
+      for (let i = 1; i < last; i += 1) {
         const p = this.p[i]!, q = this.q[i]!;
         const vx = (p[0] - q[0]) * (1 - s.drag), vy = (p[1] - q[1]) * (1 - s.drag), vz = (p[2] - q[2]) * (1 - s.drag);
         this.q[i] = [p[0], p[1], p[2]];
@@ -62,17 +66,19 @@ export class Ribbon {
         this.p[i] = [p[0] + vx + fx * h * h, p[1] + vy + fy * h * h, p[2] + vz + fz * h * h];
       }
       this.p[0] = [pin[0], pin[1], pin[2]];
+      if (pinB) this.p[s.n - 1] = [pinB[0], pinB[1], pinB[2]];
       for (let it = 0; it < 4; it += 1) {
         for (let i = 0; i < s.n - 1; i += 1) {
           const a = this.p[i]!, b = this.p[i + 1]!;
           let dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
           const l = Math.hypot(dx, dy, dz) || 1e-5, diff = (l - seg) / l;
-          const wa = i === 0 ? 0 : 0.5, wb = i === 0 ? 1 : 0.5;
+          const fixA = i === 0, fixB = !!pinB && i + 1 === s.n - 1;
+          const wa = fixA ? 0 : fixB ? 1 : 0.5, wb = fixB ? 0 : fixA ? 1 : 0.5;
           dx *= diff; dy *= diff; dz *= diff;
           a[0] += dx * wa; a[1] += dy * wa; a[2] += dz * wa;
           b[0] -= dx * wb; b[1] -= dy * wb; b[2] -= dz * wb;
         }
-        for (let i = 1; i < s.n; i += 1) if (this.p[i]![1] < floorY + 0.04) this.p[i]![1] = floorY + 0.04;
+        for (let i = 1; i < last; i += 1) if (this.p[i]![1] < floorY + 0.04) this.p[i]![1] = floorY + 0.04;
       }
     }
   }

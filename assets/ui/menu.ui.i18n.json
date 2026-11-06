@@ -20,13 +20,14 @@
           "sash": "混天绫"
         },
         "boss": {
-          "dragonKing": "东海龙王",
-          "dragonKingHud": "东海龙王",
-          "dragonKingSpeaker": "东海龙王"
+          "dragonKing": "东海三太子 · 敖丙",
+          "dragonKingHud": "东海三太子 · 敖丙",
+          "dragonKingSpeaker": "敖丙",
+          "phase2Hud": "敖丙 · 龙化 · 万龙甲"
         },
         "item": {
           "lotus": "莲子",
-          "reverseScale": "龙王逆鳞"
+          "reverseScale": "敖丙龙鳞"
         },
         "skill": {
           "sashBind": "混天绫·缚",
@@ -40,10 +41,11 @@
           },
           "start": {
             "title": "$t(terms:game.title)",
-            "kicker": "$t(terms:place.dragonPalace) · 前庭",
-            "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，携三昧真火入海，问罪$t(terms:boss.dragonKing)。",
-            "begin": "踏入龙宫",
-            "milestone": "试玩版本 M4 · 一局：入场、二阶段、战败重来、结算"
+            "kicker": "东海 · $t(terms:place.chentang)",
+            "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，过陈塘关海栈，独上镇海台。",
+            "begin": "踏上陈塘关",
+            "milestone": "移植 v1.4.0 · 陈塘关 · 敖丙",
+            "pill": "试玩版"
           },
           "pause": {
             "title": "暂停",
@@ -73,6 +75,11 @@
             "skip": "跳过开场 / 再战",
             "mute": "静音 / 取消静音",
             "jump": "跳跃（空中左键：跳劈）"
+          },
+          "icons": {
+            "controls": "操作",
+            "sound": "声音",
+            "language": "语言"
           }
         },
         "hud": {
@@ -87,7 +94,10 @@
             "yakshaWave1": "巡海夜叉自海中跃出！",
             "yakshaWave2": "更多夜叉拦住了去路",
             "gateOpen": "夜叉尽退 · 镇海水门已开",
-            "checkpoint": "太乙莲台 · 检查点已记录"
+            "checkpoint": "太乙莲台 · 检查点已记录",
+            "bossBreak": "破 势",
+            "bossPhase2": "敖丙龙化：冰棱震地 · 寒潮连突 · 龙跃冰环",
+            "roam": "东海已平 · 可自由游览镇海台"
           },
           "tip": {
             "clickToLook": "点击画面锁定视角",
@@ -108,15 +118,15 @@
         },
         "dialogue": {
           "dragonKing": {
-            "intro": "东海涨落，何须向你交代。\n……我等你，等得够久了。",
-            "phase2": "你剔骨还了李家，\n谁来还我儿？",
-            "defeat": "莲花，也会凋零。",
-            "fall": "我儿……海底，太冷了。"
+            "intro": "陈塘关的潮，是我放的。\n哪吒——你来得正好。",
+            "phase2": "这身万龙甲，\n是龙族千年的债。",
+            "defeat": "回去吧。下一潮，你挡不住。",
+            "fall": "……原来，岸上是暖的。"
           },
           "nezha": {
-            "intro": "收水。\n不然，我替你收。",
-            "phase2": "命，我早还过了。\n陈塘关的百姓，不欠你。",
-            "victory": "旧账，到此为止。"
+            "intro": "夜叉我收了。\n剩下的，收你。",
+            "phase2": "债是你们的，\n命是陈塘关的。",
+            "victory": "潮退了。回家吧，三太子。"
           }
         },
         "result": {
@@ -131,11 +141,12 @@
           },
           "reward": {
             "label": "所得",
-            "desc": "龙喉下有逆鳞，触之必怒。"
+            "desc": "万龙甲上剥落的一片冰鳞，触之生寒。"
           },
           "action": {
             "retry": "再战",
-            "toTitle": "回到标题"
+            "toTitle": "回到标题",
+            "roam": "自由游览"
           }
         }
       }
@@ -158,13 +169,14 @@
           "sash": "Red Armillary Sash"
         },
         "boss": {
-          "dragonKing": "Dragon King of the East Sea",
-          "dragonKingHud": "East Sea Dragon King",
-          "dragonKingSpeaker": "Dragon King"
+          "dragonKing": "Ao Bing, Third Prince of the East Sea",
+          "dragonKingHud": "Ao Bing · Third Prince",
+          "dragonKingSpeaker": "Ao Bing",
+          "phase2Hud": "Ao Bing · Dragon Form"
         },
         "item": {
           "lotus": "Lotus Seeds",
-          "reverseScale": "Dragon King's Reverse Scale"
+          "reverseScale": "Ao Bing's Dragon Scale"
         },
         "skill": {
           "sashBind": "Sash Bind",
@@ -178,10 +190,11 @@
           },
           "start": {
             "title": "$t(terms:game.title)",
-            "kicker": "$t(terms:place.dragonPalace) · Forecourt",
-            "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) carries true fire into the sea to call the $t(terms:boss.dragonKing) to account.",
-            "begin": "Enter the Palace",
-            "milestone": "Playtest M4 · One run: intro, phase two, retry, results"
+            "kicker": "The East Sea · $t(terms:place.chentang)",
+            "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) crosses the Chentang boardwalk to the Sea-Calming Terrace.",
+            "begin": "Enter Chentang",
+            "milestone": "v1.4.0 port · Chentang · Ao Bing",
+            "pill": "Playtest"
           },
           "pause": {
             "title": "Paused",
@@ -211,6 +224,11 @@
             "skip": "Skip intro / Try again",
             "mute": "Mute / unmute",
             "jump": "Jump (LMB in the air: plunge)"
+          },
+          "icons": {
+            "controls": "Controls",
+            "sound": "Sound",
+            "language": "Language"
           }
         },
         "hud": {
@@ -225,7 +243,10 @@
             "yakshaWave1": "Yaksha leap from the sea!",
             "yakshaWave2": "More yaksha bar the way",
             "gateOpen": "Yaksha routed · Gate open",
-            "checkpoint": "Taiyi Lotus · checkpoint"
+            "checkpoint": "Taiyi Lotus · checkpoint",
+            "bossBreak": "Poise broken!",
+            "bossPhase2": "Dragon form · ice and leaps",
+            "roam": "The sea is calm · explore"
           },
           "tip": {
             "clickToLook": "Click the game to lock the camera",
@@ -246,15 +267,15 @@
         },
         "dialogue": {
           "dragonKing": {
-            "intro": "The East Sea's tides owe you no answer.\n…I've waited for you long enough.",
-            "phase2": "You repaid your father in flesh and bone.\nWho will repay me for my son?",
-            "defeat": "Born of lotus—and still you wither.",
-            "fall": "My son… the deep is so cold."
+            "intro": "The tide on Chentang Pass is mine.\nNezha—you came just in time.",
+            "phase2": "This Myriad-Dragon Armour\nis my clan's thousand-year debt.",
+            "defeat": "Go home. You can't stop the next tide.",
+            "fall": "…So the shore is warm after all."
           },
           "nezha": {
-            "intro": "Call off the flood.\nOr I'll do it for you.",
-            "phase2": "My life—I repaid that long ago.\nThe people of Chentang owe you nothing.",
-            "victory": "The old debt ends here."
+            "intro": "Your yaksha are done.\nYou're next.",
+            "phase2": "The debt is yours.\nThe lives are Chentang's.",
+            "victory": "The tide's out. Go home, Third Prince."
           }
         },
         "result": {
@@ -269,11 +290,12 @@
           },
           "reward": {
             "label": "Reward",
-            "desc": "A dragon's throat hides one Reverse Scale.\nTouch it, and the dragon rages."
+            "desc": "A scale from the Myriad-Dragon Armour,\ncold to the touch."
           },
           "action": {
             "retry": "Try Again",
-            "toTitle": "Back to Title"
+            "toTitle": "Back to Title",
+            "roam": "Explore"
           }
         }
       }

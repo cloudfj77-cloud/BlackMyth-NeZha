@@ -201,7 +201,9 @@ export default definePack({
         renderState: { ...ALPHA_BLEND, cullMode: 'none', fog: false },
         queue: RenderQueue.Transparent,
       }),
-      'material/perfect-ring': glow([1.0, 0.5, 0.1], 1.5),
+      // v1.4.0 1.4.0: the perfect-dodge ring at her feet is cyan (灵息), with the qi sparks gathering in.
+      'material/perfect-ring': glow([0.45, 0.92, 1.0], 1.5),
+      'material/qi-spark': Materials.unlit([0.55, 0.95, 1.0, 1], { renderState: { ...ADDITIVE, fog: false }, queue: RenderQueue.Transparent }),
       'material/spark': Materials.unlit([1.0, 0.35, 0.03, 1], { renderState: { ...ADDITIVE, fog: false }, queue: RenderQueue.Transparent }),
       'material/flame': Materials.standard({
         surfaceModule: 'nezha::flame_surface',
@@ -273,6 +275,12 @@ export default definePack({
         return [`material/${yMaterialKey(m)}`, std(linearRgb(d.color), { roughness: d.rough, metallic: d.metal ?? 0, ...(d.emissive !== undefined ? { emissive: linearRgb(d.emissive), emissiveIntensity: d.emissiveIntensity ?? 1 } : {}), twoSided: d.twoSided ?? false })];
       })),
       'material/yaksha-warn': glow(linearRgb(0xff3010), 0.6),
+      // 敖丙 ice (v1.4.0 spikeMat 0xc8f6ff / emissive 0x2a9aff; p2Color 0x6ae8ff for rings and shock waves).
+      'material/wheel-halo': glow(linearRgb(0xff4a0a), 0.5),
+      'material/ice-spike': std(linearRgb(0xc8f6ff), { roughness: 0.1, emissive: linearRgb(0x2a9aff), emissiveIntensity: 0.8 }),
+      'material/ice-glow': glow(linearRgb(0x6af0ff), 0.9),
+      'material/ice-shock': glow(linearRgb(0x6ae8ff), 1.2),
+      'material/dust-shock': glow(linearRgb(0xd8c8a8), 0.7),
       'material/sea-spray': Materials.unlit([...lin3(0.81, 0.96, 1.0), 0.45], { renderState: ADDITIVE, queue: RenderQueue.Transparent }),
       'material/sea-rune': glow(linearRgb(0x3aa8c0), 0.3),
       'material/sea-taiji': Materials.unlit([...linearRgb(0x0e2a30), 0.5], { renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
@@ -302,9 +310,9 @@ export default definePack({
       }),
       'material/lamp-glow': std([1.0, 0.78, 0.45], { emissive: [1.0, 0.62, 0.28], emissiveIntensity: 3 }),
       // Dragon body bands (#7FA295 / #587A6D / #25342E), ridge #587A6D, horns & whiskers #E6E3DA.
-      'material/dragon-front': std([0.2122, 0.3613, 0.3005], { metallic: 0.2, roughness: 0.55 }),
-      'material/dragon-mid': std([0.0976, 0.1946, 0.1529], { metallic: 0.2, roughness: 0.55 }),
-      'material/dragon-tail': std([0.0185, 0.0343, 0.0273], { metallic: 0.2, roughness: 0.6 }),
+      'material/dragon-front': std([0.2122, 0.3613, 0.3005], { metallic: 0.2, roughness: 0.55, emissive: [0.25, 0.8, 1.0], emissiveIntensity: 0 }),
+      'material/dragon-mid': std([0.0976, 0.1946, 0.1529], { metallic: 0.2, roughness: 0.55, emissive: [0.25, 0.8, 1.0], emissiveIntensity: 0 }),
+      'material/dragon-tail': std([0.0185, 0.0343, 0.0273], { metallic: 0.2, roughness: 0.6, emissive: [0.25, 0.8, 1.0], emissiveIntensity: 0 }),
       // Camera see-through (same route as the pillars, boss 15:54「毛玻璃」): 35 % blended band colour.
       'material/dragon-front-glass': Materials.standard({ baseColor: [0.2122, 0.3613, 0.3005, 0.35], roughness: 0.55, renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
       'material/dragon-mid-glass': Materials.standard({ baseColor: [0.0976, 0.1946, 0.1529, 0.35], roughness: 0.55, renderState: { ...ALPHA_BLEND, cullMode: 'none' }, queue: RenderQueue.Transparent }),
