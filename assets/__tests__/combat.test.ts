@@ -341,3 +341,42 @@ describe('tail hits (boss 1B: ×0.3, lighter hit feel)', () => {
     expect([hit.damage, hit.hitstop, hit.shake]).toEqual([14, 2, 0]);
   });
 });
+
+describe('jump, plunge and 灵息 (v1.4.0 port)', () => {
+  it('jumps ~2 m (9.8 m/s, g 24), costs 10 stamina and lands after ~49 steps', () => {
+    const c = createCombat();
+    const r = run(c, [press({ jump: true }), ...idle(60)]);
+    expect(r.events.some((x) => x.event.type === 'jump')).toBe(true);
+    const land = r.events.find((x) => x.event.type === 'land');
+    expect(land!.step).toBeGreaterThan(45);
+    expect(land!.step).toBeLessThan(55);
+    expect(c.snapshot().stamina).toBeGreaterThanOrEqual(C.staminaMax - C.jump.cost);
+    // Apex ≈ v² / 2g.
+    const peak = (C.jump.velocity ** 2) / (2 * C.jump.gravity);
+    expect(peak).toBeGreaterThan(1.8);
+  });
+  it('a light press in the air is the plunging attack: it hangs, drops and strikes on landing', () => {
+    const c = createCombat();
+    const r = run(c, [press({ jump: true }), ...idle(10), press({ light: true }), ...idle(80)]);
+    expect(r.states).toContain('airatk:1');
+    const land = r.events.find((x) => x.event.type === 'land');
+    expect(land && (land.event as { slam: boolean }).slam).toBe(true);
+    const hit = r.events.find((x) => x.event.type === 'hit');
+    expect(hit!.step).toBe(land!.step);
+    expect(c.snapshot().action).toBe('free');
+  });
+  it('can jump out of a roll and roll in the air', () => {
+    const c = createCombat();
+    const r = run(c, [press({ roll: true }), NONE, press({ jump: true }), ...idle(5), press({ roll: true }), ...idle(60)]);
+    expect(r.events.filter((x) => x.event.type === 'jump').length).toBe(1);
+    expect(r.events.filter((x) => x.event.type === 'roll').length).toBe(2);
+  });
+  it('a perfect dodge refunds 30 stamina and gives 150 steps of 灵息 (no delay, double regen)', () => {
+    const c = createCombat();
+    run(c, [press({ roll: true }), NONE]);
+    const before = c.snapshot().stamina;
+    expect(c.incoming(10).type).toBe('perfect');
+    expect(c.snapshot().stamina).toBe(Math.min(C.staminaMax, before + 30));
+    expect(c.snapshot().boost).toBe(C.boostSteps);
+  });
+});

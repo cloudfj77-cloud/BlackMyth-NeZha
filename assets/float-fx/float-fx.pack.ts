@@ -10,6 +10,7 @@ import type {} from '@forgeax/engine/assets-runtime';
 import type { SessionService, TelemetryService, TuningService } from '../core/core.pack.ts';
 import type { PlayerService } from '../hover-player/hover-player.pack.ts';
 import type { CombatService } from '../combat/combat.pack.ts';
+import type { RigService } from '../nezha-rig/rig.pack.ts';
 import { rotate, type Q } from '../combat/poses.ts';
 import { guidText, materialGuid, PACKAGE_IDS } from '../shared/asset-refs.ts';
 import { HEAD_TOP_Y, SASH_ANCHORS } from '../shared/nezha-shape.ts';
@@ -48,7 +49,7 @@ const r3 = (value: number) => Math.round(value * 1000) / 1000;
  */
 export const floatFx: Plugin = {
   name: 'nezha/float-fx',
-  inject: ['world', 'gameHost', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCombat'],
+  inject: ['world', 'gameHost', 'nezhaSession', 'nezhaTuning', 'nezhaTelemetry', 'nezhaPlayer', 'nezhaCombat', 'nezhaRig'],
   async apply(ctx) {
     const world = ctx.world;
     const host = ctx.gameHost;
@@ -57,6 +58,7 @@ export const floatFx: Plugin = {
     const telemetry = ctx.nezhaTelemetry as TelemetryService | undefined;
     const player = ctx.nezhaPlayer as PlayerService | undefined;
     const combatService = ctx.nezhaCombat as CombatService | undefined;
+    const rig = ctx.nezhaRig as RigService | undefined;
     if (!combatService) throw new Error('nezha/float-fx requires the combat service');
     if (!host || !session || !tuning || !telemetry || !player) throw new Error('nezha/float-fx requires core and player services');
     const assets = host.assets;
@@ -167,7 +169,9 @@ export const floatFx: Plugin = {
           const gateTarget = player.floatGate();
           gate += Math.max(-dt * 10, Math.min(dt * 10, gateTarget - gate));
           floatState = float.step(player.mode(), t.float, dt);
-          player.setFloat(floatState.y * gate, floatState.roll * gate, 0);
+          // Approved bob (±15 cm, 0.8 Hz, quick rise) + the v1.4.0 inertia layer: state height, lean, bank.
+          const inertia = rig?.hover();
+          player.setFloat(floatState.y * gate + (inertia?.dy ?? 0), floatState.roll * gate + (inertia?.roll ?? 0), -(inertia?.pitch ?? 0));
           hoverY = r3((floatState.y * gate) / Math.max(dt, 1e-6) - lastY / Math.max(dt, 1e-6));
           lastY = floatState.y * gate;
 
@@ -186,7 +190,7 @@ export const floatFx: Plugin = {
             return [dx * cos - dz * sin, w[1]! - ry, dx * sin + dz * cos];
           };
           // Model space -> root-local: model origin sits hover + float above the seabed.
-          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + floatState.y * gate;
+          const modelY = -CAPSULE_CENTER_Y + t.move.hoverHeight + floatState.y * gate + (rig?.hover().dy ?? 0);
           const anchorWorld = (a: readonly number[]): V3 => {
             const v = rotate(modelQ, [a[0]!, a[1]!, a[2]!]);
             return [(modelMatrix[12] ?? 0) + v[0], (modelMatrix[13] ?? 0) + v[1], (modelMatrix[14] ?? 0) + v[2]];

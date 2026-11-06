@@ -31,6 +31,7 @@ const CONTROL_ROWS: readonly { readonly keys: readonly string[]; readonly action
   { keys: ['W', 'A', 'S', 'D'], action: 'menu.controls.move' },
   { keys: ['Shift'], action: 'menu.controls.sprint' },
   { keys: ['@menu.controls.keySpace'], action: 'menu.controls.roll' },
+  { keys: ['Ctrl', 'F'], action: 'menu.controls.jump' },
   { keys: ['@menu.controls.keyMouse'], action: 'menu.controls.camera' },
   { keys: ['@menu.controls.keyLmb'], action: 'menu.controls.lightAttack' },
   { keys: ['@menu.controls.keyRmb'], action: 'menu.controls.heavyAttack' },
@@ -81,6 +82,7 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
   const audio = createCombatAudio(view);
   let lastFlash = 0;
   let lastHurt = 0;
+  let lastPerfect = -1;
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let hurtTimer: ReturnType<typeof setTimeout> | undefined;
   let lastHintSerial = 0;
@@ -270,6 +272,22 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
         meter.classList.add('flash');
         if (flashTimer) clearTimeout(flashTimer);
         flashTimer = setTimeout(() => meter.classList.remove('flash'), 900);
+      }
+      part('stamina-meter')!.classList.toggle('boost', (c.boost ?? 0) > 0);
+      if (c.perfect !== undefined && c.perfect !== lastPerfect) {
+        const first = lastPerfect === -1;
+        lastPerfect = c.perfect;
+        if (!first) {
+          const meter = part('stamina-meter')!;
+          meter.classList.remove('pulse');
+          void meter.offsetWidth;
+          meter.classList.add('pulse');
+          const float = part('stamina-float')!;
+          float.textContent = c.stamina >= c.staminaMax - 0.5 ? t('hud.float.staminaFull') : t('hud.float.stamina').replace('{n}', `${c.refund ?? 30}`);
+          float.classList.remove('show');
+          void float.offsetWidth;
+          float.classList.add('show');
+        }
       }
       if (c.hurt !== lastHurt) {
         lastHurt = c.hurt;

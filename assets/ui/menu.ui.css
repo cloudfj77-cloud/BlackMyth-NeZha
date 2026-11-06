@@ -251,6 +251,15 @@ button {
 .meter.hp .fill { background: linear-gradient(180deg, #e2574a, #9c2219); }
 .meter.stamina .fill { background: linear-gradient(180deg, #f0d27a, #b8902f); }
 .meter.stamina.flash .bar { animation: flash 0.3s steps(2) 3; }
+/* 灵息 (v1.4.0): cyan pulse on a perfect dodge, a flowing sheen while the boost lasts, floating "+30". */
+.meter.stamina { position: relative; }
+.meter.stamina.pulse .bar { animation: lingxi-pulse 0.6s ease-out 1; }
+.meter.stamina.boost .fill { background: linear-gradient(90deg, #f0d27a 0%, #9ff0f0 45%, #f0d27a 70%); background-size: 200% 100%; animation: lingxi-flow 0.9s linear infinite; }
+@keyframes lingxi-pulse { 0% { box-shadow: 0 0 0 0 rgb(140 240 255 / 90%); border-color: #9ff0f0; } 100% { box-shadow: 0 0 0 10px rgb(140 240 255 / 0%); } }
+@keyframes lingxi-flow { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.stamina-float { position: absolute; left: calc(100% + 6px); top: -2px; color: #9ff0f0; font-size: 13px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 3px #000; opacity: 0; pointer-events: none; }
+.stamina-float.show { animation: lingxi-float 1.2s ease-out 1; }
+@keyframes lingxi-float { 0% { opacity: 0; transform: translateY(4px); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
 @keyframes flash { 50% { border-color: #ff6a50; background: rgb(150 20 10 / 60%); } }
 
 .items-panel { position: absolute; right: 30px; bottom: 26px; display: flex; gap: 18px; align-items: flex-end; }

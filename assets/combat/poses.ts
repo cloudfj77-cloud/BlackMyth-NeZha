@@ -187,6 +187,9 @@ export interface ActionVisual {
   readonly floatGate: number;
 }
 
+/** Set by the combat plugin when the jointed rig drives the body (v1.4.0 port). */
+export const RIGGED = { on: false };
+
 /** Pose for the current combat state. `facing` is the root yaw (for the roll direction). */
 export function actionVisual(state: CombatState, facing: number): ActionVisual {
   const f = state.frame;
@@ -251,7 +254,9 @@ export function actionVisual(state: CombatState, facing: number): ActionVisual {
     default:
       break;
   }
-  if (state.kind !== 'roll' && state.kind !== 'dead') {
+  // The jointed rig (v1.4.0 port) now twists and bends the body per joint; the whole model only turns
+  // for the roll and the fall. Without the rig (tests) the old whole-body pose remains available.
+  if (state.kind !== 'roll' && state.kind !== 'dead' && !RIGGED.on) {
     rotation = mulQ(axisAngle([0, 1, 0], pose.body.twist), axisAngle([1, 0, 0], pose.body.pitch));
   }
   return {

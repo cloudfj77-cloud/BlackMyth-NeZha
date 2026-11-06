@@ -16,6 +16,7 @@ import { FLOOR_Y, SPAWN } from '../shared/layout.ts';
 import { FEET_Y } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
+import { JOINT_PARTS, jointKey, slotsOf, spearParts } from '../nezha-rig/rig-def.ts';
 import { createShiftGesture, createVelocityStepper, leanForSpeed, turnToward, type Velocity } from './motion.ts';
 
 export type MoveMode = 'idle' | 'move' | 'sprint';
@@ -38,6 +39,7 @@ export interface CombatEdges {
   readonly roll: boolean;
   readonly lotus: boolean;
   readonly sash: boolean;
+  readonly jump: boolean;
 }
 
 /** Per-step movement control from the combat plugin (M2). */
@@ -82,6 +84,8 @@ export interface PlayerService {
   readonly facing: () => number;
   /** Visual-only float offset written by float-fx (T4); 0 until then. */
   readonly setFloat: (offsetY: number, roll: number, pitch: number) => void;
+  /** Jump height above the hover line (visual; the judgement root stays on the floor). */
+  readonly setAirLift: (y: number) => void;
   readonly setLock: (frame: LockFrame | undefined) => void;
   /** Take (and clear) the combat edges collected since the last call. */
   readonly takeEdges: () => CombatEdges;
@@ -111,7 +115,7 @@ declare module '@forgeax/engine/plugin' {
 }
 
 const IDLE: FrameInput = { horizontal: 0, vertical: 0, lookX: 0, lookY: 0, sprint: false, lockPressed: false, heavyHeld: false };
-const NO_EDGES: CombatEdges = { light: false, roll: false, lotus: false, sash: false };
+const NO_EDGES: CombatEdges = { light: false, roll: false, lotus: false, sash: false, jump: false };
 const SAMPLE_SECONDS = 2;
 
 function rotateByQuat(q: readonly number[], v: readonly number[]): [number, number, number] {
@@ -141,9 +145,8 @@ export const hoverPlayer: Plugin = {
     const glow = resolveGameEntity(world, ctx.gameScene, 'player/glow');
     // Silhouette review (dev grey mode): every Nezha part takes one mid-grey material.
     const greyParts = [
-      { entity: resolveGameEntity(world, ctx.gameScene, 'player/body'), slots: 5 },
-      { entity: resolveGameEntity(world, ctx.gameScene, 'player/spear'), slots: 3 },
-      { entity: resolveGameEntity(world, ctx.gameScene, 'player/wheels'), slots: 1 },
+      ...Object.entries(JOINT_PARTS).map(([joint, parts]) => ({ entity: resolveGameEntity(world, ctx.gameScene, jointKey(joint as keyof typeof JOINT_PARTS)), slots: slotsOf(parts!).length })),
+      { entity: resolveGameEntity(world, ctx.gameScene, 'player/spear'), slots: slotsOf(spearParts()).length },
     ];
     const greyLoaded = await host.assets.load(guidText(materialGuid('grey')), 'material');
     if (!greyLoaded.ok) throw greyLoaded.error;
@@ -182,7 +185,8 @@ export const hoverPlayer: Plugin = {
       let lock: LockFrame | undefined;
       let obstacle: ((x: number, z: number) => { readonly x: number; readonly z: number }) | undefined;
       let taps = 0;
-      let edges: { light: boolean; roll: boolean; lotus: boolean; sash: boolean } = { ...NO_EDGES };
+      let edges: { light: boolean; roll: boolean; lotus: boolean; sash: boolean; jump: boolean } = { ...NO_EDGES };
+      let airLift = 0;
       let control: MoveControl | undefined;
       let actionPose: ActionPose | undefined;
       let floatGate = 1;
@@ -228,6 +232,8 @@ export const hoverPlayer: Plugin = {
           if (snapshot.keyboard.justPressedCode('Space')) edges.roll = true;
           if (snapshot.keyboard.justPressedCode('KeyQ')) edges.lotus = true;
           if (snapshot.keyboard.justPressedCode('Digit1')) edges.sash = true;
+          // Jump (v1.4.0 port): Ctrl or F.
+          if (snapshot.keyboard.justPressedCode('ControlLeft') || snapshot.keyboard.justPressedCode('ControlRight') || snapshot.keyboard.justPressedCode('KeyF')) edges.jump = true;
           frameInput = {
             horizontal: Number(key('KeyD', 'ArrowRight')) - Number(key('KeyA', 'ArrowLeft')),
             vertical: Number(key('KeyW', 'ArrowUp')) - Number(key('KeyS', 'ArrowDown')),
@@ -334,7 +340,7 @@ export const hoverPlayer: Plugin = {
           leanGate += ((actionPose?.suppressLean ? 0 : 1) - leanGate) * (1 - Math.exp(-Math.min(world.getResource(Time).delta, 0.1) * 25));
           const leanRad = (-lean * leanGate * Math.PI) / 180;
           quat.fromEuler(rotation, leanRad + floatPitch, 0, floatRoll, 'YXZ');
-          const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY, 0];
+          const base: [number, number, number] = [0, -CAPSULE_CENTER_Y + move.hoverHeight + floatY + airLift, 0];
           let pos = base;
           if (actionPose) {
             const r = actionPose.rotation;
@@ -404,6 +410,9 @@ export const hoverPlayer: Plugin = {
         speed: () => speed,
         mode: () => mode,
         facing: () => facing,
+        setAirLift: (y) => {
+          airLift = y;
+        },
         setFloat: (offsetY, roll, pitch) => {
           floatY = offsetY;
           floatRoll = roll;

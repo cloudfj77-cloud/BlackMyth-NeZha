@@ -19,7 +19,7 @@ import { NEZHA } from '../shared/nezha-shape.ts';
 import { CAPSULE_CENTER_Y } from '../shared/player-rig.ts';
 import { resolveGameEntity } from '../shared/scene-refs.ts';
 import { configFromTuning, createCombat, DEFAULT_COMBAT, type CombatEvent, type CombatState, type V2 } from './machine.ts';
-import { actionVisual, spearQuat, SPEAR_REST, type P3, type Q } from './poses.ts';
+import { actionVisual, RIGGED, spearQuat, SPEAR_REST, type P3, type Q } from './poses.ts';
 
 interface Shown {
   readonly rotation: Q;
@@ -40,6 +40,7 @@ function mixShown(a: Shown, b: Shown, t: number): Shown {
 }
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
+const STEP_S = 1 / 60;
 const SPARKS = 16;
 /** Wheel fire glow (matches material/wheel-fire: WHEEL_FULL_INTENSITY × 0.3). */
 const WHEEL_FIRE = 0.3 * WHEEL_FULL_INTENSITY;
@@ -53,6 +54,10 @@ export interface CombatService {
   readonly hp: () => number;
   /** Current action (the sash reels in during a roll). */
   readonly action: () => string;
+  /** The action as presented this frame (interpolated frame), for the jointed rig. */
+  readonly pose: () => { readonly kind: string; readonly frame: number; readonly stage: number; readonly charge: number; readonly wheelsFull: boolean; readonly airY: number; readonly airVy: number; readonly boost: number };
+  /** Jump height above the hover line (m) — jumpable attacks miss above JUMP_CLEAR. */
+  readonly airHeight: () => number;
   /** M4 presentation overrides: float scale (victory: half). */
   readonly setPresentation: (p: { readonly floatScale?: number }) => void;
   /** Lotus seeds left, Sash Binds used since the last reset (run records). */
@@ -133,7 +138,8 @@ export const combat: Plugin = {
     const assets = host.assets;
     const scene = ctx.gameScene;
     const spear = resolveGameEntity(world, scene, 'player/spear');
-    const wheels = resolveGameEntity(world, scene, 'player/wheels');
+    const wheels = [resolveGameEntity(world, scene, 'player/rig/l-wheel'), resolveGameEntity(world, scene, 'player/rig/r-wheel')];
+    RIGGED.on = true;
     const sun = resolveGameEntity(world, scene, 'sun');
     const skylight = resolveGameEntity(world, scene, 'skylight');
     const fog = resolveGameEntity(world, scene, 'fog');
@@ -149,6 +155,8 @@ export const combat: Plugin = {
     };
     const mat = {
       wheel: await load(guidText(materialGuid('wheel-fire')), 'material'),
+      wheelGold: await load(guidText(materialGuid('nz-gold')), 'material'),
+      wheelRed: await load(guidText(materialGuid('nz-red')), 'material'),
       wheelFull: await load(guidText(materialGuid('wheel-fire-full')), 'material'),
       afterimage: await load(guidText(materialGuid('afterimage-cloud')), 'material'),
       ring: await load(guidText(materialGuid('perfect-ring')), 'material'),
@@ -239,6 +247,8 @@ export const combat: Plugin = {
       spawned.push(cloud);
       const afterimages = AFTER_FRAMES.map(() => ({ life: 0 }));
       let cloudLive = false;
+      let perfectSerial = 0;
+      let cyanLeft = 0;
       /** Bake the body at matrix m into slot s (world space). */
       const bakeSlot = (s: number, m: ArrayLike<number>) => {
         const o = s * bodyVerts * 3;
@@ -289,7 +299,7 @@ export const combat: Plugin = {
         return seed / 2147483647;
       };
       let slowLight = 0;
-      let wheelScale = 1;
+      let poseOut: { kind: string; frame: number; stage: number; charge: number; wheelsFull: boolean; airY: number; airVy: number; boost: number } = { kind: 'free', frame: 0, stage: 0, charge: 0, wheelsFull: false, airY: 0, airVy: 0, boost: 0 };
       let poseKey = 'free:0';
       let poseFrame = 0;
       let blendLeft = 0;
@@ -353,6 +363,13 @@ export const combat: Plugin = {
           case 'roll':
             session.emit('roll');
             break;
+          case 'jump':
+            session.emit('jump');
+            break;
+          case 'land':
+            session.emit(event.slam ? 'slam' : 'land');
+            if (event.slam) session.shake(0.04);
+            break;
           case 'sash-bind':
             bindSerial += 1;
             bindsSinceReset += 1;
@@ -406,6 +423,10 @@ export const combat: Plugin = {
               afterimages[afterIndex]!.life = tuning.current.combat.afterimageLife;
             }
           }
+          if (cyanLeft > 0) {
+            cyanLeft -= 1;
+            if (cyanLeft === 0) assets.update(mat.afterimage, { values: { coreColor: [0.95, 0.22, 0.03, 1], rimColor: [1.0, 0.62, 0.12, 1], intensity: tuning.current.combat.afterimageIntensity } } as never).unwrap();
+          }
           let anyLive = false;
           afterimages.forEach((slot, s) => {
             if (slot.life <= 0) return;
@@ -455,7 +476,8 @@ export const combat: Plugin = {
           // and the defeat fade only change its emissive intensity (M4 §12: no material swaps).
           if (wheelFire === undefined) {
             wheelFire = copy(mat.wheel);
-            world.set(wheels, MeshRenderer, { materials: [wheelFire as never] } as never).unwrap();
+            // Rig wheel slots: gold, red, fire (first-use order of the wheel parts).
+            for (const w of wheels) world.set(w, MeshRenderer, { materials: [mat.wheelGold, mat.wheelRed, wheelFire as never] } as never).unwrap();
           }
           if (state.kind === 'dead') deadFor = deadFor < 0 ? 0 : deadFor + dt * 60;
           else deadFor = -1;
@@ -465,10 +487,11 @@ export const combat: Plugin = {
             wheelGlow = glow;
             assets.update(wheelFire as never, { values: { emissiveIntensity: glow } } as never).unwrap();
           }
-          world.set(spear, Transform, { pos: shown.spearPos, quat: shown.spearQuat }).unwrap();
-          const wsTarget = wheelsFull ? tuning.current.combat.wheelRollScale : 1;
-          wheelScale += (wsTarget - wheelScale) * (1 - Math.exp(-dt * 30));
-          world.set(wheels, Transform, { scale: [wheelScale, 1, wheelScale] }).unwrap();
+          const snapAir = machine.snapshot();
+          // Air height: interpolated toward the next step for smooth motion.
+          const airY = Math.max(0, snapAir.airY + snapAir.airVy * alpha * STEP_S);
+          player.setAirLift(airY);
+          poseOut = { kind: state.kind, frame: state.frame + alpha, stage: state.stage, charge: state.charge, wheelsFull, airY, airVy: snapAir.airVy, boost: snapAir.boost };
           // Spear-tip flame: its end reaches the heavy range (3 m) ahead of the root.
           if (visual.flame) {
             // Measured on the presented spear (includes the body pitch and float): the flame runs from
@@ -540,13 +563,16 @@ export const combat: Plugin = {
               sashCd: Math.ceil(cd / 60),
               sashCdMax: DEFAULT_COMBAT.sash.cooldown / 60,
               hurt: hurtSerial,
+              boost: snap.boost,
+              perfect: perfectSerial,
+              refund: DEFAULT_COMBAT.perfectRefund,
             },
           });
         },
       }).unwrap();
       yield () => world.removeSystem(Update, 'nezha-combat-pose').unwrap();
       yield () => {
-        world.set(spear, Transform, { pos: SPEAR_REST.pos }).unwrap();
+
         player.setActionPose(undefined);
         player.setControl(undefined);
       };
@@ -555,6 +581,10 @@ export const combat: Plugin = {
         session.clock.slowmo(tuning.current.combat.slowmoSteps);
         session.emit('perfect');
         ringAge = 0;
+        perfectSerial += 1;
+        // v1.4.0: the perfect-dodge trail turns pale cyan (and gets out of the way) for its lifetime.
+        cyanLeft = tuning.current.combat.afterimageLife;
+        assets.update(mat.afterimage, { values: { coreColor: [0.35, 0.85, 0.95, 1], rimColor: [0.75, 1.0, 1.0, 1], intensity: tuning.current.combat.afterimageIntensity * 0.6 } } as never).unwrap();
       };
 
       yield telemetry.section('combat', () => {
@@ -619,6 +649,8 @@ export const combat: Plugin = {
         },
         hp: () => machine.snapshot().hp,
         action: () => machine.snapshot().action,
+        pose: () => poseOut,
+        airHeight: () => machine.snapshot().airY,
         setPresentation: (p) => {
           floatScale = p.floatScale ?? 1;
         },

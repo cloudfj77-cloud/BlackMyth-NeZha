@@ -11,6 +11,29 @@ import { ok } from '@forgeax/engine/types';
 import { PACKAGE_IDS, slot } from './shared/asset-refs.ts';
 import { axisAngle, fromTo, MeshKit, type V3 } from './shared/mesh-kit.ts';
 import { NEZHA } from './shared/nezha-shape.ts';
+import { createCapsuleGeometry } from '@forgeax/engine/geometry';
+import { JOINT_PARTS, kebab, partPlace, rigMaterialKey, slotsOf, spearParts, type Part, type Prim } from './nezha-rig/rig-def.ts';
+
+function primMesh(prim: Prim) {
+  switch (prim.kind) {
+    case 'sphere': return createSphereGeometry(prim.r, prim.w ?? 16, prim.h ?? 12);
+    case 'capsule': return createCapsuleGeometry(prim.r, prim.l, 4, 10);
+    case 'torus': return createTorusGeometry(prim.R, prim.t, prim.rs ?? 8, prim.ts ?? 20);
+    case 'cyl': return createCylinderGeometry(prim.rt, prim.rb, prim.h, prim.seg ?? 12, 1);
+    case 'cone': return createConeGeometry(prim.r, prim.h, prim.seg ?? 8);
+    case 'box': return createBoxGeometry(prim.w, prim.h, prim.d);
+  }
+}
+/** One joint's parts merged into one mesh, one submesh per material (v1.4.0 jointed Nezha). */
+function rigMesh(parts: readonly Part[]): MeshAsset {
+  const kit = new MeshKit();
+  const slots = slotsOf(parts);
+  for (const part of parts) {
+    const place = partPlace(part);
+    kit.add(primMesh(part.prim), { t: place.t, r: place.r, s: part.s ?? [1, 1, 1] }, slots.indexOf(part.mat));
+  }
+  return kit.build(slots.map((m) => slot(m, rigMaterialKey(m))));
+}
 
 /** Cylinder segment between two points (factory cylinders run along local Y). */
 function limb(kit: MeshKit, a: V3, b: V3, radiusA: number, radiusB: number, materialSlot: number, segments = 10): void {
@@ -129,5 +152,7 @@ export default definePack({
       'mesh/nezha-spear': spear(),
       'mesh/nezha-wheels': wheels(),
       'mesh/contact-glow': glowDisc(),
+      'mesh/nz-spear': rigMesh(spearParts()),
+      ...Object.fromEntries(Object.entries(JOINT_PARTS).map(([joint, parts]) => [`mesh/nz-${kebab(joint)}`, rigMesh(parts!)])),
     }),
 });

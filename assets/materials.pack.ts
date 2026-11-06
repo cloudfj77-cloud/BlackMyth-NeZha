@@ -1,4 +1,5 @@
 import { definePack } from '@forgeax/engine/pack/source';
+import { linearRgb, RIG_MATERIALS, rigMaterialKey } from './nezha-rig/rig-def.ts';
 import { Materials } from '@forgeax/engine/render';
 import type { MaterialRootAsset } from '@forgeax/engine/types';
 import { ok, RenderQueue } from '@forgeax/engine/types';
@@ -159,6 +160,17 @@ export default definePack({
         values: { baseColor: [0.5, 0.03, 0.02, 1], sashColor: [1.25, 0.11, 0.04, 1], goldColor: [1.0, 0.7, 0.2, 1], brightness: 1, fill: 0, flash: 0 },
         renderState: { cullMode: 'none' },
       }),
+      // Jointed Nezha (v1.4.0 port, boss 11-06 batch 2).
+      ...Object.fromEntries(Object.entries(RIG_MATERIALS).map(([key, m]) => [
+        `material/${rigMaterialKey(key as keyof typeof RIG_MATERIALS)}`,
+        std(linearRgb(m.color), {
+          roughness: m.rough,
+          metallic: 'metal' in m ? m.metal : 0,
+          ...('emissive' in m ? { emissive: linearRgb(m.emissive), emissiveIntensity: 'emissiveIntensity' in m ? m.emissiveIntensity : 1 } : {}),
+        }),
+      ])),
+      // v1.4.0 silk for the extra ribbons (arm / waist sashes, hair ribbons, spear tassel), two-sided.
+      'material/nz-silk': std(linearRgb(0xb8100a), { roughness: 0.5, emissive: linearRgb(0x300400), emissiveIntensity: 1, twoSided: true }),
       'material/afterimage-cloud': Materials.standard({
         surfaceModule: 'nezha::ghost_cloud_surface',
         parameters: [

@@ -71,7 +71,8 @@
             "keyRmb": "右键",
             "keySpace": "空格",
             "skip": "跳过开场 / 再战",
-            "mute": "静音 / 取消静音"
+            "mute": "静音 / 取消静音",
+            "jump": "跳跃（空中左键：跳劈）"
           }
         },
         "hud": {
@@ -95,6 +96,10 @@
           "banner": {
             "defeat": "败",
             "retry": "再战"
+          },
+          "float": {
+            "stamina": "+{n} 气力",
+            "staminaFull": "气力已满"
           }
         },
         "dialogue": {
@@ -200,7 +205,8 @@
             "keyRmb": "RMB",
             "keySpace": "Space",
             "skip": "Skip intro / Try again",
-            "mute": "Mute / unmute"
+            "mute": "Mute / unmute",
+            "jump": "Jump (LMB in the air: plunge)"
           }
         },
         "hud": {
@@ -224,6 +230,10 @@
           "banner": {
             "defeat": "Defeated",
             "retry": "Try Again"
+          },
+          "float": {
+            "stamina": "+{n} Stamina",
+            "staminaFull": "Stamina full"
           }
         },
         "dialogue": {

@@ -14,7 +14,7 @@ export const NEZHA = Object.freeze({
   /** Right-hand grip in model space and the spear's forward tilt. */
   grip: [0.27, 1.0, -0.06] as const,
   /** Distance from the grip down to the spear butt. */
-  spearBelowGrip: 0.95,
+  spearBelowGrip: 0.75,
   spearTiltDeg: 14,
   wheelRadius: 0.17,
   wheelTube: 0.04,

@@ -91,6 +91,10 @@ export interface HudState {
     readonly sashCdMax: number;
     /** Serial bumped on each hurt (ink-teal vignette). */
     readonly hurt: number;
+    /** 灵息 steps left, perfect-dodge serial and its stamina refund (v1.4.0 port). */
+    readonly boost?: number;
+    readonly perfect?: number;
+    readonly refund?: number;
   };
   /** One-shot presentation events this frame (audio cues). */
   readonly events?: readonly string[];

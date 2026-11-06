@@ -1,4 +1,5 @@
 import { quat } from '@forgeax/engine/math';
+import { JOINT_NAMES, JOINT_PARTS, JOINTS, jointKey, kebab, RIG_SCALE } from './nezha-rig/rig-def.ts';
 import { definePack } from '@forgeax/engine/pack/source';
 import {
   CharacterController,
@@ -161,14 +162,26 @@ function dragonPalace(): SceneAsset {
     Transform: { pos: [0, -CAPSULE_CENTER_Y + TUNING.move.hoverHeight, 0] },
     ChildOf: { parent: 'player' },
   });
-  add('player/body', { Name: { value: 'Nezha Body' }, Transform: { pos: [0, 0, 0] }, ChildOf: { parent: 'player/model' }, ...mesh(characterGuid('nezha-body')) });
+  // M1 greybox body / wheels stay as hidden references (silhouette QA reads the cooked meshes).
+  add('player/body', { Name: { value: 'Nezha Body (greybox)' }, Transform: { pos: [0, 0, 0], scale: [0, 0, 0] }, ChildOf: { parent: 'player/model' }, ...mesh(characterGuid('nezha-body')) });
+  add('player/wheels', { Name: { value: 'Wind-Fire Wheels (greybox)' }, Transform: { pos: [0, 0, 0], scale: [0, 0, 0] }, ChildOf: { parent: 'player/model' }, ...mesh(characterGuid('nezha-wheels')) });
+  // Jointed Nezha (v1.4.0 port): rig root turned to face −Z and scaled to our silhouette height.
+  add('player/rig', { Name: { value: 'Nezha Rig' }, Transform: { pos: [0, 0, 0], quat: q(quat.fromEuler(quat.create(), 0, Math.PI, 0, 'YXZ')), scale: [RIG_SCALE, RIG_SCALE, RIG_SCALE] }, ChildOf: { parent: 'player/model' } });
+  for (const name of JOINT_NAMES) {
+    const joint = JOINTS[name];
+    add(jointKey(name), {
+      Name: { value: `Nezha ${name}` },
+      Transform: { pos: [...joint.pos] },
+      ChildOf: { parent: joint.parent ? jointKey(joint.parent) : 'player/rig' },
+      ...(JOINT_PARTS[name] ? mesh(characterGuid(`nz-${kebab(name)}`)) : {}),
+    });
+  }
   add('player/spear', {
     Name: { value: 'Fire-Tipped Spear' },
-    Transform: { pos: [NEZHA.grip[0], NEZHA.grip[1], NEZHA.grip[2]], quat: q(quat.fromEuler(quat.create(), (-NEZHA.spearTiltDeg * Math.PI) / 180, 0, 0, 'YXZ')) },
-    ChildOf: { parent: 'player/model' },
-    ...mesh(characterGuid('nezha-spear')),
+    Transform: { pos: [0, 0, 0], scale: [1 / RIG_SCALE, 1 / RIG_SCALE, 1 / RIG_SCALE] },
+    ChildOf: { parent: jointKey('staffPivot') },
+    ...mesh(characterGuid('nz-spear')),
   });
-  add('player/wheels', { Name: { value: 'Wind-Fire Wheels' }, Transform: { pos: [0, 0, 0] }, ChildOf: { parent: 'player/model' }, ...mesh(characterGuid('nezha-wheels')) });
   add('player/glow', {
     Name: { value: 'Contact Glow' },
     Transform: { pos: [0, -CAPSULE_CENTER_Y + GLOW_Y, 0], scale: [TUNING.glow.radius, 1, TUNING.glow.radius] },

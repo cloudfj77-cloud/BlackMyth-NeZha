@@ -72,5 +72,8 @@
   "ui:result.reward.desc": "Flavour text of the Reverse Scale reward (a dragon is enraged if it is touched). Two lines, ≤ 42 chars each.",
   "ui:result.action.retry": "Result screen button: fight again (skips the intro). Button budget 16 chars.",
   "ui:result.action.toTitle": "Result screen button: back to the start screen. Button budget 16 chars.",
-  "ui:menu.controls.mute": "Controls list: M toggles all game sound and music."
+  "ui:menu.controls.mute": "Controls list: M toggles all game sound and music.",
+  "ui:hud.float.stamina": "Floating text beside the stamina bar after a perfect dodge; {n} = stamina refunded (30). ≤ 12 chars.",
+  "ui:hud.float.staminaFull": "Same floating text when stamina was already full. ≤ 14 chars.",
+  "ui:menu.controls.jump": "Controls list: Ctrl / F jumps; a light attack in the air is a plunging strike."
 }

@@ -45,6 +45,10 @@ export interface CombatConfig {
   readonly regenPerSecond: number;
   readonly lotus: { readonly count: number; readonly steps: number; readonly heal: number; readonly speedScale: number };
   readonly sash: { readonly castHold: number; readonly steps: number; readonly cooldown: number; readonly holdSteps: number };
+  /** Jump (v1.4.0 port): take-off speed (m/s), gravity (m/s²), stamina cost, plunging air attack. */
+  readonly jump: { readonly velocity: number; readonly gravity: number; readonly cost: number; readonly slamHang: number; readonly airSpeed: number };
+  /** 灵息 after a perfect dodge (v1.4.0): steps of no regen delay and double regen. */
+  readonly boostSteps: number;
 }
 
 export const DEFAULT_COMBAT: CombatConfig = {
@@ -73,7 +77,7 @@ export const DEFAULT_COMBAT: CombatConfig = {
   breakHold: 9,
   roll: { steps: 27, invuln: 18, moveSteps: 12, distance: 3, perfect: 12 },
   slowmoSteps: 18,
-  perfectRefund: 20,
+  perfectRefund: 30,
   hurtSteps: 24,
   // Boss 22:12: attacks cost no stamina (17:46 had halved them; design 4.2 had light 12 / heavy 30).
   cost: { light: 0, heavy: 0, roll: 20, sprintPerSecond: 15 },
@@ -81,6 +85,8 @@ export const DEFAULT_COMBAT: CombatConfig = {
   regenPerSecond: 25,
   lotus: { count: 3, steps: 60, heal: 40, speedScale: 0.4 },
   sash: { castHold: 12, steps: 22, cooldown: 1200, holdSteps: 180 },
+  jump: { velocity: 9.8, gravity: 24, cost: 10, slamHang: 12, airSpeed: 3 },
+  boostSteps: 150,
 };
 
 export interface StepInput {
@@ -89,6 +95,8 @@ export interface StepInput {
   readonly roll: boolean;
   readonly lotus: boolean;
   readonly sash: boolean;
+  /** Ctrl / F (v1.4.0 port). */
+  readonly jump?: boolean;
   /** Levels. */
   readonly heavyHeld: boolean;
   readonly sprint: boolean;
@@ -131,6 +139,8 @@ export type CombatEvent =
   | { readonly type: 'hit'; readonly kind: 'light' | 'heavy'; readonly stage: number; readonly damage: number; readonly hitstop: number; readonly shake: number; readonly strike: StrikeResult; readonly judgeLine: V2; readonly tail: boolean }
   | { readonly type: 'whiff'; readonly kind: 'light' | 'heavy'; readonly strike: StrikeResult; readonly judgeLine: V2 }
   | { readonly type: 'roll'; readonly dir: V2 }
+  | { readonly type: 'jump' }
+  | { readonly type: 'land'; readonly slam: boolean }
   | { readonly type: 'perfect'; readonly frame: number }
   | { readonly type: 'dodged'; readonly frame: number }
   | { readonly type: 'hurt'; readonly damage: number }
@@ -142,7 +152,7 @@ export type CombatEvent =
 
 const KNOCK_STEPS = 10;
 
-export type ActionKind = 'free' | 'light' | 'charge' | 'heavy' | 'roll' | 'hurt' | 'lotus' | 'sash' | 'dead';
+export type ActionKind = 'free' | 'light' | 'charge' | 'heavy' | 'roll' | 'hurt' | 'lotus' | 'sash' | 'dead' | 'airatk';
 
 export interface CombatState {
   readonly kind: ActionKind;
@@ -190,6 +200,8 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
   let lastStrike: StrikeResult | undefined;
   let events: CombatEvent[] = [];
   let knock: { readonly dir: V2; readonly distance: number } | undefined;
+  /** Airborne height above the hover line (m) and vertical speed; 灵息 steps left. */
+  let airY = 0, airVy = 0, boost = 0;
 
   const enter = (kind: ActionKind, extra: Partial<typeof state> = {}) => {
     state = { ...state, kind, frame: 0, charge: 0, released: false, lunged: 0, healed: false, ...extra };
@@ -326,6 +338,17 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         buffered = undefined;
         startRoll(input, env);
       }
+      // Jump (v1.4.0): from free, a roll past frame 1, or the recovery of an attack; keeps the speed.
+      if (input.jump && airY <= 0 && state === s) {
+        const lightSpec = s.kind === 'light' ? config.light[s.stage - 1] : undefined;
+        const can = s.kind === 'free' || (s.kind === 'roll' && s.frame >= 2) || (lightSpec !== undefined && s.frame > lightSpec.hit) || (s.kind === 'heavy' && s.frame > config.lungeSteps + 1);
+        if (can && spend(config.jump.cost)) {
+          airVy = config.jump.velocity;
+          airY = 0.001;
+          if (s.kind === 'light' || s.kind === 'heavy') enter('free');
+          events.push({ type: 'jump' });
+        }
+      }
       let runFreeAfter = false;
       const runFree = () => {
             const moving = Math.hypot(input.move.x, input.move.z) > 0.1;
@@ -338,6 +361,19 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
               }
             }
             if (take('roll') && startRoll(input, env)) return;
+            // In the air a light press is the plunging attack (v1.4.0 跳劈): hang, then slam down.
+            if (airY > 0 && take('light')) {
+              enter('airatk');
+              airVy = Math.max(airVy, 2);
+              facingOverride = env.lockedFacing() ?? env.autoTarget(env.root, env.facing);
+              events.push({ type: 'swing-heavy', charge: 0 });
+              return;
+            }
+            if (airY > 0) {
+              // Airborne: steer only (no heavy, seeds or spell until landing).
+              velocity = undefined;
+              return;
+            }
             if (take('light') && startLight(input, env)) return;
             if (heavyPressed) {
               if (stamina >= config.cost.heavy) {
@@ -473,6 +509,12 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
           // Defeated: no input until the fight resets.
           buffered = undefined;
           break;
+        case 'airatk': {
+          if (env.lockedFacing() !== undefined) facingOverride = env.lockedFacing();
+          const f = forward(env.facing);
+          velocity = s.frame <= config.jump.slamHang ? { x: f.x * config.jump.airSpeed, z: f.z * config.jump.airSpeed } : ZERO;
+          break;
+        }
         case 'lotus': {
           velocity = undefined;
           speedScale = config.lotus.speedScale;
@@ -495,6 +537,31 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
 
       if (runFreeAfter) runFree();
       if (state !== s && state.kind === 'roll') velocity = rollVelocity(1, state.rollDir);
+
+      // Air (v1.4.0 gravity): the plunging attack hangs, then drops fast; landing ends it with a slam.
+      if (airY > 0 || airVy > 0) {
+        const J = config.jump;
+        const g = state.kind === 'airatk' ? (state.frame < J.slamHang ? J.gravity * 0.25 : J.gravity * 2.5) : J.gravity;
+        airVy -= g * STEP;
+        airY += airVy * STEP;
+        if (airY <= 0) {
+          airY = 0;
+          airVy = 0;
+          const slam = state.kind === 'airatk';
+          events.push({ type: 'land', slam });
+          if (slam) {
+            state = { ...state, charge: 0 };
+            resolveStrike('heavy', env, env.root, env.facing);
+            enter('free');
+          }
+        }
+      }
+      if (boost > 0) {
+        // 灵息: no regen delay, double regen.
+        boost -= 1;
+        idle = Math.max(idle, config.regenDelay);
+        stamina = Math.min(config.staminaMax, stamina + config.regenPerSecond * STEP);
+      }
 
       if (state.kind === 'free' || state.kind === 'lotus') {
         if (!(state.kind === 'free' && input.sprint && allowSprint && Math.hypot(input.move.x, input.move.z) > 0.1)) idle += 1;
@@ -526,6 +593,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         if (frame >= 1 && frame <= config.roll.invuln) {
           if (frame - 1 <= config.roll.perfect) {
             stamina = Math.min(config.staminaMax, stamina + config.perfectRefund);
+            boost = config.boostSteps;
             return { type: 'perfect', frame };
           }
           return { type: 'dodged', frame };
@@ -556,6 +624,9 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
       comboWindow = 0;
       buffered = undefined;
       knock = undefined;
+      airY = 0;
+      airVy = 0;
+      boost = 0;
       enter('free');
     },
     /** Live tuning: replace the configuration (timings already running keep their frame counters). */
@@ -569,6 +640,7 @@ export function createCombat(initial: CombatConfig = DEFAULT_COMBAT) {
         invuln,
         action: state.kind, frame: state.frame, stage: state.stage, charge: state.charge,
         judgeLine: lastJudge, lastStrike, buffered: buffered?.kind ?? null,
+        airY, airVy, boost,
       };
     },
   };
