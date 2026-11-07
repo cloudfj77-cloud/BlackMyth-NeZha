@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>素材评审 · 黑曜石翼龙动作</title>
+<style>
+  :root{--bg:#f4f5f7;--panel:#ffffff;--line:#d9dde3;--text:#1d232b;--muted:#5b6573;--accent:#b5442b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;height:100vh}
+  #side{width:300px;padding:16px;background:var(--panel);border-right:1px solid var(--line);overflow:auto}
+  h1{font-size:17px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .clip{display:block;width:100%;text-align:left;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;color:var(--text)}
+  .clip.on{border-color:var(--accent);background:#fbefeb}
+  .clip b{font-weight:600}.clip span{color:var(--muted);font-size:12px;display:block}
+  .row{display:flex;gap:8px;align-items:center;margin:10px 0}
+  button.small{padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;color:var(--text)}
+  input[type=range]{flex:1}
+  .note{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+  #wrap{flex:1;position:relative}
+  canvas{width:100%;height:100%;display:block;cursor:grab}
+  #hud{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(255,255,255,.85);padding:4px 8px;border-radius:4px}
+  #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="side">
+  <h1>黑曜石翼龙 · 动作预览</h1>
+  <div class="sub">造化素材库 obsidian-dragon 1.2.2 · 仅供评审，不进游戏</div>
+  <div id="clips"></div>
+  <div class="row"><button class="small" id="play">暂停</button><button class="small" id="follow">镜头跟随：开</button></div>
+  <div class="row">速度 <input id="speed" type="range" min="0.1" max="2" step="0.1" value="1"><span id="speedv">1.0×</span></div>
+  <div class="row">进度 <input id="scrub" type="range" min="0" max="1" step="0.001" value="0"></div>
+  <div class="note">
+    拖动画面旋转视角，滚轮缩放。<br>
+    红色立柱 = 哪吒身高 1.65 m；悬在它中间的黄色薄片 = 风火轮离地 1.15 m 的高度（定稿参数）。<br>
+    地面网格 1 m 一格，粗线 5 m。<br>
+    说明：每块体素只跟一根骨骼整块转动（刚性绑定），身体不会弯成连续曲线。
+  </div>
+</div>
+<div id="wrap"><canvas id="c"></canvas><div id="hud"></div><div id="loading">加载模型数据（约 20 MB）…</div></div>
+<script src="dragon-data.js"></script>
+<script>
+(() => {
+const D = window.DRAGON;
+document.getElementById('loading').remove();
+const ZH = {Idle:'待机（循环）',Attack_Bite:'咬击',Attack_Breath:'吐息',Fly_Loop:'飞行（循环）',Land:'降落',Takeoff:'起飞'};
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', {antialias:true});
+// ---------- math ----------
+const m4 = () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+function mul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s;}return o;}
+function tr(p,q){const[x,y,z,w]=q;const o=new Float32Array(16);
+  o[0]=1-2*(y*y+z*z);o[1]=2*(x*y+z*w);o[2]=2*(x*z-y*w);o[3]=0;
+  o[4]=2*(x*y-z*w);o[5]=1-2*(x*x+z*z);o[6]=2*(y*z+x*w);o[7]=0;
+  o[8]=2*(x*z+y*w);o[9]=2*(y*z-x*w);o[10]=1-2*(x*x+y*y);o[11]=0;
+  o[12]=p[0];o[13]=p[1];o[14]=p[2];o[15]=1;return o;}
+function persp(f,a,n,fa){const t=1/Math.tan(f/2),o=new Float32Array(16);o[0]=t/a;o[5]=t;o[10]=(fa+n)/(n-fa);o[11]=-1;o[14]=2*fa*n/(n-fa);return o;}
+function look(e,c,u){const z=norm(sub(e,c)),x=norm(cross(u,z)),y=cross(z,x);
+  return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,e),-dot(y,e),-dot(z,e),1]);}
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>{const l=Math.hypot(...a)||1;return[a[0]/l,a[1]/l,a[2]/l]};
+// ---------- shaders ----------
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(o);return o;}
+const prog=gl.createProgram();
+gl.attachShader(prog,sh(gl.VERTEX_SHADER,`#version 300 es
+in vec3 aP;in vec3 aN;in vec3 aC;in vec3 aE;uniform mat4 uVP,uM;out vec3 vN,vC,vE;
+void main(){vN=mat3(uM)*aN;vC=aC;vE=aE;gl_Position=uVP*uM*vec4(aP,1.);}`));
+gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,`#version 300 es
+precision highp float;in vec3 vN,vC,vE;uniform vec3 uTint;out vec4 o;
+void main(){vec3 n=normalize(vN);float d=max(dot(n,normalize(vec3(.4,.8,.45))),0.);float h=.5+.5*n.y;
+vec3 c=vC*uTint*(.38+.42*h+.75*d)+vE;o=vec4(pow(c,vec3(1./1.6)),1.);}`));
+gl.linkProgram(prog);gl.useProgram(prog);
+const L={P:gl.getAttribLocation(prog,'aP'),N:gl.getAttribLocation(prog,'aN'),C:gl.getAttribLocation(prog,'aC'),E:gl.getAttribLocation(prog,'aE')};
+const U={VP:gl.getUniformLocation(prog,'uVP'),M:gl.getUniformLocation(prog,'uM'),T:gl.getUniformLocation(prog,'uTint')};
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+const pal=D.palette.map(p=>({c:hex(p.color).map(v=>Math.pow(v,1.6)*1.9),e:hex(p.emission)}));
+function makeVAO(pos,nrm,col,emi,idx){const v=gl.createVertexArray();gl.bindVertexArray(v);
+  for(const[loc,data]of[[L.P,pos],[L.N,nrm],[L.C,col],[L.E,emi]]){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);}
+  const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);gl.bindVertexArray(null);return{v,n:idx.length};}
+const parts=D.meshes.map(m=>{const n=m.pos.length/3,col=new Float32Array(n*3),emi=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const p=pal[m.mat[i]];col.set(p.c,i*3);emi.set(p.e,i*3);}
+  return{bone:m.bone,off:tr(m.p,m.q),g:makeVAO(new Float32Array(m.pos),new Float32Array(m.nrm),col,emi,new Uint32Array(m.idx))};});
+// box helper (scale reference)
+function box(w,h,d,color,y0=0){const P=[],N=[],I=[];const f=[[0,0,1],[0,0,-1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]];
+  for(const n of f){const u=Math.abs(n[1])>0?[1,0,0]:[0,1,0],v=cross(n,u),b=P.length/3;
+    for(const[s,t]of[[-1,-1],[1,-1],[1,1],[-1,1]]){P.push((n[0]+s*u[0]+t*v[0])*w/2,(n[1]+s*u[1]+t*v[1])*h/2+h/2+y0,(n[2]+s*u[2]+t*v[2])*d/2);N.push(...n);}
+    I.push(b,b+1,b+2,b,b+2,b+3);}
+  const n=P.length/3,C=new Float32Array(n*3),E=new Float32Array(n*3);for(let i=0;i<n;i++)C.set(color,i*3);
+  return makeVAO(new Float32Array(P),new Float32Array(N),C,E,new Uint32Array(I));}
+const nezha=box(.45,1.65,.3,[.75,.12,.08]);
+const wheel=box(.9,.06,.9,[.95,.65,.15],1.15);
+// grid
+const gridProg=gl.createProgram();
+gl.attachShader(gridProg,sh(gl.VERTEX_SHADER,`#version 300 es
+in vec3 aP;in float aA;uniform mat4 uVP;out float vA;void main(){vA=aA;gl_Position=uVP*vec4(aP,1.);}`));
+gl.attachShader(gridProg,sh(gl.FRAGMENT_SHADER,`#version 300 es
+precision highp float;in float vA;out vec4 o;void main(){o=vec4(.35,.4,.48,vA);}`));
+gl.linkProgram(gridProg);
+const gl_=[];for(let i=-30;i<=30;i++){const a=i%5===0?.45:.15;gl_.push(i,0,-30,a,i,0,30,a,-30,0,i,a,30,0,i,a);}
+const gridVAO=gl.createVertexArray();gl.bindVertexArray(gridVAO);const gb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,gb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(gl_),gl.STATIC_DRAW);
+const gpa=gl.getAttribLocation(gridProg,'aP'),gaa=gl.getAttribLocation(gridProg,'aA');gl.enableVertexAttribArray(gpa);gl.vertexAttribPointer(gpa,3,gl.FLOAT,false,16,0);gl.enableVertexAttribArray(gaa);gl.vertexAttribPointer(gaa,1,gl.FLOAT,false,16,12);gl.bindVertexArray(null);
+// ---------- animation ----------
+const rigById=new Map(D.rig.map(j=>[j.id,j]));
+const order=[];const seen=new Set();const visit=j=>{if(seen.has(j.id))return;if(j.parent>=0)visit(rigById.get(j.parent));seen.add(j.id);order.push(j);};D.rig.forEach(visit);
+let clip=0,time=0,playing=true,speed=1,follow=true;
+function sample(m,t){const T=m.times,n=T.length;let i=0;while(i<n-2&&T[i+1]<t)i++;const a=Math.min(Math.max((t-T[i])/((T[i+1]-T[i])||1),0),1);
+  const pose=new Map();for(const tk of m.tracks){const p=[0,1,2].map(k=>tk.p[i*3+k]*(1-a)+tk.p[(i+1)*3+k]*a);
+    let q0=tk.q.slice(i*4,i*4+4),q1=tk.q.slice((i+1)*4,(i+1)*4+4);if(dot4(q0,q1)<0)q1=q1.map(v=>-v);
+    const q=q0.map((v,k)=>v*(1-a)+q1[k]*a),l=Math.hypot(...q);pose.set(tk.node,{p,q:q.map(v=>v/l)});}return pose;}
+const dot4=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]+a[3]*b[3];
+// ---------- camera ----------
+let yaw=-0.9,pitch=0.28,dist=34,target=[0,4,-4];
+let drag=null;canvas.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-drag[0])*.005;pitch=Math.min(1.4,Math.max(-.2,pitch+(e.clientY-drag[1])*.005));drag=[e.clientX,e.clientY];});
+canvas.addEventListener('pointerup',()=>drag=null);
+canvas.addEventListener('wheel',e=>{e.preventDefault();dist=Math.min(90,Math.max(6,dist*(1+e.deltaY*.001)));},{passive:false});
+// ---------- UI ----------
+const clipsEl=document.getElementById('clips'),scrub=document.getElementById('scrub'),hud=document.getElementById('hud');
+D.motions.forEach((m,i)=>{const b=document.createElement('button');b.className='clip'+(i===0?' on':'');
+  b.innerHTML=`<b>${ZH[m.name]||m.name}</b><span>${m.name} · ${m.duration.toFixed(1)} 秒${m.loop?' · 循环':''}</span>`;
+  b.onclick=()=>{clip=i;time=0;playing=true;document.getElementById('play').textContent='暂停';document.querySelectorAll('.clip').forEach((x,k)=>x.classList.toggle('on',k===i));};clipsEl.appendChild(b);});
+document.getElementById('play').onclick=e=>{playing=!playing;e.target.textContent=playing?'暂停':'播放';};
+document.getElementById('follow').onclick=e=>{follow=!follow;e.target.textContent='镜头跟随：'+(follow?'开':'关');};
+document.getElementById('speed').oninput=e=>{speed=+e.target.value;document.getElementById('speedv').textContent=speed.toFixed(1)+'×';};
+scrub.oninput=e=>{playing=false;document.getElementById('play').textContent='播放';time=+e.target.value*D.motions[clip].duration;};
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;const m=D.motions[clip];
+  if(playing){time+=dt*speed;if(time>m.duration)time=m.loop?time%m.duration:(time=0);}
+  scrub.value=time/m.duration;
+  const pose=sample(m,time),world=new Map();
+  for(const j of order){const pp=pose.get(j.id)||{p:j.p,q:j.q};const local=tr(pp.p,pp.q);world.set(j.id,j.parent<0?local:mul(world.get(j.parent),local));}
+  const pel=world.get(51);if(follow&&pel){target=[target[0]*.9+pel[12]*.1,target[1]*.9+(pel[13]+1)*.1,target[2]*.9+pel[14]*.1];}
+  const dpr=devicePixelRatio||1,w=canvas.clientWidth*dpr,h=canvas.clientHeight*dpr;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);gl.clearColor(.957,.961,.969,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);
+  const eye=[target[0]+dist*Math.cos(pitch)*Math.sin(yaw),target[1]+dist*Math.sin(pitch),target[2]+dist*Math.cos(pitch)*Math.cos(yaw)];
+  const VP=mul(persp(.8,w/h,.1,400),look(eye,target,[0,1,0]));
+  gl.useProgram(gridProg);gl.uniformMatrix4fv(gl.getUniformLocation(gridProg,'uVP'),false,VP);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(gridVAO);gl.drawArrays(gl.LINES,0,gl_.length/4);gl.disable(gl.BLEND);
+  gl.useProgram(prog);gl.uniformMatrix4fv(U.VP,false,VP);gl.uniform3f(U.T,1,1,1);
+  for(const p of parts){const bw=world.get(p.bone);if(!bw)continue;gl.uniformMatrix4fv(U.M,false,mul(bw,p.off));gl.bindVertexArray(p.g.v);gl.drawElements(gl.TRIANGLES,p.g.n,gl.UNSIGNED_INT,0);}
+  const nz=tr([10,0,4],[0,0,0,1]);gl.uniformMatrix4fv(U.M,false,nz);gl.bindVertexArray(nezha.v);gl.drawElements(gl.TRIANGLES,nezha.n,gl.UNSIGNED_INT,0);
+  gl.bindVertexArray(wheel.v);gl.drawElements(gl.TRIANGLES,wheel.n,gl.UNSIGNED_INT,0);
+  hud.textContent=`${ZH[m.name]} · ${time.toFixed(2)} / ${m.duration.toFixed(2)} 秒`;
+  requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+const qs=new URLSearchParams(location.search);if(qs.has('clip')){clip=+qs.get('clip');time=+(qs.get('t')||0);playing=false;document.querySelectorAll('.clip').forEach((x,k)=>x.classList.toggle('on',k===clip));}
+})();
+</script>
+</body>
+</html>

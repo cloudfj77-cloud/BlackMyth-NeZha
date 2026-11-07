@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>《白神话：哪吒》美术方向板 v2</title>
+<style>
+  :root{
+    --bg:#f7f5f0; --card:#ffffff; --ink:#1f2328; --muted:#5d6670; --line:#e2ddd3;
+    --fire:#b8261c; --gold:#d4a03a; --water:#1e4560; --warn:#7fe6f0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    font-size:15px;line-height:1.7}
+  header{background:linear-gradient(120deg,#e7eef1 0%,#e7eef1 48%,#f6e6dc 52%,#f6e6dc 100%);
+    border-bottom:1px solid var(--line);padding:28px 32px}
+  header h1{margin:0 0 6px;font-size:26px;letter-spacing:1px}
+  header p{margin:2px 0;color:var(--muted);font-size:13px}
+  nav{position:sticky;top:0;z-index:5;background:rgba(247,245,240,.95);border-bottom:1px solid var(--line);
+    padding:8px 32px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px}
+  nav a{color:var(--water);text-decoration:none}
+  nav a:hover{text-decoration:underline}
+  main{max-width:1180px;margin:0 auto;padding:12px 32px 60px}
+  h2{margin:40px 0 12px;font-size:21px;padding-left:10px;border-left:4px solid var(--fire)}
+  h3{margin:26px 0 10px;font-size:17px}
+  h4{margin:16px 0 6px;font-size:15px}
+  .note{background:#fff8e8;border:1px solid #efdcb0;border-radius:6px;padding:10px 14px;font-size:13.5px;color:#4a4030}
+  .note p{margin:3px 0}
+  table{width:100%;border-collapse:collapse;background:var(--card);margin:8px 0 14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#efebe3;font-weight:600}
+  td.num{font-family:Menlo,Consolas,monospace;white-space:nowrap}
+  code{background:#efebe3;border-radius:3px;padding:0 4px;font-size:13px}
+  .lead{font-size:18px;font-weight:600;margin:6px 0 12px}
+  .tags span{display:inline-block;margin:3px 6px 3px 0;padding:2px 10px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:13px}
+  /* 色板 */
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:8px 0 18px}
+  .sw{display:flex;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .chip{width:72px;flex:none;border-right:1px solid var(--line)}
+  .sw .t{padding:8px 10px;font-size:13px;line-height:1.55}
+  .sw .t b{font-size:14px}
+  .sw .t .hex{font-family:Menlo,Consolas,monospace;color:var(--muted);margin-left:4px}
+  .sw .t .meta{font-family:Menlo,Consolas,monospace;color:var(--muted);font-size:12px}
+  .ok{color:#2c6b3a}.no{color:#a2281f}
+  .gradient{height:40px;border-radius:6px;border:1px solid var(--line);
+    background:linear-gradient(90deg,#7fa295,#587a6d,#25342e);margin:4px 0 2px}
+  .gradlabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:12px}
+  .compare{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;margin:6px 0 12px}
+  .compare div{display:flex;align-items:center;gap:6px}
+  .compare i{display:inline-block;width:46px;height:26px;border-radius:4px;border:1px solid var(--line)}
+  .formula{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--water);border-radius:6px;
+    padding:10px 14px;margin:8px 0 12px;font-family:Menlo,Consolas,monospace;font-size:15px}
+  .void{color:var(--muted);font-size:13px}
+  .void s{color:#8a8f96}
+  /* 分对象板块 */
+  .board{display:grid;grid-template-columns:minmax(260px,400px) 1fr;gap:22px;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;padding:18px;margin:10px 0 18px}
+  .board figure{margin:0}
+  .board img{width:100%;border-radius:6px;border:1px solid var(--line);cursor:zoom-in;background:#fafafa;display:block}
+  .board figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .board ul,.board ol{margin:4px 0 8px;padding-left:20px}
+  .board li{margin:2px 0}
+  .diagram{grid-column:1/-1;border-top:1px dashed var(--line);padding-top:12px}
+  .diagram svg{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:6px}
+  .diagram p{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .two>div{border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+  .two .take{border-top:3px solid #4b8a5a}
+  .two .skip{border-top:3px solid #b8261c}
+  .two ul{padding-left:18px;font-size:13.5px}
+  .tagw{display:inline-block;font-size:12px;padding:0 6px;border-radius:3px;background:#fdecc8;color:#7a5200}
+  .tagd{display:inline-block;font-size:12px;padding:0 6px;border-radius:3px;background:#dcefe0;color:#22572f}
+  .rec{background:#eef6ef;border-left:4px solid #4b8a5a;padding:8px 12px;margin:6px 0 14px;font-size:14px}
+  .rec ol{margin:4px 0;padding-left:20px}
+  .issue{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 18px 4px;margin:12px 0}
+  .issue.done{border-left:4px solid #4b8a5a}
+  .issue ul{margin:4px 0 10px;padding-left:20px}
+  footer{color:var(--muted);font-size:12.5px;text-align:center;padding:20px}
+  /* 放大 */
+  #lb{position:fixed;inset:0;background:rgba(250,249,246,.96);display:none;align-items:center;justify-content:center;z-index:20;cursor:zoom-out;padding:24px}
+  #lb.on{display:flex}
+  #lb img{max-width:96vw;max-height:90vh;box-shadow:0 6px 30px rgba(0,0,0,.18);border-radius:6px}
+  #lb p{position:fixed;bottom:12px;left:0;right:0;text-align:center;color:var(--muted);font-size:13px;margin:0}
+  @media (max-width:820px){.board{grid-template-columns:1fr}.two{grid-template-columns:1fr}main,header,nav{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>《白神话：哪吒》美术方向板</h1>
+  <p>负责人：美术总监 · 版本 <b>v2</b> · 2026-11-05（龙王重新设计会定稿后）</p>
+  <p>依据：<code>design/references/</code> 五张 ✅ 参考图及各目录 notes.md；龙王重新设计会定稿纪要 <code>design/meetings/2026-11-05-dragon-redesign.md</code>（老板 17:48 拍板）及发言实录 <code>…-live.md</code>。</p>
+</header>
+
+<nav>
+  <a href="#ver">版本记录</a><a href="#s1">1 总基调</a><a href="#s2">2 色板</a><a href="#s2-5">去色口径</a><a href="#s2-6">预警色统一</a>
+  <a href="#s3-1">龙王</a><a href="#s3-2">哪吒</a><a href="#s3-3">场景</a><a href="#s3-4">界面与 HUD</a><a href="#s3-5">封面与开始界面</a>
+  <a href="#s4">4 已定</a><a href="#s5">5 版权声明</a>
+</nav>
+
+<main>
+
+<div class="note" style="margin-top:18px">
+  <p>设计文档尚未按定稿纪要改稿（由主窗口修改）。<b>本板以定稿纪要为准</b>；纪要没覆盖的，仍以 notes.md 中的老板指令为准。</p>
+  <p>本板只定视觉方向。玩法数值、叙事以纪要为准，本板只在需要时引用。标 <span class="tagw">⏳ 待裁定</span> 的条目等主窗口裁定。</p>
+  <p>点击参考图可放大，再点一次或按 Esc 关闭。</p>
+</div>
+
+<!-- 版本记录 -->
+<h2 id="ver">版本记录</h2>
+<table>
+  <tr><th style="width:8%">版本</th><th style="width:24%">时间</th><th>内容</th></tr>
+  <tr><td>v1</td><td>2026-11-05 17:14</td><td>初版：五张参考图的取舍、色板、分对象板块、5 个待议点（⚖️①～⑤）交龙王重新设计会</td></tr>
+  <tr><td>v2</td><td>2026-11-05 老板 17:48 拍板后</td><td>见下方改动点</td></tr>
+</table>
+<h4>v2 改动点</h4>
+<ol>
+  <li>第 4 节「冲突与待议点」改为「已定」：①～⑤ 写入会上结论，v1 的方案对比表删除。</li>
+  <li><b>修正去色差冲突</b>：龙身亮端 <code>#88AEA0</code>（会上值）→ <code>#7FA295</code>；定去色口径为 Rec.601 luma，写出计算（2.5）。</li>
+  <li>龙身渐变的中段、暗端一并移到色相 155～160°：中青 <code>#4E7A79</code> → <code>#587A6D</code>，墨青 <code>#1D3436</code> → <code>#25342E</code>（v1 的两个值色相约 179° / 185°，不在定稿范围内）。v1 亮端 <code>#8DB8B4</code> 作废。</li>
+  <li><b>预警色统一</b>：对比 M2 实现的 <code>#7FE6F0</code> 与 v1 的 <code>#45F0EC</code>，美术推荐 <code>#7FE6F0</code>（<span class="tagw">⏳ 最终由主窗口裁定</span>，2.6）。</li>
+  <li>龙王：补定稿分段尺寸与分段示意图、二阶段外观、破绽 / 受击 / 倒下的外观要点。</li>
+  <li>场景：补 40 m 涡面 + 6 m 龙游环带、水墙内径 52 m、涡心纹理明暗差、渔灯检查点、倒下停转，附俯视示意图；通行区限高随哪吒飞高改为 4.5 m。</li>
+  <li>哪吒：补浮动高度、红绫参数与剪影保护手段。</li>
+  <li>封面：按 ⑤A 定稿（加「一段龙尾破框」）；环境浮动上限 0.25 Hz → 0.2 Hz。</li>
+</ol>
+
+<!-- 1 -->
+<h2 id="s1">1. 总基调</h2>
+<p class="lead">深海巨沟里的一团火——冷、暗、巨大的水，压着一个小而亮、往上蹿的少年。</p>
+<h4>「火对水」怎么贯穿（定稿口诀：<b>火是竖线，水是圆</b>）</h4>
+<table>
+  <tr><th style="width:12%">层面</th><th>火（哪吒）</th><th>水（龙王与环境）</th></tr>
+  <tr><td>色</td><td>朱红、赤金、火焰橙，暖、饱和</td><td>冰青→墨青（色相 155～160°）、墨青铜、深蓝，冷、压暗</td></tr>
+  <tr><td>光</td><td>点状自发光（绫、枪尖、风火轮）</td><td>大面积弱光（顶光柱、月白青三成亮度，二阶段 45%）</td></tr>
+  <tr><td>形</td><td>小、尖、向上（发髻、枪、上飘的红绫）</td><td>大、长、斜、盘旋（长龙、斜壁、漩涡）</td></tr>
+  <tr><td>动</td><td>竖向上冲，快、轻，像火苗（0.8 Hz）</td><td>龙沿躯干横向行波、绕圈游（0.4 Hz）；环境横向、成片同步（≤ 0.2 Hz）</td></tr>
+  <tr><td>尺度</td><td>人小（头顶 ≤ 3.2 m）</td><td>龙 18 m、漩涡 52 m、沟更大</td></tr>
+</table>
+<h4>关键词</h4>
+<div class="tags"><span>水中燃火</span><span>龙宫沉郁，少年意气</span><span>小人物大场景</span><span>冷暖对角</span><span>斜向巨沟</span><span>漩涡</span><span>灵动红绫</span><span>写实东方神话</span></div>
+
+<!-- 2 -->
+<h2 id="s2">2. 色板</h2>
+<div class="note">
+  <p>HEX 为建议值，供概念图和材质起稿用；正式值由技术美术在引擎里按 2.5 的去色口径和色盲测试校准。</p>
+  <p>色相 H、饱和 S、明度 V 均按 HSV 计：S = (max − min) / max，V = max / 255。</p>
+</div>
+
+<h3>2.1 哪吒方</h3>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#b8261c"></div><div class="t"><b>朱红</b><span class="hex">#B8261C</span><br><span class="ok">能：</span>短甲、红绫本色、衣料<br><span class="no">不能：</span>发光；地面特效；HUD 警示</div></div>
+  <div class="sw"><div class="chip" style="background:#d4a03a"></div><div class="t"><b>赤金</b><span class="hex">#D4A03A</span><br><span class="ok">能：</span>金纹、护腕、乾坤圈、红绫金纹（冷却填充）、开始/结算界面哪吒侧细框、锁定标记<br><span class="no">不能：</span>用作龙王的金；大面积铺底</div></div>
+  <div class="sw"><div class="chip" style="background:#f2ece0"></div><div class="t"><b>莲白</b><span class="hex">#F2ECE0</span><br><span class="ok">能：</span>莲花纹、内衬、小面积高光<br><span class="no">不能：</span>大面积使用（易与白须、月白青混读）</div></div>
+  <div class="sw"><div class="chip" style="background:#ff7a1a"></div><div class="t"><b>火焰橙</b><span class="hex">#FF7A1A</span><br><span class="ok">能：</span>只给三处自发光：混天绫、枪尖、风火轮<br><span class="no">不能：</span>上短甲；出现在龙王和环境上</div></div>
+</div>
+
+<h3>2.2 龙王方</h3>
+<p>龙身渐变（v2）：亮端 <code>#7FA295</code> → 中青 <code>#587A6D</code> → 墨青 <code>#25342E</code>，三点色相都在 155～160°。</p>
+<div class="gradient"></div>
+<div class="gradlabel"><span>冰青 #7FA295（腹部、头颈）</span><span>中青 #587A6D（躯干侧面、背鳍尖勾边）</span><span>墨青 #25342E（背部、尾段）</span></div>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#7fa295"></div><div class="t"><b>冰青（龙身亮端）</b><span class="hex">#7FA295</span><br><span class="meta">H 157.7° · S 21.6% · V 63.5% · Y′ 150.1</span><br><span class="ok">能：</span>龙身固有色渐变浅端：腹部、头颈<br><span class="no">不能：</span>发光；进泛光；去色后必须比预警暗 ≥ 30 灰阶（见 2.5）</div></div>
+  <div class="sw"><div class="chip" style="background:#587a6d"></div><div class="t"><b>中青</b><span class="hex">#587A6D</span><br><span class="meta">H 157.1° · S 27.9% · V 47.8% · Y′ 110.4</span><br><span class="ok">能：</span>渐变中段：躯干侧面；<b>背鳍尖勾边</b><br><span class="no">不能：</span>同上</div></div>
+  <div class="sw"><div class="chip" style="background:#25342e"></div><div class="t"><b>墨青（龙身暗端）</b><span class="hex">#25342E</span><br><span class="meta">H 156.0° · S 28.8% · V 20.4% · Y′ 46.8</span><br><span class="ok">能：</span>背部、尾段，由头到尾逐渐变暗</div></div>
+  <div class="sw"><div class="chip" style="background:#3e4a3c"></div><div class="t"><b>墨青铜</b><span class="hex">#3E4A3C</span><br><span class="ok">能：</span>背鳍根、鳞缘、角根、退化小爪<br><span class="no">不能：</span>提亮到比背景亮</div></div>
+  <div class="sw"><div class="chip" style="background:#a88b4e"></div><div class="t"><b>旧金（龙王金）</b><span class="hex">#A88B4E</span><br><span class="ok">能：</span>鹿角尖、鳞缘细描、须根饰件<br><span class="no">不能：</span>大面积；用哪吒的赤金色值</div></div>
+  <div class="sw"><div class="chip" style="background:#cfe7e4;opacity:.55"></div><div class="t"><b>月白青（发光）</b><span class="hex">#CFE7E4</span><br><span class="meta">一阶段约三成亮度，二阶段 45%</span><br><span class="ok">能：</span>龙身唯一的发光：鳞纹、眼<br><span class="no">不能：</span>闪烁；进泛光；收缩；截图去色值高于预警</div></div>
+  <div class="sw"><div class="chip" style="background:#e6e3da"></div><div class="t"><b>白须</b><span class="hex">#E6E3DA</span><br><span class="ok">能：</span>龙须、眉、鬃末梢<br><span class="no">不能：</span>染青色</div></div>
+</div>
+<p class="void">作废：v1 的 <s>#8DB8B4</s>、<s>#4E7A79</s>、<s>#1D3436</s>；会上的 <s>#88AEA0</s>（去色差只有 27.4，见 2.5）。</p>
+
+<h3>2.3 环境</h3>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#0d1e33"></div><div class="t"><b>深海蓝（远景雾）</b><span class="hex">#0D1E33</span><br><span class="ok">能：</span>远景、海沟深处、画面暗区</div></div>
+  <div class="sw"><div class="chip" style="background:#1e4560"></div><div class="t"><b>水雾蓝（中景）</b><span class="hex">#1E4560</span><br><span class="ok">能：</span>中景水体、水墙主体<br><span class="no">不能：</span>偏青到接近冰青</div></div>
+  <div class="sw"><div class="chip" style="background:#2a3036"></div><div class="t"><b>岩壁冷灰</b><span class="hex">#2A3036</span><br><span class="ok">能：</span>海沟斜壁、岩柱<br><span class="no">不能：</span>节理高光超过 #56606A</div></div>
+  <div class="sw"><div class="chip" style="background:#2c4a5c"></div><div class="t"><b>涡面蓝灰</b><span class="hex">#2C4A5C</span><br><span class="ok">能：</span>漩涡涡面固有色<br><span class="no">不能：</span>r &lt; 14 m 涡心纹理明暗差超过 8 灰阶（见 ②）</div></div>
+  <div class="sw"><div class="chip" style="background:#a9c2cf;opacity:.6"></div><div class="t"><b>顶光柱</b><span class="hex">#A9C2CF · 低不透明度</span><br><span class="ok">能：</span>海面直下的光束、焦散<br><span class="no">不能：</span>预警范围内超过三成亮度；用冰青</div></div>
+</div>
+<p class="void">环境色的彩度（max − min）不超过 70（水雾蓝 66、涡面蓝灰 48），保证预警在雾里仍是彩度最高的冷色。</p>
+
+<h3>2.4 功能色（规则色，不可挪用）</h3>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#7fe6f0;box-shadow:inset 0 0 0 5px #0a3a6b"></div><div class="t"><b>预警冰青</b> <span class="tagw">⏳ 待裁定</span><br><span class="hex" style="margin:0">美术推荐 #7FE6F0（M2 已实现）/ 备选 #45F0EC（v1）· 描边 #0A3A6B</span><br><span class="ok">能：</span>只用于地面预警；地面贴花层；闪烁+收缩<br><span class="no">不能：</span>进泛光；受水雾染色；HUD、颗粒、涡面、龙身都不用这个色值</div></div>
+  <div class="sw"><div class="chip" style="background:#ffa531"></div><div class="t"><b>哪吒橙金</b><span class="hex">#FFA531</span><br><span class="ok">能：</span>哪吒的地面特效、接触光（柔边，恒定）<br><span class="no">不能：</span>闪烁、收缩；接触光要绘制在预警之下</div></div>
+</div>
+<h4>易混色对照</h4>
+<div class="compare">
+  <div><i style="background:#7fa295"></i>龙身亮端 #7FA295</div><span>vs</span><div><i style="background:#7fe6f0;box-shadow:inset 0 0 0 4px #0a3a6b"></i>预警 #7FE6F0</div><span>/</span><div><i style="background:#45f0ec;box-shadow:inset 0 0 0 4px #0a3a6b"></i>预警 #45F0EC</div>
+  <span style="width:24px"></span>
+  <div><i style="background:#a88b4e"></i>龙王旧金</div><span>vs</span><div><i style="background:#d4a03a"></i>哪吒赤金</div>
+  <span style="width:24px"></span>
+  <div><i style="background:#e6e3da"></i>白须</div><span>vs</span><div><i style="background:#f2ece0"></i>莲白</div>
+</div>
+<h4>色值铁律</h4>
+<ul>
+  <li>闪烁和收缩只属于地面预警（龙受击也不闪光）。</li>
+  <li>画面里最亮、最饱和的冷色只能是预警冰青。</li>
+  <li>蓝对橙的对比要在色盲模拟和去色截图里都成立。</li>
+  <li>预警去色后比龙身亮端高 ≥ 30 灰阶（Rec.601）。</li>
+</ul>
+
+<h3 id="s2-5">2.5 去色口径与计算（修正会上冲突）</h3>
+<p><b>口径</b>：Rec.601 luma，直接用 sRGB 编码值（0～255），不做线性化：</p>
+<div class="formula">Y′ = 0.299 R′ + 0.587 G′ + 0.114 B′</div>
+<table>
+  <tr><th style="width:22%">色值</th><th>计算</th><th style="width:10%">Y′</th></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#88aea0;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#88AEA0</code>（会上亮端）</td><td class="num">0.299×136 + 0.587×174 + 0.114×160 = 40.66 + 102.14 + 18.24</td><td class="num"><b>161.0</b></td></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#45f0ec;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#45F0EC</code>（v1 预警）</td><td class="num">0.299×69 + 0.587×240 + 0.114×236 = 20.63 + 140.88 + 26.90</td><td class="num"><b>188.4</b></td></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#7fe6f0;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#7FE6F0</code>（M2 预警）</td><td class="num">0.299×127 + 0.587×230 + 0.114×240 = 37.97 + 135.01 + 27.36</td><td class="num"><b>200.3</b></td></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#7fa295;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#7FA295</code>（v2 亮端）</td><td class="num">0.299×127 + 0.587×162 + 0.114×149 = 37.97 + 95.09 + 16.99</td><td class="num"><b>150.1</b></td></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#ffa531;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#FFA531</code>（哪吒橙金）</td><td class="num">0.299×255 + 0.587×165 + 0.114×49 = 76.25 + 96.86 + 5.59</td><td class="num"><b>178.7</b></td></tr>
+  <tr><td><i style="display:inline-block;width:14px;height:14px;background:#2c4a5c;vertical-align:-2px;border:1px solid var(--line)"></i> <code>#2C4A5C</code>（涡面蓝灰）</td><td class="num">0.299×44 + 0.587×74 + 0.114×92 = 13.16 + 43.44 + 10.49</td><td class="num"><b>67.1</b></td></tr>
+</table>
+<table>
+  <tr><th>对比</th><th style="width:16%">差值</th><th style="width:22%">是否 ≥ 30</th></tr>
+  <tr><td><code>#45F0EC</code> − <code>#88AEA0</code></td><td class="num">27.4</td><td class="no">✗（制作人核对属实）</td></tr>
+  <tr><td><code>#7FE6F0</code> − <code>#88AEA0</code></td><td class="num">39.3</td><td class="ok">✓</td></tr>
+  <tr><td><code>#45F0EC</code> − <code>#7FA295</code></td><td class="num"><b>38.3</b></td><td class="ok">✓</td></tr>
+  <tr><td><code>#7FE6F0</code> − <code>#7FA295</code></td><td class="num"><b>50.2</b></td><td class="ok">✓</td></tr>
+</table>
+<div class="rec"><b>定稿亮端：<code>#7FA295</code></b>（采纳制作人建议值）。H 157.7°、S 21.6%、V 63.5%，三项都在范围内（155～160°、≤ 30%、≤ 72%）。无论预警最后用哪个值都 ≥ 30，对 <code>#45F0EC</code> 还留 8 灰阶余量，可吸收贴图噪点和受光提亮。我试过更亮的 <code>#84A89A</code>（Y′ 155.6，差 32.8），余量只有 2.8，一受光就可能跌破 30，不采用。</div>
+<p><b>引擎验收</b>：关泛光截图，在预警收缩环和同屏龙身最亮的固有色区（腹部 / 头颈受光面）各取 5×5 像素平均，按上式算，差 ≥ 30。屏幕上的实际值和 HEX 不同（M2 预警填充层强度 0.45、收缩环 1.2），所以以截图为准、以收缩环为准。二阶段月白青升到 45% 时同样复核：截图去色值须低于预警收缩环。</p>
+
+<h3 id="s2-6">2.6 预警色统一：#7FE6F0 vs #45F0EC <span class="tagw">⏳ 推荐，最终由主窗口裁定</span></h3>
+<div class="compare">
+  <div><i style="background:#45f0ec;box-shadow:inset 0 0 0 4px #0a3a6b;width:70px;height:36px"></i>#45F0EC（v1）</div>
+  <div><i style="background:#7fe6f0;box-shadow:inset 0 0 0 4px #0a3a6b;width:70px;height:36px"></i>#7FE6F0（M2 实现）</div>
+  <span style="width:18px"></span>
+  <div>去色：<i style="background:rgb(188,188,188);width:46px"></i>188.4</div>
+  <div><i style="background:rgb(200,200,200);width:46px"></i>200.3</div>
+  <div>龙身亮端 <i style="background:rgb(150,150,150);width:46px"></i>150.1</div>
+  <div>橙金 <i style="background:rgb(179,179,179);width:46px"></i>178.7</div>
+</div>
+<table>
+  <tr><th>指标</th><th style="width:22%"><code>#45F0EC</code>（v1）</th><th style="width:22%"><code>#7FE6F0</code>（M2 实现）</th><th style="width:20%">谁占优</th></tr>
+  <tr><td>H / S / V</td><td class="num">178.6° / 71.3% / 94.1%</td><td class="num">185.3° / 47.1% / 94.1%</td><td>—</td></tr>
+  <tr><td>去色 Y′</td><td class="num">188.4</td><td class="num">200.3</td><td>—</td></tr>
+  <tr><td>与龙身亮端 <code>#7FA295</code> 的去色差</td><td class="num">38.3</td><td class="num"><b>50.2</b></td><td>#7FE6F0</td></tr>
+  <tr><td>与龙身亮端的色相差</td><td class="num">20.9°</td><td class="num"><b>27.6°</b></td><td>#7FE6F0</td></tr>
+  <tr><td>与哪吒橙金 <code>#FFA531</code>（33.8°）的色相差</td><td class="num">144.8°</td><td class="num"><b>151.5°</b></td><td>相近，都在蓝—黄轴两端</td></tr>
+  <tr><td>与哪吒橙金的去色差</td><td class="num">9.7</td><td class="num"><b>21.6</b></td><td>#7FE6F0</td></tr>
+  <tr><td>彩度（max − min）</td><td class="num"><b>171</b></td><td class="num">113</td><td>#45F0EC</td></tr>
+  <tr><td>与水雾蓝 <code>#1E4560</code>（204.5°）的色相差</td><td class="num"><b>25.9°</b></td><td class="num">19.2°</td><td>#45F0EC</td></tr>
+  <tr><td>与涡面蓝灰 <code>#2C4A5C</code> 的去色差</td><td class="num">121.3</td><td class="num"><b>133.2</b></td><td>#7FE6F0</td></tr>
+</table>
+<div class="rec"><b>美术推荐：<code>#7FE6F0</code></b> <span class="tagw">⏳ 推荐，最终由主窗口裁定</span>
+  <ol>
+    <li><b>与龙身亮端的去色差</b>：50.2，比 <code>#45F0EC</code> 多 12 灰阶。即使龙身受光提亮、贴图有噪点，也离 30 的底线很远。</li>
+    <li><b>与橙金的色盲可辨</b>：红绿色盲（protan / deutan）保留蓝—黄轴，两个候选和橙金都分得开。蓝黄色盲（tritan）会削弱蓝—黄轴，这时主要靠明度区分：<code>#45F0EC</code> 与橙金去色只差 9.7，几乎同灰；<code>#7FE6F0</code> 差 21.6。这一点也直接关系到「3 秒去色、5 人盲测」，以及「预警与接触光叠在一起」的情况。</li>
+    <li><b>在深蓝水雾下的可读性</b>：这一项 <code>#45F0EC</code> 占优。它彩度更高（171 vs 113），色相离水雾蓝更远（25.9° vs 19.2°）。<code>#7FE6F0</code> 偏蓝偏淡，被雾染色后会先往水雾蓝靠。补救做法有三条：预警材质不受水雾染色；保留深蓝描边；环境色彩度上限 70。做到这三条后，<code>#7FE6F0</code> 的彩度仍是环境最高值的 1.6 倍以上，去色明度也更高（与涡面差 133.2）。</li>
+    <li><b>成本</b>：M2 已经按 <code>#7FE6F0</code> 实现，老板试玩前不用返工。</li>
+  </ol>
+</div>
+<p>若主窗口选 <code>#45F0EC</code>：龙身 <code>#7FA295</code> 仍然达标（38.3），但要另想办法拉开与橙金的去色差（只有 9.7），比如压低接触光亮度，或靠描边和柔边 / 硬边来区分。</p>
+<p><b>交技术美术核对</b>：M2 的预警材质走 glow 管线，请确认不进泛光、不受雾。M2 的描边约为 <code>#1A386F</code>（线性 0.01 / 0.04 / 0.16），与 <code>#0A3A6B</code> 视觉上相当，不必改。</p>
+
+<!-- 3 -->
+<h2 id="s3">3. 分对象板块</h2>
+
+<h3 id="s3-1">3.1 东海龙王（东方神龙）</h3>
+<div class="board">
+  <figure>
+    <img src="references/dragon-king/dk-01-serpent-teal-sshape.jpg" alt="龙王参考：蛇形长躯 S 形盘绕的冰青墨青东方龙" loading="lazy">
+    <figcaption>dk-01-serpent-teal-sshape.jpg · ✅ 老板 16:29 确认 · 来源：小红书画师 nightcrow</figcaption>
+  </figure>
+  <div>
+    <div class="two">
+      <div class="take"><b class="ok">取什么</b><ul>
+        <li>蛇形长躯盘成 S 形，头和鹿角在最高处</li>
+        <li>头部：狭长龙首、张口獠牙、鬃毛向后炸开</li>
+        <li>背鳍：一排连续尖刺鳍，从头到尾</li>
+        <li>爪形：细长张开的鹰爪（只取形状）</li>
+        <li>冰青→墨青渐变：腹浅背深、头亮尾暗</li>
+        <li>游动曲线有起伏，须、鬃向后飘</li>
+      </ul></div>
+      <div class="skip"><b class="no">不取什么</b><ul>
+        <li>星座连线、橙色圆点等装饰</li>
+        <li>橙色火苗（橙金是哪吒专用色）</li>
+        <li>青色龙须（本作白须）</li>
+        <li>黑色鹿角（本作青铜带金）</li>
+        <li>大面积高亮冰青（撞预警色）</li>
+        <li>四肢数量与比例（老板定：几乎无爪）</li>
+        <li>2D 平涂线描、白底、水印署名</li>
+      </ul></div>
+    </div>
+    <h4>定稿分段尺寸 <span class="tagd">✅ 17:48</span></h4>
+    <table>
+      <tr><th style="width:16%">部位</th><th style="width:30%">尺寸</th><th>视觉要点</th></tr>
+      <tr><td>全长</td><td>18 m（脊柱 40 节 × 0.45 m）</td><td>向尾部渐细</td></tr>
+      <tr><td>胸径</td><td>1.5 m</td><td>胸部最粗，之后渐细</td></tr>
+      <tr><td>头</td><td>2 m</td><td>狭长龙首；平时闭嘴，只在预兆时张口</td></tr>
+      <tr><td>鹿角</td><td>1.2 m</td><td>墨青铜，尖端旧金</td></tr>
+      <tr><td>白须</td><td>两条，各 3 m（≥ 头长 1.5 倍）</td><td>平时下垂，显老</td></tr>
+      <tr><td>鬃</td><td>0.8 m</td><td>向后炸开，末梢白须色</td></tr>
+      <tr><td>背鳍</td><td>颈→尾，0.5 m 渐变到 0.15 m</td><td>根部墨青铜，<b>尖端中青 #587A6D 勾边</b>（防止墨青背、尾融进深海蓝）</td></tr>
+      <tr><td>尾穗</td><td>尾末 2 m</td><td>鳍穗</td></tr>
+      <tr><td>退化小爪</td><td>两对，≤ 0.3 m</td><td>贴在腹部，不进招式和剪影主体</td></tr>
+    </table>
+    <p class="void">尺寸口径：18 m 指脊柱全长，头（0～2 m）和尾穗（16～18 m）都算在内；鹿角、须、鬃、背鳍、小爪是附件，不计入全长。如果绑骨口径不同，由技术美术确认。</p>
+  </div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 310" role="img" aria-label="龙王分段示意：直身侧视，标注全长 18 米、胸径 1.5 米、头 2 米、鹿角 1.2 米、白须两条各 3 米、鬃 0.8 米、背鳍 0.5 到 0.15 米、尾穗 2 米、退化小爪两对不超过 0.3 米">
+      <defs>
+        <linearGradient id="dkBody" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stop-color="#7FA295"/><stop offset=".45" stop-color="#587A6D"/><stop offset="1" stop-color="#25342E"/>
+        </linearGradient>
+      </defs>
+      <rect width="760" height="310" fill="#fbfaf7"/>
+      <text x="20" y="24" font-size="13" font-weight="600" fill="#1f2328">龙王分段示意（直身静置 · 侧视 · 1 m = 36 px）</text>
+      <text x="740" y="46" font-size="11" fill="#5d6670" text-anchor="end">二阶段：背鳍竖起 ×1.4 · 尾穗展开 ×1.5（虚线）· 发光 30%→45% 线性不闪 · 须扯乱</text>
+
+      <!-- 尾穗二阶段（虚线） -->
+      <path d="M626,141 Q668,98 700,99 Q688,150 700,201 Q668,202 626,159 Z" fill="none" stroke="#587A6D" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <!-- 背鳍 -->
+      <polyline points="114,128 140,109 155,124 181,107 196,123 222,107 237,124 263,109 278,124 304,111 319,125 345,113 360,127 386,116 401,128 427,118 442,130 468,121 483,132 509,124 524,135 550,128 565,137 591,133 606,140 632,137 646,143" fill="#3E4A3C" stroke="#587A6D" stroke-width="1.6" stroke-linejoin="round"/>
+      <!-- 鬃 -->
+      <g fill="none" stroke-linecap="round">
+        <path d="M118,129 Q126,114 138,106 M124,131 Q134,120 146,113 M129,133 Q140,126 153,122" stroke="#6F7F78" stroke-width="3.2"/>
+        <path d="M132,110 L138,106 M141,116 L146,113 M148,123 L153,122" stroke="#E6E3DA" stroke-width="2.2"/>
+      </g>
+      <!-- 鹿角 -->
+      <g fill="none" stroke="#3E4A3C" stroke-width="3" stroke-linecap="round">
+        <path d="M102,128 L95,100 L84,86 M95,100 L104,88 M97,111 L108,105"/>
+        <path d="M112,127 L107,98 L99,85 M107,98 L117,89"/>
+      </g>
+      <g fill="#A88B4E"><circle cx="84" cy="86" r="2.4"/><circle cx="104" cy="88" r="2.4"/><circle cx="108" cy="105" r="2.4"/><circle cx="99" cy="85" r="2.4"/><circle cx="117" cy="89" r="2.4"/></g>
+      <!-- 躯干 -->
+      <path d="M122,128 L158,124 L194,123 L266,124 L338,126 L446,130 L518,134 L590,139 L626,142 L662,145 L698,147 L698,153 L662,155 L626,158 L590,161 L518,166 L446,170 L338,174 L266,176 L194,177 L158,176 L122,172 Z" fill="url(#dkBody)" stroke="#25342E" stroke-width=".8"/>
+      <!-- 尾穗 -->
+      <path d="M626,141 Q668,112 700,116 Q688,150 700,184 Q668,188 626,159 Z" fill="#25342E" stroke="#587A6D" stroke-width="1.2"/>
+      <!-- 头 -->
+      <path d="M122,128 C104,122 74,130 50,144 L50,156 C74,166 104,174 122,172 Z" fill="#7FA295" stroke="#25342E" stroke-width=".8"/>
+      <path d="M50,151 L84,152" stroke="#25342E" stroke-width="1"/>
+      <circle cx="90" cy="140" r="2.6" fill="#CFE7E4" stroke="#25342E" stroke-width=".8"/>
+      <!-- 白须 -->
+      <g fill="none" stroke-linecap="round">
+        <path d="M58,158 C76,190 108,204 146,212 M66,160 C84,190 114,204 150,214" stroke="#8A8578" stroke-width="4"/>
+        <path d="M58,158 C76,190 108,204 146,212 M66,160 C84,190 114,204 150,214" stroke="#E6E3DA" stroke-width="2"/>
+      </g>
+      <!-- 退化小爪 -->
+      <path d="M198,177 l-4,9 l-4,0 M206,177 l-2,9 l-4,0 M298,176 l-4,9 l-4,0 M306,176 l-2,9 l-4,0" fill="none" stroke="#3E4A3C" stroke-width="2" stroke-linecap="round"/>
+      <!-- 11 m 分界 -->
+      <line x1="446" y1="112" x2="446" y2="186" stroke="#5d6670" stroke-width="1" stroke-dasharray="3 3"/>
+
+      <!-- 标注 -->
+      <g font-size="11" fill="#1f2328">
+        <text x="40" y="74">鹿角 1.2 m（墨青铜，尖端旧金）</text>
+        <text x="158" y="99">鬃 0.8 m，向后炸开</text>
+        <line x1="352" y1="99" x2="345" y2="111" stroke="#5d6670" stroke-width=".8"/>
+        <text x="340" y="96">背鳍 0.5 m → 0.15 m（颈→尾，尖端中青 #587A6D 勾边）</text>
+        <line x1="232" y1="124" x2="232" y2="176" stroke="#1f2328" stroke-width="1"/>
+        <path d="M227,124 H237 M227,176 H237" stroke="#1f2328" stroke-width="1"/>
+        <text x="238" y="155">胸径 1.5 m</text>
+        <text x="156" y="232">白须 ×2，各 3 m（≥ 头长 1.5 倍）</text>
+        <line x1="296" y1="188" x2="290" y2="196" stroke="#5d6670" stroke-width=".8"/>
+        <text x="250" y="207">退化小爪 2 对，≤ 0.3 m，贴腹</text>
+        <text x="740" y="224" text-anchor="end">尾穗 2 m（实线）· 二阶段展开 1.5×（虚线）</text>
+        <text x="452" y="196" fill="#5d6670">11 m：前段 / 尾段分界</text>
+      </g>
+
+      <!-- 标尺 -->
+      <g stroke="#1f2328" stroke-width="1">
+        <line x1="50" y1="260" x2="698" y2="260"/>
+        <path d="M50,254 V266 M122,254 V266 M446,254 V266 M626,254 V266 M698,254 V266"/>
+      </g>
+      <g font-size="11" fill="#1f2328" text-anchor="middle">
+        <text x="86" y="252">头 2 m</text>
+        <text x="284" y="252">颈胸躯干（前 11 m）</text>
+        <text x="536" y="252">尾段</text>
+        <text x="662" y="252">尾穗 2 m</text>
+        <text x="50" y="279">0</text><text x="122" y="279">2 m</text><text x="446" y="279">11 m</text><text x="626" y="279">16 m</text><text x="698" y="279">18 m</text>
+        <text x="374" y="299" font-weight="600">全长 18 m（脊柱 40 节 × 0.45 m）</text>
+      </g>
+    </svg>
+    <p>示意图只表达比例和标注，颜色取 2.2 的 v2 色值；不代表最终造型。</p>
+  </div>
+
+  <div style="grid-column:1/-1">
+    <h4>落到本作</h4>
+    <ul>
+      <li><b>剪影锚点</b>：「头 + 角 + 须」这一簇，再加长躯和连续背鳍。头部（含角、须、鬃）先在造化素材库找，躯干由代码生成（老板 3A）；正式头必须符合本板的尺寸和色值。</li>
+      <li><b>姿态</b>：悬浮游动，躯干下沿离涡面 2～4 m，包围盒高 ≤ 8 m；从哪吒上方经过时下沿 ≥ 3.5 m。行波 0.4 Hz、波长 9 m，振幅从颈部 0.15 m 到尾部 0.6 m；须、鬃滞后飘动。<b>龙首始终朝向哪吒，偏差 ≤ 30°</b>（执念的老父亲）。</li>
+      <li><b>预兆</b>：水停就是要出招。行波相位冻结（保留形状、不归零），龙首抬起定住；四招靠竖 / 横 / 低 / 高四种剪影区分（扑噬颈部 S 钩头抬到 5 m / 横扫尾扬到 3 m / 冲锋全身拉直贴面、背鳍竖起 / 蟠涛盘成圆盘、头立到 7.5 m）。</li>
+      <li><b>配色</b>：冰青→墨青渐变（2.2）只作固有色，不发光。</li>
+      <li><b>发光</b>：只有月白青，常亮不闪、不进泛光。</li>
+      <li><b>破绽姿态</b>：龙首 2.2 m（与哪吒近乎平视），下颌贴面喘息，眼盯哪吒，行波降到 30%。</li>
+      <li><b>受击</b>：只在被打中的那一节叠加 ±4° 抖动，6 步回弹；须、鬃给一次弹簧冲量；<b>不闪光</b>。</li>
+      <li><b>二阶段外观</b>（龙吟 120 步内完成）：
+        <ul>
+          <li>发光：月白青 30% → 45%，线性升，<b>不闪</b>；</li>
+          <li>背鳍：从颈到尾依次竖起，放大到 <b>1.4 倍</b>（20～60 步）；</li>
+          <li>尾穗：展开到 <b>1.5 倍</b>（40～80 步）；</li>
+          <li>白须：被激流<b>扯乱</b>（60～100 步），表示老父亲失了体面。</li>
+        </ul></li>
+      <li><b>倒下</b>：行波从头到尾衰减，龙首落到涡面，第 150 步闭眼，漩涡同时停转；<b>须回落下垂</b>（怒气散了，只剩老父亲）。</li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="s3-2">3.2 哪吒</h3>
+<div class="board">
+  <figure>
+    <img src="references/nezha/nz-01-flying-sash-lineart.png" alt="哪吒参考：腾空持枪、混天绫大弧线飘动的线稿" loading="lazy">
+    <figcaption>nz-01-flying-sash-lineart.png · ✅ 老板 16:47 确认；17:01 补充：红绫可以超过头顶 · 来源：老板提供</figcaption>
+  </figure>
+  <div>
+    <div class="two">
+      <div class="take"><b class="ok">取什么</b><ul>
+        <li>双丫髻大而饱满，带花饰</li>
+        <li>混天绫宽、长、大幅飘动，大弧线拖尾</li>
+        <li>绫带末端火焰纹 → 金纹 / 冷却填充纹样</li>
+        <li>腾空、四肢舒展，「轻灵如火」</li>
+        <li>赤足、腰间铃铛与流苏</li>
+        <li>枪头火焰形倒钩</li>
+      </ul></div>
+      <div class="skip"><b class="no">不取什么</b><ul>
+        <li>萌系、偏女性化的脸型和体态</li>
+        <li>露腰短衣（本作赤红短甲 + 莲花纹护腕）</li>
+        <li>脚踝圈（易与右前臂乾坤圈混淆）</li>
+        <li>弯弧枪身（火尖枪是 2.4 米直枪）</li>
+        <li>图中无风火轮（本作常驻）</li>
+        <li>线稿画风、白底</li>
+      </ul></div>
+    </div>
+    <h4>定稿高度与浮动 <span class="tagd">✅ 17:48</span></h4>
+    <table>
+      <tr><th style="width:24%">项目</th><th>定稿值</th></tr>
+      <tr><td>风火轮底离涡面</td><td>平均 <b>1.15 m</b>，谷底 1.0 m</td></tr>
+      <tr><td>浮动</td><td>静止 <b>±15 cm</b>、0.8 Hz，上冲占 35%（上冲快、回落慢，像火苗）；移动 ±10 cm；飞驰 ±5 cm</td></tr>
+      <tr><td>摆荡</td><td>±3°、0.55 Hz（飞驰时去掉）</td></tr>
+      <tr><td>头顶峰值</td><td><b>3.10 m</b>（身体加发髻 ≤ 3.2 m，不含红绫）</td></tr>
+      <tr><td>红绫</td><td><b>两股，各 2.2 m</b>、12 节；末端 1.6 Hz，滞后 1/4 周期；只在上冲峰值过头顶，<b>最高 3.45 m</b>（低于龙过顶时 3.5 m 的下沿）</td></tr>
+      <tr><td>翻滚中心</td><td>2.0 m</td></tr>
+      <tr><td>双丫髻</td><td><b>放大</b>，是头顶最高的实体剪影</td></tr>
+    </table>
+  </div>
+  <div style="grid-column:1/-1">
+    <h4>落到本作</h4>
+    <ul>
+      <li><b>剪影三要素不变</b>：双丫髻、红绫、比人长的火尖枪。双丫髻放大，红绫加宽。</li>
+      <li><b>红绫是第一动态元素</b>：宽、长、分两股、大弧线。</li>
+      <li>接触光、受击判定仍固定在涡面上，不随浮动走。离地 1.15 m，接触光离脚越远越能说明「浮着」。</li>
+      <li>少年写实：15～16 岁，1.65 米，偏瘦但结实。</li>
+      <li>发光只在三处：混天绫、枪尖、风火轮；短甲不发光。</li>
+    </ul>
+    <h4>剪影保护手段（定稿，见 ③）</h4>
+    <ol>
+      <li>双丫髻放大，红绫从发髻外侧绕过，不压正中。</li>
+      <li>红绫进入发髻正上方 ±15° 时加侧向力，穿过速度 ≥ 100°/s，停留 ≤ 18 步（0.3 s）。</li>
+      <li>超时才用<b>屏门抖动</b>兜底；<b>不用 40% 半透明</b>（会和透明水墙抢绘制顺序）。</li>
+      <li>静止时红绫飘向后上方；过顶只出现在上冲峰值。</li>
+      <li>验收：哪吒在最高浮动位、红绫在头顶时，30 m 灰模仍能认出三要素。</li>
+    </ol>
+  </div>
+</div>
+
+<h3 id="s3-3">3.3 场景：斜向巨型海沟 + 漩涡战斗区</h3>
+<div class="board">
+  <figure>
+    <img src="references/scene/sc-01-canyon-cliffs-sketch.jpg" alt="场景参考：斜向高耸岩壁夹出峡谷，人物极小" loading="lazy">
+    <figcaption>sc-01-canyon-cliffs-sketch.jpg · ✅ 老板 16:47 确认；17:01：战斗区在「海里的漩涡上」 · 来源：老板提供</figcaption>
+  </figure>
+  <div>
+    <div class="two">
+      <div class="take"><b class="ok">取什么</b><ul>
+        <li><b>整个场景的主基调</b>：斜向巨大岩壁、极大尺度</li>
+        <li>两侧高壁夹出通道，向远处收拢，引导视线</li>
+        <li>人极小、壁极高的压迫感（龙宫沉郁）</li>
+        <li>近景清晰、中景岩柱、远景被雾吃掉</li>
+        <li>竖向节理、方块断裂的岩体</li>
+        <li>顶部透光</li>
+      </ul></div>
+      <div class="skip"><b class="no">不取什么</b><ul>
+        <li>天空、飞鸟（水下换成鱼群）</li>
+        <li>陡峭碎石坡（通行区地面要平）</li>
+        <li>通行区上方 4.5 米内的内倾遮挡</li>
+        <li>铅笔素描、黑白灰（本作写实彩色、深蓝雾）</li>
+        <li>画中人物本身</li>
+      </ul></div>
+    </div>
+    <h4>定稿漩涡尺寸与转速 <span class="tagd">✅ 17:48</span></h4>
+    <table>
+      <tr><th style="width:16%">区域</th><th style="width:20%">半径</th><th style="width:22%">转速</th><th>视觉要求</th></tr>
+      <tr><td>涡心</td><td>r &lt; 14 m</td><td>≤ 1°/s</td><td>纹理明暗差 <b>≤ 8 灰阶</b>（Rec.601 口径），几乎静止</td></tr>
+      <tr><td>涡面外圈</td><td>14～20 m</td><td>2°/s</td><td>旋转感从这里开始；哪吒活动边界 r = 19.5 m，伤害区全在涡面内</td></tr>
+      <tr><td>龙游环带</td><td>20～26 m（宽 6 m）</td><td>随水墙</td><td>龙下沿 ≥ 2.5 m，只游不出招</td></tr>
+      <tr><td>水墙</td><td>内径 52 m</td><td>30 s 一圈；二阶段 20 s 一圈（老板 2A）</td><td>水雾蓝主体，涡心转速不变</td></tr>
+    </table>
+  </div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 420" role="img" aria-label="漩涡俯视示意：40 米涡面（涡心半径 14 米）、6 米龙游环带、水墙内径 52 米、哪吒活动边界 19.5 米、岩缝入口与陈塘关渔灯检查点">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#1f2328"/>
+        </marker>
+        <marker id="arwW" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#ffffff"/>
+        </marker>
+      </defs>
+      <rect width="760" height="420" fill="#fbfaf7"/>
+      <!-- 水墙（示意厚度） -->
+      <circle cx="210" cy="210" r="196" fill="#1E4560"/>
+      <!-- 龙游环带 -->
+      <circle cx="210" cy="210" r="182" fill="#9FB3BF" stroke="#2C4A5C" stroke-width="1"/>
+      <!-- 涡面外圈 -->
+      <circle cx="210" cy="210" r="140" fill="#C4D2DA" stroke="#2C4A5C" stroke-width="1.2"/>
+      <!-- 涡心 -->
+      <circle cx="210" cy="210" r="98" fill="#DFE7EC" stroke="#2C4A5C" stroke-width=".8" stroke-dasharray="2 3"/>
+      <!-- 哪吒活动边界 -->
+      <circle cx="210" cy="210" r="136.5" fill="none" stroke="#b8261c" stroke-width="1.2" stroke-dasharray="5 4"/>
+
+      <!-- 转向箭头 -->
+      <path d="M240,158 A60,60 0 0 1 262,180" fill="none" stroke="#1f2328" stroke-width="1.4" marker-end="url(#arw)"/>
+      <path d="M264,116.5 A108,108 0 0 1 311.5,173.1" fill="none" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M46.3,115.5 A189,189 0 0 1 115.5,46.3" fill="none" stroke="#ffffff" stroke-width="2" marker-end="url(#arwW)"/>
+      <g font-size="11" fill="#1f2328">
+        <text x="226" y="150">≤ 1°/s</text>
+        <text x="316" y="142">2°/s</text>
+      </g>
+
+      <!-- 龙（按比例：18 m 弧长，胸径 1.5 m） -->
+      <path d="M154.9,361.3 A161,161 0 0 0 278.0,355.9" fill="none" stroke="#587A6D" stroke-width="10.5" stroke-linecap="round"/>
+      <circle cx="278" cy="355.9" r="7" fill="#7FA295" stroke="#25342E" stroke-width=".8"/>
+      <text x="216" y="338" font-size="11" fill="#1f2328" text-anchor="middle">龙 18 m（按比例）</text>
+
+      <!-- 预警（世界坐标固定）示例：2.5 × 9 m -->
+      <rect x="181" y="140" width="17.5" height="63" fill="#7FE6F0" stroke="#0A3A6B" stroke-width="2"/>
+      <text x="152" y="134" font-size="11" fill="#1f2328">预警（世界坐标固定）</text>
+      <!-- 哪吒 -->
+      <circle cx="214" cy="236" r="3.5" fill="#B8261C"/>
+      <text x="221" y="240" font-size="11" fill="#1f2328">哪吒</text>
+
+      <!-- 半径标尺 -->
+      <g stroke="#1f2328" stroke-width="1">
+        <line x1="210" y1="210" x2="406" y2="210"/>
+        <path d="M210,206 V214 M308,206 V214 M350,206 V214 M392,206 V214"/>
+      </g>
+      <g font-size="10.5" fill="#1f2328" text-anchor="middle">
+        <text x="226" y="224">r (m)</text>
+        <text x="308" y="224">14</text>
+        <text x="346" y="203" fill="#b8261c">19.5</text>
+        <text x="354" y="224">20</text>
+        <text x="392" y="224">26</text>
+      </g>
+
+      <!-- 入口与渔灯 -->
+      <polygon points="6,62 28,40 62,32 74,46 44,64" fill="#2A3036"/>
+      <circle cx="50" cy="40" r="5" fill="#F2ECE0" stroke="#A88B4E" stroke-width="1.5"/>
+      <text x="58" y="30" font-size="11" fill="#1f2328">②</text>
+      <path d="M44,70 L92,118" fill="none" stroke="#1f2328" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arw)"/>
+      <text x="20" y="84" font-size="11" fill="#1f2328">①</text>
+
+      <!-- 图例 -->
+      <g font-size="12" fill="#1f2328">
+        <text x="430" y="34" font-size="13" font-weight="600">漩涡俯视示意（1 m = 7 px）</text>
+        <rect x="430" y="50" width="14" height="12" fill="#DFE7EC" stroke="#2C4A5C" stroke-width=".8"/>
+        <text x="452" y="61">涡心 r &lt; 14 m：≤ 1°/s，纹理明暗差 ≤ 8 灰阶</text>
+        <rect x="430" y="74" width="14" height="12" fill="#C4D2DA" stroke="#2C4A5C" stroke-width=".8"/>
+        <text x="452" y="85">涡面外圈 14～20 m：2°/s（涡面 Ø40 m）</text>
+        <line x1="430" y1="104" x2="444" y2="104" stroke="#b8261c" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="452" y="109">哪吒活动边界 r = 19.5 m，伤害区全在涡面内</text>
+        <rect x="430" y="122" width="14" height="12" fill="#9FB3BF" stroke="#2C4A5C" stroke-width=".8"/>
+        <text x="452" y="133">龙游环带 20～26 m（宽 6 m）</text>
+        <text x="452" y="150" fill="#5d6670">龙下沿 ≥ 2.5 m，只游不出招</text>
+        <rect x="430" y="162" width="14" height="12" fill="#1E4560"/>
+        <text x="452" y="173">水墙内径 Ø52 m：30 s/圈，二阶段 20 s/圈</text>
+        <rect x="430" y="186" width="14" height="12" fill="#7FE6F0" stroke="#0A3A6B" stroke-width="1.5"/>
+        <text x="452" y="197">预警固定在世界坐标，不随涡面转</text>
+        <text x="452" y="214" fill="#5d6670">涡面只转贴图坐标，两套相位交替消螺旋</text>
+        <text x="430" y="242">① 岩缝入口：哪吒飞入 → 长影绕场约 4 s</text>
+        <text x="452" y="259" fill="#5d6670">→ 龙尾封口 → 龙首破墙降到 2.2 m</text>
+        <text x="430" y="284">② 陈塘关渔灯（检查点）：岩缘上，复用海灯</text>
+        <text x="452" y="301" fill="#5d6670">资源，不加字符串；不用火焰橙和预警色</text>
+        <text x="430" y="326">倒下第 150 步：龙闭眼，漩涡停转</text>
+        <text x="430" y="351">通行区上方 4.5 m 内无遮挡</text>
+        <text x="430" y="384" font-size="11" fill="#5d6670">色块只为区分区域，非色板；预警示例色待裁定。</text>
+      </g>
+    </svg>
+    <p>示意图半径按比例；水墙厚度、入口位置、渔灯位置为示意。</p>
+  </div>
+
+  <div style="grid-column:1/-1">
+    <h4>落到本作</h4>
+    <ul>
+      <li><b>不做宫殿</b>。宏大自然地貌：一条斜着切过画面的巨大海沟。</li>
+      <li>斜壁可以内倾，但通行区上方 4.5 m 内不得有遮挡（哪吒加红绫最高 3.45 m）。</li>
+      <li><b>海沟底部是巨型漩涡</b>：40 m 涡面 + 6 m 龙游环带，四周是内径 52 m 的旋转水墙。</li>
+      <li>涡面只转贴图坐标，用两套相位交替消掉螺旋；预警固定在世界坐标；接触光跟着哪吒根节点走，不随涡面转；焦散在预警范围内压到三成。</li>
+      <li>涡面边缘（r = 20 m）建议用一圈低对比浪沫线标出，不用冰青。</li>
+      <li><b>入场</b>：哪吒从斜壁岩缝飞入 → 水墙里长影绕场约 4 s → 龙尾扫过入口、水墙合拢（龙亲手封口）→ 龙首破墙降到 2.2 m 说开场台词。</li>
+      <li><b>检查点</b>：岩缘上一盏被洪水冲下海的<b>陈塘关渔灯</b>，复用海灯资源，不加字符串（老板 4A）。灯光沿用海灯原色，不用火焰橙和预警色。</li>
+      <li><b>倒下后漩涡停转</b>：第 150 步与龙闭眼同步，「东海潮平」落到画面上。</li>
+      <li>光：海面透下的光柱直贯海沟，兼作漩涡中轴（与封面呼应）。</li>
+      <li>层次：近景碎岩、海草（战斗区中央不种）→ 中景岩柱、鱼群、水墙 → 远景被深蓝雾吃掉，只晃光束。</li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="s3-4">3.4 界面与 HUD</h3>
+<div class="board">
+  <figure>
+    <img src="references/ui-hud/ui-01-agent-select-dark.png" alt="界面参考：深色底细线框，角色立绘冲出矩形框" loading="lazy">
+    <figcaption>ui-01-agent-select-dark.png · ✅ 老板 16:47 确认，新增「破框」参考点 · 来源：网络同人再设计，作者未知</figcaption>
+  </figure>
+  <div>
+    <div class="two">
+      <div class="take"><b class="ok">取什么</b><ul>
+        <li>深色底、细线框、单一强调色，信息密但干净</li>
+        <li>粗体窄字大标题 + 小字说明（Boss 名、「东海潮平」）</li>
+        <li>六边形技能图标、圆环进度（混天绫冷却）</li>
+        <li>选中态：描边加亮</li>
+        <li><b>角色压框 / 破框</b>（老板新增）</li>
+      </ul></div>
+      <div class="skip"><b class="no">不取什么</b><ul>
+        <li>选人布局和角色卡片（本作没有选人）</li>
+        <li>现代电竞科幻气质</li>
+        <li>红色、青绿两种强调色</li>
+        <li>纯拉丁字体（本作中英双语）</li>
+        <li>《无畏契约》角色、图标、名称、署名与水印</li>
+      </ul></div>
+    </div>
+    <h4>落到本作</h4>
+    <ul>
+      <li>东方化：细线框加青铜、墨色、金纹、云水纹的少量纹饰。</li>
+      <li>单强调色：建议赤金 <code>#D4A03A</code>（哪吒侧）；龙王侧信息用墨青铜。<b>HUD 不用预警冰青</b>。</li>
+      <li>锁定标记：能打实心、打不到空心（纪要议题 4），用赤金，不用预警色。</li>
+      <li>中文字体另选：粗体窄字风格的中文标题字 + 易读小字；英文同风格搭配。</li>
+      <li><b>破框只用于</b>：开始界面、加载画面、结算「东海潮平」、封面。
+        <ul><li>哪吒冲出朱红或赤金细框，红绫甩出框外。</li><li>龙王一侧用墨青铜框，长躯从框里穿出。</li></ul></li>
+      <li><b>战斗 HUD 不用破框</b>，保持极简，不挡画面。</li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="s3-5">3.5 封面与开始界面</h3>
+<div class="board">
+  <figure>
+    <img src="references/cover/cv-01-duelyst-menu-firewater.jpg" alt="封面参考：冷暖对角分割、中央光柱、前景高处持枪小人" loading="lazy">
+    <figcaption>cv-01-duelyst-menu-firewater.jpg · ✅ 老板 17:07 确认 · 来源：《Duelyst》主菜单截图（Counterplay Games）</figcaption>
+  </figure>
+  <div>
+    <div class="two">
+      <div class="take"><b class="ok">取什么</b><ul>
+        <li>冷暖对角分割：冷色与朱红橙金在中线交锋</li>
+        <li>极小人物 + 极宏大场景；持长枪小人在前景高处背对镜头</li>
+        <li>中央巨大光柱</li>
+        <li>前景暗岩剪影 → 中景发光地貌 → 远景雾和光</li>
+        <li>左侧大块暗区放标题和菜单</li>
+        <li>大色块、概括、有绘画感的光效</li>
+      </ul></div>
+      <div class="skip"><b class="no">不取什么</b><ul>
+        <li>《Duelyst》标志、菜单、按钮、图标</li>
+        <li>TCG 网站水印</li>
+        <li>漂浮水晶方块、科幻建筑</li>
+        <li>陆地天空、云、熔岩河</li>
+        <li>2D 卡通插画画风</li>
+        <li>冰青直接画在地面上</li>
+      </ul></div>
+    </div>
+    <h4>落到本作</h4>
+    <ul>
+      <li><b>构图</b>：小哪吒在前景高处（踩风火轮悬在岩缘上方），持火尖枪背对镜头；<b>远景巨龙</b>绕光柱 / 漩涡中轴盘旋；用尺寸差拉开对比。</li>
+      <li><b>破框（定稿 ⑤A）</b>：细线框框住整个场景；<b>枪尖、红绫和一段龙尾</b>破框而出。</li>
+      <li><b>冷暖对角</b>：哪吒一侧朱红橙金，龙一侧冰青墨青。封面上的龙身用 2.2 的 v2 渐变；预警色不上封面。</li>
+      <li><b>中央光柱</b>：海面直贯海沟的光束，或漩涡中轴。</li>
+      <li><b>版式（兼开始界面）</b>：左侧暗区放标题和菜单，右侧大场景。</li>
+      <li>中英两版画面相同：中文标题 / 英文 <code>White Myth: Nezha</code>。加载画面与开始界面按当前语言显示。</li>
+      <li>封面草图由美术总监另交（纪要 E 节）。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 4 -->
+<h2 id="s4">4. 已定 <span class="tagd">龙王重新设计会 · 老板 17:48 拍板</span></h2>
+
+<div class="issue done">
+<h3>① 龙身冰青 vs 地面预警冰青 → 定 B（明度 / 饱和分离 + 色相轻偏）</h3>
+<ul>
+  <li>龙身整条渐变色相移到 <b>155～160°</b>（青绿灰），饱和 ≤ 30%、明度 ≤ 72%，只作固有色、不发光。</li>
+  <li>色值：亮端 <b><code>#7FA295</code></b>、中青 <code>#587A6D</code>、墨青 <code>#25342E</code>（2.2）。会上的 <code>#88AEA0</code> 去色差只有 27.4，已按制作人核对改掉（2.5）。</li>
+  <li>去色口径：<b>Rec.601 luma</b>，预警比龙身亮端高 ≥ 30 灰阶。</li>
+  <li>预警色：<span class="tagw">⏳</span> 美术推荐 <code>#7FE6F0</code>，由主窗口裁定（2.6）。</li>
+</ul>
+</div>
+
+<div class="issue done">
+<h3>② 涡面旋转 vs 预警、焦散、接触光的可读性 → 定 B（分区）</h3>
+<ul>
+  <li>涡心 r &lt; 14 m：转速 ≤ 1°/s，纹理明暗差 ≤ 8 灰阶。</li>
+  <li>14～20 m：2°/s。水墙 30 s 一圈，二阶段 20 s 一圈；倒下后第 150 步停转。</li>
+  <li>只转贴图坐标，用两套相位交替消螺旋；预警、接触光固定，焦散在预警内压到三成；涡面不用冰青。</li>
+  <li>与外圈的纹理对比：外圈和水墙可以有明显的旋转纹理；涡心低对比，让预警是作战区里最显眼的图形。</li>
+</ul>
+</div>
+
+<div class="issue done">
+<h3>③ 哪吒飞高、红绫过头顶后的剪影保护 → 定 B（两侧过顶 + 短停留），兜底改为屏门抖动</h3>
+<ul>
+  <li>主手段是侧向力：红绫在发髻正上方 ±15° 内穿过 ≥ 100°/s、停留 ≤ 18 步。</li>
+  <li>超时才用屏门抖动兜底。<b>不用 40% 半透明</b>（我在会上提的方案，会和透明水墙抢绘制顺序，已撤回）。</li>
+  <li>3.2 m 身高上限不含红绫；红绫 ≤ 3.45 m，龙过顶下沿 ≥ 3.5 m。</li>
+</ul>
+</div>
+
+<div class="issue done">
+<h3>④ 两套浮动气质 → 定 B（频率 + 曲线 + 方向），扩为三档</h3>
+<ul>
+  <li>哪吒 <b>0.8 Hz</b>：竖向，上冲占 35%，各部件错相（火）。</li>
+  <li>龙 <b>0.4 Hz</b>：沿躯干横向行波，绕圈游。</li>
+  <li>环境 <b>≤ 0.2 Hz</b>：横向、平缓正弦、成片同向同相（v1 写的 0.25 Hz 作废）。</li>
+  <li>相邻两档至少差 2 倍。验收：3 秒画面去色、关泛光，5 个没看过文档的人都能指出火、龙、环境。</li>
+</ul>
+</div>
+
+<div class="issue done">
+<h3>⑤ 封面「小人物」与「破框」怎么共存 → 定 A（框住场景）</h3>
+<ul>
+  <li>细线框框住场景，龙在远景盘旋，<b>枪尖、红绫和一段龙尾破框</b>。</li>
+</ul>
+</div>
+
+<h3>其他会上留意事项的去向</h3>
+<ul>
+  <li><b>龙王游动的气质</b> → 已定：0.4 Hz 行波，介于哪吒和环境之间（④）。</li>
+  <li><b>预兆姿态</b> → 已定：相位冻结 + 竖 / 横 / 低 / 高四种剪影（3.1）。</li>
+  <li><b>龙王旧金 #A88B4E vs 哪吒赤金 #D4A03A</b> → 仍需看色样，会上未讨论。</li>
+</ul>
+
+<!-- 5 -->
+<h2 id="s5">5. 版权声明</h2>
+<ul>
+  <li>五张参考图<b>只用于确定方向</b>。</li>
+  <li><b>不放进游戏</b>，<b>不描摹</b>，<b>不做贴图</b>，不作为任何素材。</li>
+  <li>来源：小红书画师 nightcrow（保留所有权利）；《无畏契约》选人界面同人再设计（作者未知）；《Duelyst》主菜单截图（Counterplay Games）；两张老板提供图（来源待确认）。</li>
+  <li>参考图中的标志、角色、名称、署名和水印一律不取。</li>
+</ul>
+
+</main>
+
+<footer>《白神话：哪吒》美术方向板 v2 · 与 art-direction-board.md 内容一致</footer>
+
+<div id="lb" role="dialog" aria-label="放大查看"><img alt=""><p>点击任意处或按 Esc 关闭</p></div>
+
+<script>
+(function(){
+  var lb=document.getElementById('lb'), big=lb.querySelector('img');
+  document.querySelectorAll('.board img').forEach(function(img){
+    img.addEventListener('click',function(){big.src=img.src;big.alt=img.alt;lb.classList.add('on');});
+  });
+  function close(){lb.classList.remove('on');big.removeAttribute('src');}
+  lb.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+})();
+</script>
+</body>
+</html>

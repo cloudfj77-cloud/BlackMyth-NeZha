@@ -1,0 +1,1 @@
+var e=Object.freeze({wheelHeight:.1,bodyHeight:1.65,spearLength:4.83,spearTipLength:.2,grip:[.27,1,-.06],spearBelowGrip:1.55,spearTiltDeg:14,wheelRadius:.17,wheelTube:.04,footSpacing:.1}),t=e.wheelHeight,n=e.wheelHeight+e.bodyHeight,r=[[-.17,1.47,.07],[.17,1.47,.07]];export{r as i,n,e as r,t};

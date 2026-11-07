@@ -1,0 +1,1 @@
+function e(){let e=globalThis.__forgeaxFramePhaseDiagnostics?.execution;return e?.enabled===!0&&typeof e.emit==`function`?e:void 0}function t(e,t){try{e.emit(t)}catch{try{e.failures=Math.min(2**53-1,e.failures+1)}catch{}}}export{e as n,t};

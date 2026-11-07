@@ -1,5 +1,5 @@
 /**
- * Physical ribbons (ported from BlackMyth-NeZha v1.4.0 `Ribbon`, boss 11-06 batch 1): Verlet chains
+ * Physical ribbons (ported from WhiteMyth-NeZha v1.4.0 (three.js, see legacy/threejs-v1.4.0) `Ribbon`, boss 11-06 batch 1): Verlet chains
  * pinned at one end (or both), pushed by wind, a flutter and a pull behind the body, with length
  * constraints; written as twisting, tapering strips. All strips share ONE mesh (one draw call).
  * Pure: positions in, vertex positions out (world space).

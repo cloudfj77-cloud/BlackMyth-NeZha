@@ -1,5 +1,5 @@
 /**
- * Game audio (ported from BlackMyth-NeZha v1.4.0 `wukong/js/audio.js`, boss 11-06 batch 1):
+ * Game audio (ported from WhiteMyth-NeZha v1.4.0 (three.js, see legacy/threejs-v1.4.0) `wukong/js/audio.js`, boss 11-06 batch 1):
  * everything synthesised with Web Audio in the presentation realm — no asset files.
  * - Sound effects: swing, hit, hurt, perfect dodge, spell, lotus, charge, growl, dash, slam,
  *   roar, gate, checkpoint, ice, splash, death, roll, jump, land …

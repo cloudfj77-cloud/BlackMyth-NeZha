@@ -1,0 +1,1 @@
+import{sceneEntity as e,worldResolveSceneEntity as t}from"./scene-0KbGuqEU.js";var n=`scene/dragon-palace`;function r(r,i,a){if(i.root===void 0)throw Error(`dragon palace scene is unavailable for entity ${a}`);let o=t(r,i.root,e(n,a));if(!o.ok)throw o.error;return o.value}export{r as t};

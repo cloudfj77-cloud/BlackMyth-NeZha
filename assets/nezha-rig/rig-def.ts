@@ -1,5 +1,5 @@
 /**
- * Jointed procedural Nezha (ported from BlackMyth-NeZha v1.4.0 `characters.js` buildNezha /
+ * Jointed procedural Nezha (ported from WhiteMyth-NeZha v1.4.0 (three.js, see legacy/threejs-v1.4.0) `characters.js` buildNezha /
  * applyPose / HoverMotion; boss 11-06 batch 2). Pure data + math (tested), used at build time
  * (meshes per joint, character.pack.ts), by the scene (joint entities) and at run time (poses).
  *

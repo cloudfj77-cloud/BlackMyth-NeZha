@@ -1,0 +1,1 @@
+async function e(e){let t=new URL(`/WhiteMyth-NeZha/assets/basis_transcoder-Bt4OIU4S.mjs`,``+import.meta.url),n=new URL(`/WhiteMyth-NeZha/assets/basis_transcoder-DP3Zn1NN.wasm`,``+import.meta.url),r=(await import(t.href)).default;return r({locateFile:()=>n.href,...e})}export{e as default};

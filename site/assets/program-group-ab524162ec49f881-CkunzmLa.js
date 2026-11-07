@@ -1,0 +1,1 @@
+var e=1.7,t=Object.freeze({height:2*e,bob:2,nezhaHz:1/4.5,dragonHz:1/4.5,rate:1.6});function n(e){let n=2*Math.PI*t.nezhaHz*e,r=.8*Math.sin(n)+.2*Math.sin(n*2.3+1.1);return t.height+t.bob*r}function r(e,n){return t.height+t.bob*Math.sin(2*Math.PI*t.dragonHz*n-e*.14+2)}export{n as i,e as n,r,t};

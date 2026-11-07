@@ -1,0 +1,1 @@
+import{t as e}from"./program-group-3cd8f85ba5f06ed4-DqKGC8JW.js";var t=e.move.capsuleHeight/2+.02;export{t};

@@ -12,7 +12,7 @@ NOTES="${*:-}"
 if [[ ! "$TYPE" =~ ^(patch|minor|major)$ ]] || [[ -z "${NOTES}" ]]; then
   echo "用法: scripts/release.sh <patch|minor|major> \"更新说明（多条用；分隔）\""; exit 1
 fi
-[[ -f VERSION ]] || echo "0.4.0" > VERSION
+[[ -f VERSION ]] || echo "2.0.0" > VERSION
 CUR="$(tr -d '[:space:]' < VERSION)"
 IFS=. read -r MA MI PA <<< "$CUR"
 case "$TYPE" in
@@ -32,6 +32,8 @@ if [[ "${SKIP_GATE:-0}" != "1" ]]; then
 fi
 
 echo "${NEW}" > VERSION
+echo "▶ 构建 GitHub Pages 站点（scripts/build-pages.sh）……"
+bash scripts/build-pages.sh
 NEW="${NEW}" DATE="$(date +%Y-%m-%d)" NOTES="${NOTES}" python3 - <<'PY'
 import os, re
 ver, date, notes = os.environ['NEW'], os.environ['DATE'], os.environ['NOTES']
@@ -46,4 +48,6 @@ PY
 git add -A
 git commit -m "release: v${NEW} - ${NOTES}"
 git tag -a "v${NEW}" -m "v${NEW}: ${NOTES}"
-echo "✅ 已发版 v${NEW}（本地提交 + 标签；推送请按需执行 git push --follow-tags）"
+git push origin HEAD          # 先推代码（触发 Pages 部署）
+git push origin "v${NEW}"     # 再推标签（触发 Release）
+echo "✅ 已发版 v${NEW}：https://cloudfj77-cloud.github.io/WhiteMyth-NeZha/"

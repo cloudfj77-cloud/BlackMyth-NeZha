@@ -1,0 +1,1 @@
+export{t as JointCountMismatchError,n as JointEntityDanglingError,r as SkeletonResolveFailedError,i as Skin,a as SkinAssetUnresolvedError,o as SkinInstancesCoexistForbiddenError,s as SkinJointPathUnresolvedError,c as fitShadowCapsules,l as resolveSkinJoints,u as skeletonContribution,d as skinContribution,f as skinVertexPosition,p as skinningPlugin}from"./dist-NafAJP_1.js";

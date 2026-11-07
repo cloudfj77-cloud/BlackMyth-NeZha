@@ -1,0 +1,1 @@
+import{mountPluginAsset as e}from"./plugin-BgXweuU6.js";var t={name:`game-3d`,inject:[`assets`,`pluginPrograms`],async apply(t,n){await t.effect(async function*(){for(let r of n.children){let n=await e(t,r);if(!n.ok)throw n.error;yield n.value.dispose}})}};export{t};

@@ -1,0 +1,1 @@
+Object.freeze({world:131071,player:196607,target:327679,boundary:589823,pillar:1114111});var e=4294901761,t=4294901776;export{t as n,e as t};

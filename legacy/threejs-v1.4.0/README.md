@@ -2,8 +2,8 @@
 
 一款写实东方神话风格的 3D 第三人称动作 Boss 战网页游戏，纯浏览器运行，无需安装。
 
-- **在线游玩**：https://cloudfj77-cloud.github.io/BlackMyth-NeZha/
-- **仓库地址**：https://github.com/cloudfj77-cloud/BlackMyth-NeZha
+- **在线游玩**：https://cloudfj77-cloud.github.io/WhiteMyth-NeZha/legacy/
+- **仓库地址**：https://github.com/cloudfj77-cloud/WhiteMyth-NeZha
 - **当前版本**：见 [`VERSION`](VERSION)，更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 可选角色
