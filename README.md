@@ -1,79 +1,54 @@
-# White Myth: Nezha · 白神话：哪吒
+# 白神话：哪吒 · White Myth: Nezha
 
-3D third-person boss fight on ForgeaX Engine 0.4.19 (WebGPU). This build is **M1 Foundation**:
-Nezha hovers on his Wind-Fire Wheels through a greybox Dragon Palace with a right-shoulder
-camera, lock-on, procedural float, and Chinese / English UI.
+写实东方神话风格的 3D 第三人称动作 Boss 战网页游戏，中英双语，用电脑键鼠操作。
+A realistic Eastern-myth 3D third-person action boss fight for the web, bilingual (中文 / English), keyboard and mouse.
 
-Design sources live outside this project in `../design/` (spec, milestone M1, prep plan).
+- **在线游玩 Play**：https://cloudfj77-cloud.github.io/WhiteMyth-NeZha/
+- **旧版 three.js v1.4.0**：https://cloudfj77-cloud.github.io/WhiteMyth-NeZha/legacy/
+- **引擎 Engine**：天工引擎 ForgeAX 0.4.19（TypeScript + WebGPU）；从 v2.0.0 起全部用天工引擎开发
+- **项目总汇报 Report**：[docs/PROJECT_REPORT.md](docs/PROJECT_REPORT.md)
 
-## Controls (M2)
+## 一局流程 / One run
+陈塘关海岸栈道 → 两波巡海夜叉伏击 → 太乙莲台检查点 → 镇海水门 → 镇海台入场演出 → 空中对战 **东海三太子·敖丙**（一阶段：三段连斩、回旋横扫、突进；二阶段「龙化·万龙甲」：冰棱震地、寒潮连突、龙跃、冰环；破势）→ 结算评级 → 自由游览。
 
-| Input | Action |
-|:--|:--|
-| Click the game | Lock the mouse (camera look) |
-| W A S D | Hover move (camera-relative; orbit / close in while locked) |
-| Shift (hold) | Sprint (15 stamina/s) |
-| Space | Wind-Fire Roll toward the move direction (back with none); frames 1–18 invulnerable |
-| Mouse | Turn camera |
-| Left mouse | Light attack, 3-hit combo |
-| Right mouse (hold) | Charge 0.3–1.2 s, release for a heavy strike |
-| R | Lock on / release (within 25 m; breaks beyond 30 m) |
-| Q | Eat a lotus seed (3) |
-| 1 | Sash Bind (holds the target 3 s, 20 s cooldown) |
-| T / Y | Training: line / fan fake attack from the dummy |
-| Esc | Release mouse and pause |
-| F2 (`?dev=1` only) | Development tuning panel (releases the mouse) |
+## 操作 / Controls
+| 按键 Key | 作用 Action |
+|---|---|
+| W A S D | 悬浮移动 Hover move |
+| Shift | 飞驰 Sprint |
+| 鼠标 Mouse | 转镜头（先点一下画面锁定鼠标）Camera |
+| 左键 LMB | 轻击，4 段连招，最后一段是回旋枪 Light combo (4th: spin) |
+| 右键按住 RMB hold | 蓄力重击 Charged heavy |
+| 空格 Space | 风火轮翻滚，卡在出招瞬间按是完美闪避 Roll / perfect dodge |
+| F / Ctrl | 跳跃，空中左键是跳劈 Jump / plunge |
+| R | 锁定 Lock on |
+| Q | 服食莲子回血 Lotus seed (heal) |
+| 1 | 混天绫·缚 Sash Bind |
+| M | 静音 Mute |
+| Enter | 跳过开场 / 再战 Skip / retry |
+| Esc | 暂停 Pause |
 
-## URL flags
-
-| Flag | Meaning |
-|:--|:--|
-| `?qa=1` | Mirror the `nezha` read projection into the menu host (`data-nezha`) for acceptance on the static preview |
-| `?dev=1` | Development build features: F2 tuning panel, presets, export of `tuning.json`; implies `qa` |
-| `?dev=1&lang=pseudo` | Pseudo-locale (+30 % length, brackets) |
-| `?dev=1&grey=1` | Grey-model silhouette review |
-| `?dev=1&target=2x4` | Lock target height × length preset |
-
-## Build, preview, accept
-
+## 开发 / Development
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
-pnpm test && pnpm typecheck && pnpm exec forgeax project check --json
-bash scripts/build.sh                                   # forgeax project build --html-head web/head.html
-pnpm exec forgeax project preview --port 4191 --json    # serve dist/
-node qa/m2-acceptance.cjs http://localhost:4191/        # real input through system Chrome, screenshots in artifacts/m2/
-pnpm exec forgeax project play scripts/playthrough.mjs --require-ui --json   # official play (run in a normal terminal)
+pnpm install                      # 天工引擎 0.4.19（锁定版本）
+bash scripts/build.sh             # 构建 dist/
+pnpm exec forgeax project preview --port 4191   # 本地预览 http://localhost:4191/
+npx vitest run                    # 单元测试
+node qa/gate.cjs                  # 发版门禁：构建 + 类型 + 单测 + 真实键鼠实机
+scripts/release.sh minor "说明"   # 发版：门禁 → 升版本 → 更新日志 → Pages 站点 → 提交 → 推送 → 打标签
 ```
+资产轨出新模型时：`python3 scripts/convert-asset-glb.py <源.glb> assets/models/<名>.glb`，然后 `pnpm exec forgeax asset import assets/models/<名>.glb --root .`。
 
-## Template Disposition (game-3d → nezha-boss)
+## 目录 / Layout
+| 路径 | 内容 |
+|---|---|
+| `assets/` | 天工引擎工程：资源与插件包 `*.pack.ts`、战斗 / AI 逻辑、WGSL 着色器、UI、数值 `data/tuning.json`、模型 `models/*.glb` |
+| `qa/` | 真实键鼠实机验收脚本与发版门禁 |
+| `site/` | GitHub Pages 发布内容（构建产物 + `legacy/` 旧版） |
+| `docs/studio/` | 设计资料：进度簿、会议纪要、里程碑、AI 工作室角色卡、美术方向板、参考图、资产评审（Blender 源文件） |
+| `legacy/threejs-v1.4.0/` | three.js 版完整归档 |
 
-| Template content | Disposition |
-|:--|:--|
-| `forge.json` roots (engine / frontend) | Kept: the only plugin entry |
-| `assets/game.pack.ts`, `physics.pack.json` | Kept (engine root mounts physics + scene owner) |
-| `assets/world/world.pack.ts` | Kept, children replaced by the Nezha plugins |
-| `assets/scene.pack.ts`, `geometry.pack.ts`, `materials.pack.ts` | Replaced: Dragon Palace greybox (canyon, plaza, pillars, palace wall), cool palette, Nezha placeholder |
-| `assets/environment.pack.ts` | Replaced: deep-water light field (no daylight sky) |
-| `assets/character.pack.ts` + `player/player-rig.ts` (skinned scout, walk clip) | Replaced: rigid greybox Nezha (body, 2.4 m spear, wheels, contact glow); no skeleton in M1 |
-| `assets/player/player.ts`, `player.pack.ts` | Replaced by `hover-player/` |
-| `assets/camera/camera.pack.ts` | Replaced by the right-shoulder camera; `third-person.ts` math kept |
-| `assets/guide.ui.*`, `ui/guide-controller.ts` | Replaced by `ui/menu.ui.*` + `ui/menu-controller.ts` |
-| `assets/fantasy-meshes.pack.ts`, `uv-primitives.pack.ts`, `runtime-vase/`, `ui/vase-controls.ts`, `ui/player-controls.ts` | Deleted (showcase, vase, touch controls) with their tests and probes |
-| `shaders/rusted-iron.wgsl` | Deleted; Surface examples now `light-beam.wgsl`, `contact-glow.wgsl` |
-| `docs/feedback.md` | Kept; confirmed Engine/SDK issues appended |
-
-## Source map
-
-| Path | Owns |
-|:--|:--|
-| `assets/data/tuning.json` | Every tunable default (movement, camera, float, sash, lock, ambience, occlusion) |
-| `assets/shared/tuning.ts` | Tuning types, panel ranges, clamped live copy |
-| `assets/shared/layout.ts`, `greybox.ts` | Level layout authority (meshes, colliders, placement) |
-| `assets/shared/protocol.ts` | Engine ↔ frontend messages (no player-visible text) |
-| `assets/core/core.pack.ts` | Phase, live tuning, two game clocks (hitstop / slow motion), the single QA projection `nezha` |
-| `assets/combat/*` | Combat state machine (pure, step-exact), procedural poses, hit feel |
-| `assets/training/*` | Training dummy reactions, fake attacks with ground warnings, Sash Bind wrap |
-| `assets/ui/*` | Start / pause menu, HUD hints, language choice, dev panel |
-| `assets/i18n/*` | Language rules, pseudo-locale, translator context for every key |
-| `assets/runtime/zaohua-platform-init.js` | Zaohua platform SDK base `initialize` (capabilities: none) |
-| `qa/` | Built-preview acceptance with real input |
+## 版本 / Versions
+- **v2.0.0**（2026-11-07）：迁移到天工引擎，并把 v1.4.0 的全部内容移植过来；接入 Blender 正式模型；仓库更名为 WhiteMyth-NeZha。
+- v1.0.0～v1.4.0：three.js 版（见 `legacy/threejs-v1.4.0/`）。
+- 详见 [CHANGELOG.md](CHANGELOG.md)。
