@@ -422,7 +422,7 @@ export const fight: Plugin = {
             ...(lastRecord ? { record: lastRecord } : {}),
           };
           session.contribute({
-            boss: { hp: hp.hp, hpMax: hp.max, visible: session.playing() && run.hudVisible() && run.snapshot().stage !== 'roam', phase: dragon.phase() },
+            boss: { hp: hp.hp, hpMax: hp.max, visible: session.playing() && run.hudVisible() && run.snapshot().stage !== 'roam', phase: dragon.phase(), poise: dragon.poise() },
             run: runHud,
           });
         },

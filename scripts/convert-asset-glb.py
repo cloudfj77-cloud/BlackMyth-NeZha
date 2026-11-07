@@ -6,9 +6,9 @@ Usage: python3 scripts/convert-asset-glb.py <src.glb> <dst.glb>   then  forgeax 
 After a new skeleton: regenerate assets/models/skins.ts (joint order, inverse binds, nodes, GUIDs)."""
 import json, struct, sys
 GLOW = {'NZ_Body': 1.0, 'NZ_UniverseRing_Glow': 0.8, 'NZ_Sash_Glow': 0.85, 'NZ_Wheel_Glow': 0.35, 'NZ_Spear': 1.0,
-        'NZ_SpearTip_Glow': 0.55, 'DK_Body': 1.0, 'DK_Eye_Glow': 0.5}
+        'NZ_SpearTip_Glow': 0.55, 'DK_Body': 1.0, 'DK_Eye_Glow': 0.15}
 TINT = {'NZ_UniverseRing_Glow': (1.0, 0.62, 0.12), 'NZ_Sash_Glow': (0.82, 0.06, 0.03), 'NZ_SpearTip_Glow': (1.0, 0.42, 0.06),
-        'DK_Eye_Glow': (0.7, 0.95, 1.0)}
+        'DK_Eye_Glow': (0.55, 0.95, 1.0)}
 
 def convert(src, dst):
     b = open(src, 'rb').read(); l = struct.unpack('<I', b[12:16])[0]; j = json.loads(b[20:20 + l])

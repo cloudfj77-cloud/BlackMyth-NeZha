@@ -311,6 +311,11 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       part('hp-value')!.textContent = `${Math.round(c.hp)}`;
       part('stamina-value')!.textContent = `${Math.floor(c.stamina)}`;
       part('lotus-count')!.textContent = `×${c.lotus}`;
+      // Lotus beads over the health bar (Sekiro's resurrection beads).
+      const beads = part('lotus-beads')!;
+      while (beads.children.length < c.lotusMax) { const b = document.createElement('span'); b.className = 'bead'; beads.append(b); }
+      while (beads.children.length > c.lotusMax) beads.lastElementChild!.remove();
+      Array.from(beads.children).forEach((b, i) => b.classList.toggle('used', i >= c.lotus));
       part('sash-seconds')!.textContent = c.sashCd > 0 ? `${c.sashCd}` : '';
       part('sash-cooldown')!.style.setProperty('--fx-nezha-cd', `${((c.sashCd / c.sashCdMax) * 100).toFixed(1)}%`);
       if (c.flash !== lastFlash) {
@@ -370,6 +375,15 @@ export async function createMenu(asset: UiAsset, host: Host): Promise<UiInstance
       sub.textContent = (i18n.resolvedLanguage ?? i18n.language) === 'zh' ? i18n.getFixedT('en')(nameKey) : '';
     }
     ui.host.classList.toggle('boss-p2', boss?.phase === 2);
+    ui.host.classList.toggle('boss-on', !!boss?.visible);
+    part('boss-life-1')!.classList.toggle('spent', boss?.phase === 2);
+    if (boss?.poise) {
+      const p = boss.poise;
+      const k = Math.max(0, Math.min(1, p.v / Math.max(1, p.max)));
+      part('boss-posture-fill')!.style.width = `${(k * 100).toFixed(1)}%`;
+      part('boss-posture')!.classList.toggle('hot', k > 0.75);
+      part('boss-posture')!.classList.toggle('broken', p.broken);
+    }
     if (boss) part('boss-fill')!.style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.hpMax) * 100)).toFixed(1)}%`;
     const run = next.run;
     // Music follows the run (v1.4.0 score): explore on the way in, battle / phase-two battle,

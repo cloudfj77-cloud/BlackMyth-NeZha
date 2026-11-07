@@ -3,8 +3,8 @@ import { FixedUpdate, Time, Update, type EntityHandle } from '@forgeax/engine/ec
 import { createMeshBuilder } from '@forgeax/engine/geometry';
 import { quat } from '@forgeax/engine/math';
 import type { Plugin } from '@forgeax/engine/plugin';
-import { MeshFilter, MeshRenderer } from '@forgeax/engine/render';
-import { PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
+import { MeshFilter, MeshRenderer, PointLight } from '@forgeax/engine/render';
+import { ChildOf, PROPAGATE_TRANSFORMS_SYSTEM, readPresentationWorldMatrix, Transform } from '@forgeax/engine/scene';
 import type { MeshAsset } from '@forgeax/engine/types';
 import { ok } from '@forgeax/engine/types';
 import type {} from '@forgeax/engine/app';
@@ -67,6 +67,8 @@ export interface DragonService {
   /** A landed hit: 'phase' at half health (the phase change starts), 'ignored' while invulnerable. */
   readonly damage: (amount: number, segment: number) => 'ignored' | 'hurt' | 'phase' | 'dead';
   readonly phase: () => 1 | 2;
+  /** 破势 bar for the HUD (full and flagged while staggered). */
+  readonly poise: () => { readonly v: number; readonly max: number; readonly broken: boolean };
   readonly vulnerable: () => boolean;
   /** Intro (M4 §1): leave the lurk and play the script; skip jumps the body along it. */
   readonly beginIntro: () => void;
@@ -409,6 +411,34 @@ export const dragon: Plugin = {
       yield () => world.despawn(ghosts.entity).unwrap();
       let ghostGap = 0;
       let lastHead: [number, number] | undefined;
+      // Glowing eyes (boss 11-07): a cold light on each eye, brighter in wind-ups and the roar.
+      const eyeLights = [-1, 1].map((side) => {
+        const e = world.spawn(
+          { component: Transform, data: { pos: [side * 0.45, 0.95, 0.2] } },
+          { component: ChildOf, data: { parent: headBone } },
+          { component: PointLight, data: { color: [0.55, 0.95, 1.0], intensity: 3, range: 4.5, decay: 2 } as never },
+        ).unwrap();
+        return e;
+      });
+      yield () => { for (const e of eyeLights) world.despawn(e).unwrap(); };
+      // A hot core and a soft halo on each eye so the glow reads from across the stage.
+      const eyeGlowMat = copy(mat.iceGlow, { intensity: 3 });
+      const eyeHaloMat = copy(mat.iceGlow, { intensity: 0.8 });
+      const eyeGlows = [-1, 1].flatMap((side) => [
+        world.spawn(
+          { component: Transform, data: { pos: [side * 0.44, 0.92, 0.22], scale: [0.11, 0.11, 0.11] } },
+          { component: ChildOf, data: { parent: headBone } },
+          { component: MeshFilter, data: { assetHandle: mesh.joint } as never },
+          { component: MeshRenderer, data: { materials: [eyeGlowMat] } as never },
+        ).unwrap(),
+        world.spawn(
+          { component: Transform, data: { pos: [side * 0.44, 0.92, 0.22], scale: [0.26, 0.26, 0.26] } },
+          { component: ChildOf, data: { parent: headBone } },
+          { component: MeshFilter, data: { assetHandle: mesh.joint } as never },
+          { component: MeshRenderer, data: { materials: [eyeHaloMat] } as never },
+        ).unwrap(),
+      ]);
+      yield () => { for (const e of eyeGlows) world.despawn(e).unwrap(); };
       // Warning entities (M4 §12): meshes built once; a telegraph only rewrites positions.
       const fillMat = copy(mat.fill);
       const shrinkMat = copy(mat.shrink);
@@ -726,6 +756,7 @@ export const dragon: Plugin = {
           const hq = lookQuat(dir);
           world.set(head, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
           world.set(eyes, Transform, { pos: p0, quat: hq, scale: [1, 1, 1] }).unwrap();
+          for (const e of eyeLights) world.set(e, PointLight, { intensity: snap.mode === 'dead' ? eye * 12 : 4 + eye * 24 } as never).unwrap();
           // Pose the model: bone k starts at arc length 0.4·k along the spine (neck = point 0).
           {
             const at = (sArc: number): MV3 => {
@@ -771,6 +802,10 @@ export const dragon: Plugin = {
           if (Math.abs(want - eye) > 1e-3) {
             eye = snap.telegraph || snap.mode === 'dead' || snap.roarK !== null ? want : eye + (want - eye) * Math.min(1, dt * 20);
             assets.update(eyeMat, { values: { intensity: eye } } as never).unwrap();
+            // The model's eyes (only glow part of the dragon mesh): 0.3 calm → ×3 brighter in a wind-up.
+            assets.update(modelMat, { values: { glow: 14 + eye * 60 } } as never).unwrap();
+            assets.update(eyeGlowMat, { values: { intensity: 1.5 + eye * 8 } } as never).unwrap();
+            assets.update(eyeHaloMat, { values: { intensity: 0.3 + eye * 2.2 } } as never).unwrap();
           }
           // Warning: flickering fill, cyan edge shrinking onto the outline exactly at the hit frame.
           // Only while a warning is up: on the hit step the warning is already cleared (k == hit still
@@ -928,6 +963,7 @@ export const dragon: Plugin = {
         alive: () => brain.snapshot().mode !== 'dead',
         hp: () => ({ hp: brain.snapshot().hp, max: brain.snapshot().hpMax }),
         phase: () => brain.snapshot().phase,
+        poise: () => { const s2 = brain.snapshot(); return { v: s2.mode === 'stagger' ? s2.poiseMax : s2.poise, max: s2.poiseMax, broken: s2.mode === 'stagger' }; },
         vulnerable: () => brain.vulnerable(),
         beginIntro: () => brain.beginIntro(),
         skipIntroTo: (k) => {

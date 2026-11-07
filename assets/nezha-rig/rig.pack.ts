@@ -432,9 +432,12 @@ export const nezhaRig: Plugin = {
                 world.set(b.e, Transform, { quat: qMulArr(b.rest, q) }).unwrap();
               }
             }
+            // 红缨 (boss 11-07): streams back and whips hard while she moves, a light sway at rest.
+            const mv = Math.min(1, speed / 7);
             tasselBones.forEach((b, k) => {
-              const w = time * 5 - k * 0.8;
-              const q = qEuler(0.12 * Math.sin(w) + 0.25 * sp * (k === 0 ? 1 : 0.4), 0, 0.1 * Math.cos(w * 0.9));
+              const w = time * (5 + 7 * mv) - k * 0.9;
+              const amp = 0.12 + 0.55 * mv;
+              const q = qEuler(amp * Math.sin(w) + (k === 0 ? 0.9 : 0.35) * mv, 0, (0.1 + 0.45 * mv) * Math.cos(w * 0.85 + k));
               world.set(b.e, Transform, { quat: qMulArr(b.rest, q) }).unwrap();
             });
           }

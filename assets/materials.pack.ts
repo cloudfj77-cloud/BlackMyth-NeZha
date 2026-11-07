@@ -353,7 +353,7 @@ export default definePack({
       }),
       // Asset-track models (11-06 22:24): vertex colour; glow coded in the vertex alpha (see model-vc.wgsl).
       'material/model-nezha-skin': skinnedVariant(vcModel(4.0, [0, 0, 0], 0, 0.6, 0)),
-      'material/model-dragon-skin': skinnedVariant(vcModel(3.0, [0.25, 0.8, 1.0], 0, 0.55, 0.15)),
+      'material/model-dragon-skin': skinnedVariant(vcModel(22, [0.25, 0.8, 1.0], 0, 0.55, 0.15)),
       'material/model-nezha': Materials.standard({
         surfaceModule: 'nezha::model_vc_surface',
         parameters: [
