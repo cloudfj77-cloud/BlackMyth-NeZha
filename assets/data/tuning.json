@@ -1,0 +1,114 @@
+{
+  "move": {
+    "walkSpeed": 5,
+    "sprintSpeed": 9,
+    "accelTime": 0.1,
+    "decelTime": 0.15,
+    "turnRate": 720,
+    "sprintHoldThreshold": 0,
+    "hoverHeight": 0.5,
+    "leanWalk": 10,
+    "leanSprint": 20,
+    "leanBlendTime": 0.15,
+    "capsuleHeight": 1.9,
+    "capsuleRadius": 0.35
+  },
+  "camera": {
+    "shoulderOffset": 0.6,
+    "focusHeight": 2.4,
+    "focusHeightLocked": 2.4,
+    "distance": 5,
+    "distanceLocked": 6.5,
+    "minDistance": 1.2,
+    "collisionMargin": 0.3,
+    "wallLiftMax": 1.05,
+    "fovY": 55,
+    "pitchMin": -25,
+    "pitchMax": 60,
+    "pitchDefault": 12,
+    "sensitivity": 0.1,
+    "returnDelay": 0.1,
+    "returnTime": 0.4,
+    "lockLookAtRatio": 0.3
+  },
+  "float": {
+    "idleAmp": 0.15,
+    "idleFreq": 0.8,
+    "riseShare": 0.35,
+    "swayDeg": 3,
+    "swayFreq": 0.55,
+    "swayPhase": 90,
+    "moveAmp": 0.1,
+    "sprintAmp": 0.05,
+    "blendTime": 0.3
+  },
+  "sash": {
+    "lagCycles": 0.25,
+    "strands": 2,
+    "segments": 12,
+    "length": 2.2,
+    "stiffness": 40,
+    "damping": 6,
+    "buoyancy": 2.5,
+    "tipFreq": 1.6,
+    "rollLength": 1.0,
+    "rollCap": 3.45
+  },
+  "wheel": {
+    "emissive": 0.3
+  },
+  "glow": {
+    "radius": 0.9,
+    "intensity": 1
+  },
+  "lock": {
+    "acquireRange": 25,
+    "breakRange": 30,
+    "targetHeight": 2,
+    "targetLength": 4,
+    "minOrbitGap": 1.5
+  },
+  "ambient": {
+    "seaweedCanyon": 240,
+    "seaweedEdge": 180,
+    "seaweedFar": 60,
+    "seaweedSwayHz": 0.18,
+    "seaweedMaxHeight": 1.2,
+    "particles": 1000,
+    "particleDriftHz": 0.12,
+    "beamSwayPeriod": 12
+  },
+  "occlusion": {
+    "fadeOpacity": 0.35,
+    "fadeTime": 0.2
+  },
+  "combat": {
+    "hitstopLight1": 3,
+    "hitstopLight2": 3,
+    "hitstopLight3": 5,
+    "hitstopHeavyMin": 5,
+    "hitstopHeavyMax": 8,
+    "shakeLight3": 0.02,
+    "shakeHeavyMin": 0.03,
+    "shakeHeavyMax": 0.06,
+    "shakeHz": 25,
+    "shakeDecay": 0.15,
+    "slowmoSteps": 18,
+    "rollDistance": 3,
+    "lungeDistance": 0.5,
+    "autoTurnRange": 3,
+    "sparkLife": 0.2,
+    "wheelRollScale": 1.4,
+    "costLight": 0,
+    "costHeavy": 0,
+    "afterimageLife": 66,
+    "afterimageIntensity": 0.7,
+    "poseBlend": 0.1
+  },
+  "difficulty": {
+    "gapMin": 60,
+    "damageScale": 1,
+    "dragonHp": 600,
+    "lotus": 3
+  }
+}

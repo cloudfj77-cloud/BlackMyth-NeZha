@@ -1,0 +1,162 @@
+<div class="vignette" aria-hidden="true"></div>
+
+<section class="screen start-screen" data-ui-part="start-screen">
+  <!-- Title (reference: Duelyst main menu): live scene behind, emblem + spaced title top-left, a vertical
+       menu with thin line icons, icon buttons top-right, a small pill top-centre. Chinese shows English subs. -->
+  <div class="start-art" aria-hidden="true">
+    <span class="arc arc-a"></span>
+    <span class="arc arc-b"></span>
+    <span class="mist"></span>
+  </div>
+  <div class="top-pill"><span data-i18n="menu.start.pill"></span><span class="sub" data-i18n-sub="menu.start.pill"></span></div>
+  <div class="logo">
+    <span class="emblem" aria-hidden="true"><span class="emblem-core">吒</span></span>
+    <div class="logo-text">
+      <h1 class="game-title" data-i18n="menu.start.title"></h1>
+      <p class="title-sub" data-i18n-sub="menu.start.title"></p>
+      <p class="kicker" data-i18n="menu.start.kicker"></p>
+    </div>
+  </div>
+  <nav class="main-menu">
+    <span class="menu-rule" aria-hidden="true"></span>
+    <button type="button" class="menu-item" data-ui-action="start">
+      <span class="ico ico-start" aria-hidden="true"></span>
+      <span class="menu-label"><span data-i18n="menu.start.begin"></span><span class="sub" data-i18n-sub="menu.start.begin"></span></span>
+    </button>
+    <button type="button" class="menu-item" data-ui-action="controls-toggle">
+      <span class="ico ico-controls" aria-hidden="true"></span>
+      <span class="menu-label"><span data-i18n="menu.controls.title"></span><span class="sub" data-i18n-sub="menu.controls.title"></span></span>
+    </button>
+    <button type="button" class="menu-item" data-ui-action="lang-toggle">
+      <span class="ico ico-lang" aria-hidden="true"></span>
+      <span class="menu-label"><span data-i18n="menu.common.language"></span><span class="sub" data-i18n-sub="menu.common.language"></span></span>
+    </button>
+  </nav>
+  <div class="seal" aria-hidden="true">
+    <span class="seal-label" data-i18n="menu.start.milestone"></span>
+    <span class="seal-ring"><span class="seal-tri"></span></span>
+  </div>
+  <p class="subtitle" data-i18n="menu.start.subtitle"></p>
+  <div class="top-icons">
+    <button type="button" class="icon-btn" data-ui-action="controls-toggle">
+      <span class="hex"><span class="glyph glyph-controls" aria-hidden="true"></span></span>
+      <span class="icon-label" data-i18n="menu.icons.controls"></span>
+    </button>
+    <button type="button" class="icon-btn" data-ui-action="mute-toggle">
+      <span class="hex"><span class="glyph glyph-sound" aria-hidden="true"></span></span>
+      <span class="icon-label" data-i18n="menu.icons.sound"></span>
+    </button>
+    <div class="icon-btn lang-switch" role="group" data-i18n-aria="menu.common.language">
+      <span class="hex lang-hex">
+        <button type="button" data-ui-action="lang-zh" data-lang="zh">中</button><button type="button" data-ui-action="lang-en" data-lang="en">EN</button>
+      </span>
+      <span class="icon-label" data-i18n="menu.icons.language"></span>
+    </div>
+  </div>
+  <div class="controls-card">
+    <h3><span data-i18n="menu.controls.title"></span><span class="sub" data-i18n-sub="menu.controls.title"></span></h3>
+    <ul class="controls" data-ui-part="controls-start"></ul>
+  </div>
+</section>
+
+<section class="screen pause-screen" data-ui-part="pause-screen">
+  <div class="pause-panel">
+    <h2><span data-i18n="menu.pause.title"></span><span class="sub" data-i18n-sub="menu.pause.title"></span></h2>
+    <button type="button" class="primary" data-ui-action="resume"><span data-i18n="menu.pause.resume"></span><span class="sub" data-i18n-sub="menu.pause.resume"></span></button>
+    <p class="pause-hint" data-i18n="menu.pause.hint"></p>
+    <div class="pause-actions">
+      <button type="button" class="secondary" data-ui-action="restart"><span data-i18n="menu.pause.restart"></span><span class="sub" data-i18n-sub="menu.pause.restart"></span></button>
+      <button type="button" class="secondary" data-ui-action="toTitle"><span data-i18n="menu.pause.toTitle"></span><span class="sub" data-i18n-sub="menu.pause.toTitle"></span></button>
+      <span class="pause-time" data-ui-part="pause-time"><span data-i18n="menu.pause.time"></span> <b data-ui-part="pause-seconds"></b></span>
+    </div>
+    <div class="lang-switch" role="group" data-i18n-aria="menu.common.language">
+      <button type="button" data-ui-action="lang-zh" data-lang="zh">中文</button>
+      <span class="divider">/</span>
+      <button type="button" data-ui-action="lang-en" data-lang="en">EN</button>
+    </div>
+    <h3 data-i18n="menu.controls.title"></h3>
+    <ul class="controls" data-ui-part="controls-pause"></ul>
+  </div>
+</section>
+
+<section class="hud" data-ui-part="hud">
+  <div class="hurt-vignette" data-ui-part="hurt-vignette" aria-hidden="true"></div>
+  <div class="perfect-vignette" data-ui-part="perfect-vignette" aria-hidden="true"></div>
+  <div class="big-banner" data-ui-part="big-banner" aria-live="polite"><span data-ui-part="big-banner-text"></span><span class="sub" data-ui-part="big-banner-sub"></span></div>
+  <div class="player-panel">
+    <div class="lotus-beads" data-ui-part="lotus-beads" aria-hidden="true"></div>
+    <div class="player-name" data-i18n="terms:hero.nezha"></div>
+    <div class="meter hp">
+      <span class="meter-label"><span data-i18n="hud.bar.hp"></span><span class="sub" data-i18n-sub="hud.bar.hp"></span></span>
+      <div class="bar"><div class="fill" data-ui-part="hp-fill"></div></div>
+      <span class="meter-value" data-ui-part="hp-value"></span>
+    </div>
+    <div class="meter stamina" data-ui-part="stamina-meter">
+      <span class="meter-label"><span data-i18n="hud.bar.stamina"></span><span class="sub" data-i18n-sub="hud.bar.stamina"></span></span>
+      <div class="bar"><div class="fill" data-ui-part="stamina-fill"></div><div class="gain" data-ui-part="stamina-gain"></div></div>
+      <span class="meter-value" data-ui-part="stamina-value"></span>
+      <span class="stamina-float" data-ui-part="stamina-float"></span>
+    </div>
+  </div>
+  <div class="items-panel">
+    <div class="item lotus">
+      <span class="item-icon lotus-icon" aria-hidden="true"></span>
+      <span class="item-count" data-ui-part="lotus-count"></span>
+      <span class="item-label"><kbd>Q</kbd> <span data-i18n="terms:item.lotus"></span></span>
+    </div>
+    <div class="item sash">
+      <span class="item-icon sash-icon" aria-hidden="true">
+        <span class="cooldown" data-ui-part="sash-cooldown"></span>
+        <span class="sash-glyph"></span>
+      </span>
+      <span class="item-count" data-ui-part="sash-seconds"></span>
+      <span class="item-label"><kbd>1</kbd> <span data-i18n="terms:skill.sashBind"></span></span>
+    </div>
+  </div>
+  <div class="boss-panel" data-ui-part="boss-panel">
+    <div class="boss-lives" aria-hidden="true"><span class="life" data-ui-part="boss-life-1"></span><span class="life" data-ui-part="boss-life-2"></span></div>
+    <div class="boss-bar"><div class="boss-fill" data-ui-part="boss-fill"></div><span class="boss-tick" aria-hidden="true"></span></div>
+    <div class="boss-name"><span data-ui-part="boss-name" data-i18n="terms:boss.dragonKingHud"></span><span class="sub" data-ui-part="boss-name-sub" data-i18n-sub="terms:boss.dragonKingHud"></span></div>
+  </div>
+  <div class="posture" data-ui-part="boss-posture" aria-hidden="true"><div class="posture-fill" data-ui-part="boss-posture-fill"></div><span class="posture-mark"></span></div>
+  <div class="subtitle-box" data-ui-part="subtitle" aria-live="polite">
+    <div class="speaker" data-ui-part="speaker"></div>
+    <div class="line" data-ui-part="line"></div>
+  </div>
+  <div class="skip-hint" data-ui-part="skip-hint"><kbd>Enter</kbd> <span data-i18n="hud.tip.skip"></span></div>
+  <div class="defeat" data-ui-part="defeat" role="status" aria-live="assertive">
+    <span class="defeat-word" data-i18n="hud.banner.defeat"></span>
+    <button type="button" class="retry" data-ui-action="retry"><kbd>Enter</kbd> <span data-i18n="hud.banner.retry"></span><span class="sub" data-i18n-sub="hud.banner.retry"></span></button>
+  </div>
+  <div class="result" data-ui-part="result">
+    <div class="result-panel">
+      <div class="result-main">
+        <h2><span data-i18n="result.title.main"></span><span class="sub" data-i18n-sub="result.title.main"></span></h2>
+        <div class="stats">
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.time"></span><b data-ui-part="res-time"></b></div>
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.hits"></span><b data-ui-part="res-hits"></b></div>
+          <div class="stat"><span class="stat-label" data-i18n="result.stat.perfect"></span><b data-ui-part="res-perfect"></b></div>
+        </div>
+        <div class="rating"><span class="stat-label" data-i18n="result.stat.rating"></span><b class="rating-letter" data-ui-part="res-rating"></b></div>
+      </div>
+      <div class="reward">
+        <div class="reward-label" data-i18n="result.reward.label"></div>
+        <div class="scale-icon" aria-hidden="true"></div>
+        <div class="reward-name" data-i18n="terms:item.reverseScale"></div>
+        <p class="reward-desc" data-i18n="result.reward.desc"></p>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="primary" data-ui-action="retry"><kbd>Enter</kbd> <span data-i18n="result.action.retry"></span><span class="sub" data-i18n-sub="result.action.retry"></span></button>
+        <button type="button" class="secondary" data-ui-action="roam"><span data-i18n="result.action.roam"></span><span class="sub" data-i18n-sub="result.action.roam"></span></button>
+        <button type="button" class="secondary" data-ui-action="toTitle"><span data-i18n="result.action.toTitle"></span><span class="sub" data-i18n-sub="result.action.toTitle"></span></button>
+      </div>
+    </div>
+  </div>
+  <div class="mob-bars" data-ui-part="mob-bars" aria-hidden="true"></div>
+  <div class="lock-marker" data-ui-part="lock-marker" aria-hidden="true"><span></span></div>
+  <div class="hint" data-ui-part="hint" role="status" aria-live="polite"></div>
+  <div class="look-tip" data-ui-part="look-tip" data-i18n="hud.tip.clickToLook"></div>
+</section>
+
+<div class="dev-badge" data-ui-part="dev-badge">DEV · F2</div>
+<aside class="debug-panel" data-ui-part="debug-panel" lang="en"></aside>

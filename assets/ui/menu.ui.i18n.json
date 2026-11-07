@@ -1,0 +1,308 @@
+{
+  "fallbackLng": "en",
+  "defaultNS": "ui",
+  "resources": {
+    "zh": {
+      "terms": {
+        "game": {
+          "title": "白神话：哪吒"
+        },
+        "hero": {
+          "nezha": "哪吒"
+        },
+        "place": {
+          "dragonPalace": "东海龙宫",
+          "chentang": "陈塘关"
+        },
+        "weapon": {
+          "spear": "火尖枪",
+          "wheels": "风火轮",
+          "sash": "混天绫"
+        },
+        "boss": {
+          "dragonKing": "东海三太子 · 敖丙",
+          "dragonKingHud": "东海三太子 · 敖丙",
+          "dragonKingSpeaker": "敖丙",
+          "phase2Hud": "敖丙 · 龙化 · 万龙甲"
+        },
+        "item": {
+          "lotus": "莲子",
+          "reverseScale": "敖丙龙鳞"
+        },
+        "skill": {
+          "sashBind": "混天绫·缚",
+          "roll": "风火轮翻滚"
+        }
+      },
+      "ui": {
+        "menu": {
+          "common": {
+            "language": "语言"
+          },
+          "start": {
+            "title": "$t(terms:game.title)",
+            "kicker": "东海 · $t(terms:place.chentang)",
+            "subtitle": "$t(terms:hero.nezha)踏$t(terms:weapon.wheels)，过陈塘关海栈，独上镇海台。",
+            "begin": "踏上陈塘关",
+            "milestone": "移植 v1.4.0 · 陈塘关 · 敖丙",
+            "pill": "试玩版"
+          },
+          "pause": {
+            "title": "暂停",
+            "resume": "继续",
+            "hint": "点击画面即可继续，并重新锁定视角",
+            "restart": "重新开始",
+            "toTitle": "回到标题",
+            "time": "用时"
+          },
+          "controls": {
+            "title": "操作",
+            "move": "悬浮移动",
+            "sprint": "按住飞驰",
+            "camera": "旋转镜头",
+            "lock": "锁定 / 解除锁定",
+            "pause": "释放鼠标并暂停",
+            "soon": "后续开放",
+            "keyMouse": "鼠标",
+            "keyLmb": "左键",
+            "roll": "$t(terms:skill.roll)：朝移动方向，无方向时向后",
+            "lightAttack": "轻击（三段连招）",
+            "heavyAttack": "按住蓄力，松开重击",
+            "lotus": "服食莲子",
+            "sash": "$t(terms:skill.sashBind)：定住目标",
+            "keyRmb": "右键",
+            "keySpace": "空格",
+            "skip": "跳过开场 / 再战",
+            "mute": "静音 / 取消静音",
+            "jump": "跳跃（空中左键：跳劈）"
+          },
+          "icons": {
+            "controls": "操作",
+            "sound": "声音",
+            "language": "语言"
+          }
+        },
+        "hud": {
+          "hint": {
+            "noTarget": "25 米内没有可锁定的目标",
+            "targetLost": "目标太远，锁定解除",
+            "locked": "已锁定",
+            "unlocked": "解除锁定",
+            "noStamina": "气力不足",
+            "noLotusSeeds": "莲子已尽",
+            "sashCooldown": "混天绫冷却中",
+            "yakshaWave1": "巡海夜叉自海中跃出！",
+            "yakshaWave2": "更多夜叉拦住了去路",
+            "gateOpen": "夜叉尽退 · 镇海水门已开",
+            "checkpoint": "太乙莲台 · 检查点已记录",
+            "bossBreak": "破 势",
+            "bossPhase2": "敖丙龙化：冰棱震地 · 寒潮连突 · 龙跃冰环",
+            "roam": "东海已平 · 可自由游览镇海台"
+          },
+          "tip": {
+            "clickToLook": "点击画面锁定视角",
+            "skip": "跳过"
+          },
+          "bar": {
+            "hp": "生命",
+            "stamina": "气力"
+          },
+          "banner": {
+            "defeat": "败",
+            "retry": "再战",
+            "perfect": "完美闪避",
+            "break": "破 势"
+          },
+          "float": {
+            "stamina": "+{n} 气力",
+            "staminaFull": "气力已满"
+          }
+        },
+        "dialogue": {
+          "dragonKing": {
+            "intro": "陈塘关的潮，是我放的。\n哪吒——你来得正好。",
+            "phase2": "这身万龙甲，\n是龙族千年的债。",
+            "defeat": "回去吧。下一潮，你挡不住。",
+            "fall": "……原来，岸上是暖的。"
+          },
+          "nezha": {
+            "intro": "夜叉我收了。\n剩下的，收你。",
+            "phase2": "债是你们的，\n命是陈塘关的。",
+            "victory": "潮退了。回家吧，三太子。"
+          }
+        },
+        "result": {
+          "title": {
+            "main": "东海潮平"
+          },
+          "stat": {
+            "time": "用时",
+            "hits": "受击",
+            "perfect": "完美闪避",
+            "rating": "评价"
+          },
+          "reward": {
+            "label": "所得",
+            "desc": "万龙甲上剥落的一片冰鳞，触之生寒。"
+          },
+          "action": {
+            "retry": "再战",
+            "toTitle": "回到标题",
+            "roam": "自由游览"
+          }
+        }
+      }
+    },
+    "en": {
+      "terms": {
+        "game": {
+          "title": "White Myth: Nezha"
+        },
+        "hero": {
+          "nezha": "Nezha"
+        },
+        "place": {
+          "dragonPalace": "Dragon Palace of the East Sea",
+          "chentang": "Chentang Pass"
+        },
+        "weapon": {
+          "spear": "Fire-Tipped Spear",
+          "wheels": "Wind-Fire Wheels",
+          "sash": "Red Armillary Sash"
+        },
+        "boss": {
+          "dragonKing": "Ao Bing, Third Prince of the East Sea",
+          "dragonKingHud": "Ao Bing · Third Prince",
+          "dragonKingSpeaker": "Ao Bing",
+          "phase2Hud": "Ao Bing · Dragon Form"
+        },
+        "item": {
+          "lotus": "Lotus Seeds",
+          "reverseScale": "Ao Bing's Dragon Scale"
+        },
+        "skill": {
+          "sashBind": "Sash Bind",
+          "roll": "Wind-Fire Roll"
+        }
+      },
+      "ui": {
+        "menu": {
+          "common": {
+            "language": "Language"
+          },
+          "start": {
+            "title": "$t(terms:game.title)",
+            "kicker": "The East Sea · $t(terms:place.chentang)",
+            "subtitle": "Riding the $t(terms:weapon.wheels), $t(terms:hero.nezha) crosses the Chentang boardwalk to the Sea-Calming Terrace.",
+            "begin": "Enter Chentang",
+            "milestone": "v1.4.0 port · Chentang · Ao Bing",
+            "pill": "Playtest"
+          },
+          "pause": {
+            "title": "Paused",
+            "resume": "Resume",
+            "hint": "Click the game to resume and re-lock the camera",
+            "restart": "Restart",
+            "toTitle": "Back to Title",
+            "time": "Time"
+          },
+          "controls": {
+            "title": "Controls",
+            "move": "Hover",
+            "sprint": "Hold to Sprint",
+            "camera": "Turn camera",
+            "lock": "Lock on / release",
+            "pause": "Release mouse and pause",
+            "soon": "Later",
+            "keyMouse": "Mouse",
+            "keyLmb": "LMB",
+            "roll": "$t(terms:skill.roll) (back if no direction)",
+            "lightAttack": "Light attack (3-hit combo)",
+            "heavyAttack": "Hold to charge, release to strike",
+            "lotus": "Eat a Lotus Seed",
+            "sash": "$t(terms:skill.sashBind): hold the target",
+            "keyRmb": "RMB",
+            "keySpace": "Space",
+            "skip": "Skip intro / Try again",
+            "mute": "Mute / unmute",
+            "jump": "Jump (LMB in the air: plunge)"
+          },
+          "icons": {
+            "controls": "Controls",
+            "sound": "Sound",
+            "language": "Language"
+          }
+        },
+        "hud": {
+          "hint": {
+            "noTarget": "No target within 25 m",
+            "targetLost": "Target lost · too far",
+            "locked": "Locked on",
+            "unlocked": "Lock released",
+            "noStamina": "Not enough Stamina",
+            "noLotusSeeds": "No Lotus Seeds left",
+            "sashCooldown": "Sash Bind on cooldown",
+            "yakshaWave1": "Yaksha leap from the sea!",
+            "yakshaWave2": "More yaksha bar the way",
+            "gateOpen": "Yaksha routed · Gate open",
+            "checkpoint": "Taiyi Lotus · checkpoint",
+            "bossBreak": "Poise broken!",
+            "bossPhase2": "Dragon form · ice and leaps",
+            "roam": "The sea is calm · explore"
+          },
+          "tip": {
+            "clickToLook": "Click the game to lock the camera",
+            "skip": "Skip"
+          },
+          "bar": {
+            "hp": "Health",
+            "stamina": "Stamina"
+          },
+          "banner": {
+            "defeat": "Defeated",
+            "retry": "Try Again",
+            "perfect": "Perfect Dodge",
+            "break": "Poise Broken"
+          },
+          "float": {
+            "stamina": "+{n} Stamina",
+            "staminaFull": "Stamina full"
+          }
+        },
+        "dialogue": {
+          "dragonKing": {
+            "intro": "The tide on Chentang Pass is mine.\nNezha—you came just in time.",
+            "phase2": "This Myriad-Dragon Armour\nis my clan's thousand-year debt.",
+            "defeat": "Go home. You can't stop the next tide.",
+            "fall": "…So the shore is warm after all."
+          },
+          "nezha": {
+            "intro": "Your yaksha are done.\nYou're next.",
+            "phase2": "The debt is yours.\nThe lives are Chentang's.",
+            "victory": "The tide's out. Go home, Third Prince."
+          }
+        },
+        "result": {
+          "title": {
+            "main": "The Tide Recedes"
+          },
+          "stat": {
+            "time": "Time",
+            "hits": "Hits taken",
+            "perfect": "Perfect dodges",
+            "rating": "Rating"
+          },
+          "reward": {
+            "label": "Reward",
+            "desc": "A scale from the Myriad-Dragon Armour,\ncold to the touch."
+          },
+          "action": {
+            "retry": "Try Again",
+            "toTitle": "Back to Title",
+            "roam": "Explore"
+          }
+        }
+      }
+    }
+  }
+}

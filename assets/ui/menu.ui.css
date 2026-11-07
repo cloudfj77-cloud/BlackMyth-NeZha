@@ -1,0 +1,658 @@
+:host {
+  display: block;
+  position: absolute;
+  inset: 0;
+  color: #f2efe4;
+  font: 500 14px/1.4 "Songti SC", "Noto Serif SC", "Source Han Serif SC", "STSong", Georgia, "Times New Roman", serif;
+  user-select: none;
+  --fx-nezha-gold: #e7bf6a;
+  --fx-nezha-gold-soft: rgb(231 191 106 / 55%);
+  --fx-nezha-jade: #8fd3c0;
+  --fx-nezha-ink: rgb(4 14 22 / 82%);
+  --fx-nezha-blood: #c8352a;
+  --fx-nezha-stamina: #d8b24c;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(0 6 12 / 55%) 100%);
+}
+
+/* --- Screens ------------------------------------------------------------------ */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+:host(.phase-title) .start-screen { display: block; }
+:host(.phase-paused) .pause-screen { display: grid; place-items: center; }
+
+/* --- Title (reference: Duelyst main menu) ---------------------------------------------------------
+   The live scene is the backdrop; a soft dark wash on the left, an emblem and a widely spaced thin title
+   top-left, a vertical menu with thin line icons and a hairline rule, icon buttons top-right, a pill. */
+.start-screen {
+  background:
+    radial-gradient(ellipse 60% 80% at 0% 55%, rgb(3 12 20 / 82%) 0%, rgb(3 12 20 / 45%) 45%, rgb(3 12 20 / 0%) 75%),
+    linear-gradient(180deg, rgb(3 12 20 / 35%) 0%, rgb(3 12 20 / 0%) 22%, rgb(3 12 20 / 0%) 70%, rgb(3 12 20 / 55%) 100%);
+  --fx-nezha-line: rgb(214 236 240 / 78%);
+  --fx-nezha-line-soft: rgb(214 236 240 / 28%);
+  --fx-nezha-title-font: "Cinzel", "Trajan Pro", "Optima", "Songti SC", "Noto Serif SC", Georgia, serif;
+}
+.start-art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.arc { position: absolute; border-radius: 50%; border: 1px solid var(--fx-nezha-line-soft); }
+.arc-a { left: -18vh; top: 12vh; width: 92vh; height: 92vh; }
+.arc-b { left: 22vw; top: 26vh; width: 46vh; height: 46vh; border-style: dashed; opacity: 0.45; }
+.mist { position: absolute; left: -10%; right: -10%; bottom: -8%; height: 34%; background: radial-gradient(ellipse at 30% 100%, rgb(200 230 240 / 22%), transparent 70%); }
+
+.top-pill {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  padding: 3px 12px; border-radius: 999px;
+  background: rgb(3 12 20 / 72%); border: 1px solid var(--fx-nezha-line-soft);
+  font: 600 11px/1.4 var(--fx-nezha-title-font); letter-spacing: 0.2em; text-transform: uppercase; color: rgb(242 239 228 / 82%);
+}
+.top-pill .sub { margin-left: 8px; }
+
+.logo { position: absolute; left: clamp(40px, 9vw, 150px); top: clamp(56px, 13vh, 130px); display: flex; align-items: center; gap: 18px; }
+.emblem { position: relative; width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid var(--fx-nezha-line); display: grid; place-items: center; box-shadow: 0 0 14px rgb(140 220 240 / 30%), inset 0 0 10px rgb(140 220 240 / 20%); }
+.emblem::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; border: 1px dashed var(--fx-nezha-line-soft); }
+.emblem-core { font: 400 26px/1 "Songti SC", "STKaiti", "KaiTi", serif; color: #f6f3ea; text-shadow: 0 0 10px rgb(160 230 245 / 60%); }
+.logo-text { display: grid; gap: 2px; }
+.game-title {
+  margin: 0;
+  font: 400 clamp(34px, 4.4vw, 54px)/1.05 var(--fx-nezha-title-font);
+  letter-spacing: 0.22em;
+  color: #f6f3ea;
+  text-transform: uppercase;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 55%), 0 0 30px rgb(140 220 240 / 25%);
+  white-space: nowrap;
+}
+:host(:lang(en)) .game-title { letter-spacing: 0.14em; font-size: clamp(28px, 3.6vw, 46px); }
+.title-sub { margin: 0; font: 400 12px/1.4 var(--fx-nezha-title-font); letter-spacing: 0.42em; text-transform: uppercase; color: rgb(214 236 240 / 70%); }
+.title-sub:empty { display: none; }
+.kicker { margin: 4px 0 0; color: var(--fx-nezha-jade); letter-spacing: 0.32em; font-size: 12px; text-transform: uppercase; }
+
+.main-menu {
+  position: absolute;
+  left: clamp(64px, 12vw, 190px);
+  top: 42%;
+  display: grid;
+  gap: 22px;
+  padding-left: 0;
+}
+.menu-rule { position: absolute; left: 44px; top: -6px; bottom: -6px; width: 1px; background: linear-gradient(180deg, transparent, var(--fx-nezha-line-soft) 15%, var(--fx-nezha-line-soft) 85%, transparent); }
+.menu-item {
+  display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 32px;
+  padding: 4px 0; background: none; border: 0; color: #f2efe4; text-align: left;
+}
+/* Thin line icons drawn in CSS (inline SVG is outside the UI authoring profile). */
+.ico { position: relative; width: 26px; height: 26px; display: block; transition: transform 160ms ease-out, filter 160ms; }
+.ico::before, .ico::after { content: ""; position: absolute; box-sizing: border-box; }
+.ico-start::before { left: 5px; top: 5px; width: 16px; height: 16px; border: 1.3px solid var(--fx-nezha-line); transform: rotate(45deg); }
+.ico-start::after { left: 11px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: var(--fx-nezha-line); }
+.ico-controls::before { left: 3px; top: 6px; width: 20px; height: 14px; border-top: 1.3px solid var(--fx-nezha-line); border-bottom: 1.3px solid var(--fx-nezha-line); }
+.ico-controls::after { left: 3px; top: 12.5px; width: 14px; height: 0; border-top: 1.3px solid var(--fx-nezha-line); }
+.ico-lang::before { left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; border: 1.3px solid var(--fx-nezha-line); }
+.ico-lang::after { left: 9px; top: 3px; width: 8px; height: 20px; border-radius: 50%; border: 1.3px solid var(--fx-nezha-line); box-shadow: 0 0 0 0 transparent; }
+.menu-label { display: grid; gap: 1px; }
+.menu-label > span:first-child { font: 400 22px/1.15 var(--fx-nezha-title-font); letter-spacing: 0.24em; text-transform: uppercase; }
+:host(:lang(en)) .menu-label > span:first-child { letter-spacing: 0.16em; font-size: 20px; }
+.menu-label .sub { font: 400 11px/1.2 var(--fx-nezha-title-font); letter-spacing: 0.36em; text-transform: uppercase; color: rgb(214 236 240 / 62%); }
+.menu-item:hover .menu-label > span:first-child, .menu-item:focus-visible .menu-label > span:first-child { color: #ffffff; text-shadow: 0 0 14px rgb(160 230 245 / 70%); }
+.menu-item:hover .ico { transform: scale(1.12); filter: drop-shadow(0 0 6px rgb(160 230 245 / 80%)); }
+.menu-item[data-ui-action="start"] .menu-label > span:first-child { color: #ffe9b8; }
+
+.seal { position: absolute; left: clamp(330px, 34vw, 480px); top: 38%; display: grid; justify-items: center; gap: 8px; pointer-events: none; }
+.seal-label { font: 600 11px/1.3 var(--fx-nezha-title-font); letter-spacing: 0.18em; text-transform: uppercase; color: rgb(242 239 228 / 70%); max-width: 180px; text-align: center; }
+.seal-ring { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; border: 1px dashed var(--fx-nezha-line-soft); box-shadow: inset 0 0 0 6px rgb(3 12 20 / 55%), inset 0 0 0 7px var(--fx-nezha-line-soft), 0 0 24px rgb(140 220 240 / 18%); }
+.seal-tri { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 20px solid rgb(214 236 240 / 70%); filter: drop-shadow(0 0 6px rgb(160 230 245 / 60%)); }
+
+.subtitle { position: absolute; left: clamp(64px, 12vw, 190px); bottom: clamp(40px, 9vh, 90px); margin: 0; color: rgb(242 239 228 / 72%); font-size: 14px; line-height: 1.7; max-width: 46ch; letter-spacing: 0.06em; }
+
+.top-icons { position: absolute; right: clamp(20px, 3vw, 48px); top: 18px; display: flex; gap: 20px; }
+.icon-btn { display: grid; justify-items: center; gap: 6px; background: none; border: 0; padding: 0; color: #f2efe4; pointer-events: auto; }
+.hex {
+  width: 46px; height: 50px; display: grid; place-items: center;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(180deg, rgb(150 220 240 / 55%), rgb(40 120 150 / 55%));
+  position: relative;
+}
+.hex::before { content: ""; position: absolute; inset: 2px; clip-path: inherit; background: rgb(6 30 42 / 88%); }
+.glyph { position: relative; color: #dff6fb; font: 400 18px/1 "Songti SC", Georgia, serif; }
+.glyph-controls::before { content: "\2630"; }
+.glyph-sound::before { content: "\266A"; }
+:host(.muted) .glyph-sound::before { content: "\2715"; color: rgb(223 246 251 / 55%); }
+.icon-btn:hover .hex { filter: brightness(1.3); }
+.icon-label { font: 600 10px/1.2 var(--fx-nezha-title-font); letter-spacing: 0.18em; text-transform: uppercase; color: rgb(242 239 228 / 85%); }
+.lang-hex { pointer-events: auto; }
+.lang-hex button { position: relative; padding: 0 2px; background: none; border: 0; color: rgb(223 246 251 / 55%); font: 700 11px/1 var(--fx-nezha-title-font); }
+.lang-hex button.active { color: #ffe9b8; }
+.start-screen .lang-switch button { border: 0; background: none; }
+
+.controls-card {
+  position: absolute;
+  right: clamp(24px, 4vw, 64px);
+  top: 104px;
+  width: min(380px, 36vw);
+  padding: 14px 18px 12px;
+  background: var(--fx-nezha-ink);
+  border: 1px solid var(--fx-nezha-line-soft);
+  border-radius: 3px;
+  display: none;
+}
+:host(.controls-open) .controls-card { display: block; }
+
+/* English sub-lines on Chinese labels (中文版中英双语). */
+.sub { font-size: 0.62em; letter-spacing: 0.22em; text-transform: uppercase; color: rgb(214 236 240 / 62%); font-family: "Cinzel", "Trajan Pro", "Optima", Georgia, serif; }
+.sub:empty { display: none; }
+.primary .sub, .secondary .sub, .retry .sub { display: block; margin-top: 2px; color: inherit; opacity: 0.7; font-size: 0.55em; }
+.pause-panel h2 .sub, .result h2 .sub { display: block; font-size: 0.36em; margin-top: 4px; }
+.meter-label .sub { display: block; font-size: 0.6em; letter-spacing: 0.18em; line-height: 1; }
+.boss-name .sub { margin-left: 10px; font-size: 0.68em; }
+
+
+.primary {
+  min-width: 172px;
+  padding: 11px 26px;
+  color: #1d1408;
+  background: linear-gradient(180deg, #f4d68f, #c99a3e);
+  border: 1px solid #f7e2ac;
+  border-radius: 2px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  box-shadow: 0 6px 22px rgb(0 0 0 / 45%);
+  white-space: nowrap;
+}
+:host(:lang(en)) .primary { letter-spacing: 0.04em; }
+.primary:hover { filter: brightness(1.08); }
+
+.lang-switch { display: inline-flex; align-items: center; gap: 6px; pointer-events: auto; }
+.lang-switch button {
+  padding: 5px 12px;
+  color: rgb(242 239 228 / 70%);
+  background: rgb(4 14 22 / 55%);
+  border: 1px solid rgb(231 191 106 / 30%);
+  border-radius: 2px;
+  font-size: 14px;
+}
+.lang-switch button.active { color: #1d1408; background: var(--fx-nezha-gold); border-color: var(--fx-nezha-gold); font-weight: 700; }
+.lang-switch .divider { color: rgb(242 239 228 / 40%); }
+.start-screen .lang-switch button, .start-screen .lang-switch button.active { padding: 0 2px; border: 0; background: none; }
+.top-icons .icon-btn.lang-switch { display: grid; gap: 6px; }
+.lang-hex { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.start-screen .lang-switch button.active { color: #ffe9b8; }
+
+.controls-card h3, .pause-panel h3 { margin: 0 0 8px; color: var(--fx-nezha-gold); font-size: 13px; letter-spacing: 0.24em; font-weight: 600; }
+.controls { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.controls li { display: grid; grid-template-columns: 122px 1fr; gap: 10px; align-items: baseline; font-size: 13px; }
+.controls li.soon { opacity: 0.45; }
+.controls kbd {
+  justify-self: start;
+  padding: 1px 7px;
+  font: 600 12px/1.6 ui-monospace, Menlo, monospace;
+  color: #f7ecd2;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.controls .soon-tag { margin-left: 6px; font-size: 11px; color: var(--fx-nezha-jade); }
+
+.pause-screen { background: rgb(2 8 14 / 62%); }
+.pause-panel {
+  width: min(460px, 86vw);
+  padding: 26px 30px 22px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  background: var(--fx-nezha-ink);
+  border: 1px solid rgb(231 191 106 / 30%);
+  border-radius: 3px;
+  pointer-events: auto;
+}
+.pause-panel h2 { margin: 0; font-size: 30px; letter-spacing: 0.3em; color: #fbf6e8; }
+:host(:lang(en)) .pause-panel h2 { letter-spacing: 0.08em; }
+.pause-hint { margin: 0; color: rgb(242 239 228 / 65%); font-size: 13px; }
+.pause-panel .controls { width: 100%; }
+.pause-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.secondary {
+  padding: 8px 18px;
+  color: #f2efe4;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid var(--fx-nezha-gold-soft);
+  border-radius: 2px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.secondary:hover { background: rgb(231 191 106 / 16%); }
+.pause-time { margin-left: 6px; color: rgb(242 239 228 / 65%); font-size: 13px; }
+.pause-time b { font: 600 13px ui-monospace, Menlo, monospace; color: #fbf6e8; }
+
+/* --- HUD ----------------------------------------------------------------------- */
+
+.hud { position: absolute; inset: 0; display: none; pointer-events: none; }
+:host(.phase-playing) .hud { display: block; }
+
+.lock-marker {
+  position: absolute;
+  width: 34px; height: 34px;
+  margin: -17px 0 0 -17px;
+  display: none;
+  pointer-events: none;
+}
+:host(.locked) .lock-marker.on-screen { display: block; }
+.lock-marker span {
+  position: absolute; inset: 7px;
+  border: 2px solid #ffdf8a;
+  transform: rotate(45deg);
+  box-shadow: 0 0 10px rgb(255 200 90 / 85%), inset 0 0 6px rgb(255 200 90 / 60%);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.lock-marker::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 50%; background: #fff2c8; box-shadow: 0 0 8px #ffd27a;
+}
+@keyframes pulse { 50% { transform: rotate(45deg) scale(0.82); } }
+
+/* 巡海夜叉 overhead health (v1.4.0 mobBar): thin red bar above each live yaksha. */
+.mob-bars { position: absolute; inset: 0; pointer-events: none; }
+.mob-bar {
+  position: absolute;
+  width: 60px; height: 5px; margin: -2px 0 0 -30px;
+  background: rgb(0 0 0 / 55%);
+  border: 1px solid rgb(255 255 255 / 25%);
+}
+.mob-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8321c, #e0623a); }
+:host(.run-hud-off) .mob-bars, :host(.run-menu) .mob-bars { display: none; }
+
+.hint {
+  position: absolute;
+  left: 50%; top: 64%;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  max-width: 70vw;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  color: #fbf6e8;
+  background: linear-gradient(90deg, transparent, rgb(4 14 22 / 75%) 20%, rgb(4 14 22 / 75%) 80%, transparent);
+  opacity: 0;
+  transition: opacity 240ms ease;
+  text-align: center;
+}
+:host(:lang(en)) .hint { letter-spacing: 0.02em; }
+.hint.show { opacity: 1; }
+
+.look-tip {
+  position: absolute;
+  left: 50%; top: 18px;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  font-size: 12px;
+  color: rgb(242 239 228 / 80%);
+  background: rgb(4 14 22 / 60%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 2px;
+  display: none;
+  white-space: nowrap;
+}
+:host(.phase-playing:not(.pointer-locked)) .look-tip { display: block; }
+
+
+/* --- Combat HUD (M2) ----------------------------------------------------------- */
+
+.hurt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgb(6 34 40 / 70%) 100%);
+  transition: opacity 300ms ease-out;
+}
+.hurt-vignette.on { opacity: 1; transition: none; }
+/* v1.4.0 perfect dodge: cyan edge flash and a big banner (also used for 破势). */
+.perfect-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgb(120 220 255 / 12%) 30%, rgb(40 180 255 / 60%)); }
+.perfect-vignette.on { animation: perfect-flash 0.8s ease-out 1; }
+@keyframes perfect-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+.big-banner { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; pointer-events: none; opacity: 0; }
+.big-banner > span:first-child { font: 700 46px/1.1 "STKaiti", "KaiTi", "Songti SC", serif; letter-spacing: 0.3em; color: #dffaff; text-shadow: 0 2px 6px rgb(0 18 36 / 95%), 0 0 22px #2ac6ff; white-space: nowrap; }
+.big-banner.break > span:first-child { color: #ffe0a8; text-shadow: 0 0 24px #ff8a2a, 0 0 4px #ffffff; font-size: 52px; }
+.big-banner .sub { font-size: 13px; letter-spacing: 0.4em; color: #eafcff; text-shadow: 0 1px 4px rgb(0 18 36 / 95%); }
+.big-banner.show { animation: big-banner 0.95s ease-out 1; }
+@keyframes big-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -54%) scale(1); } }
+
+.player-panel {
+  position: absolute;
+  left: 28px;
+  bottom: 26px;
+  width: 300px;
+  display: grid;
+  gap: 6px;
+}
+.player-name { color: var(--fx-nezha-gold); font-size: 15px; letter-spacing: 0.2em; text-shadow: 0 1px 3px #000; }
+.meter { display: grid; grid-template-columns: max-content 1fr 34px; align-items: center; gap: 8px; }
+.meter-label { min-width: 62px; }
+.meter-label { font-size: 12px; color: rgb(242 239 228 / 78%); text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.meter-value { font: 600 12px ui-monospace, Menlo, monospace; color: rgb(242 239 228 / 70%); text-align: right; }
+.bar { position: relative; height: 8px; background: rgb(0 0 0 / 55%); border: 1px solid rgb(255 255 255 / 16%); overflow: hidden; }
+.meter.hp .bar { height: 10px; }
+.fill { position: absolute; inset: 0 auto 0 0; width: 100%; transition: width 120ms linear; }
+.meter.hp .fill { background: linear-gradient(180deg, #e2574a, #9c2219); }
+.meter.stamina .fill { background: linear-gradient(180deg, #f0d27a, #b8902f); }
+.meter.stamina.flash .bar { animation: flash 0.3s steps(2) 3; }
+/* 灵息 (v1.4.0): cyan pulse on a perfect dodge, a flowing sheen while the boost lasts, floating "+30". */
+.meter.stamina { position: relative; }
+.meter.stamina.pulse .bar { animation: lingxi-pulse 0.6s ease-out 1; }
+.meter.stamina.boost .fill { background: linear-gradient(90deg, #f0d27a 0%, #9ff0f0 45%, #f0d27a 70%); background-size: 200% 100%; animation: lingxi-flow 0.9s linear infinite; }
+@keyframes lingxi-pulse { 0% { box-shadow: 0 0 0 0 rgb(140 240 255 / 90%); border-color: #9ff0f0; } 100% { box-shadow: 0 0 0 10px rgb(140 240 255 / 0%); } }
+@keyframes lingxi-flow { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.bar .gain { position: absolute; top: 0; bottom: 0; width: 0; background: linear-gradient(180deg, #ffffff, #9ff0f0); box-shadow: 0 0 8px #9ff0f0; opacity: 0; pointer-events: none; }
+.bar .gain.show { animation: lingxi-gain 0.9s ease-out 1; }
+@keyframes lingxi-gain { 0% { opacity: 1; } 60% { opacity: 0.85; } 100% { opacity: 0; } }
+.stamina-float { position: absolute; left: calc(100% + 6px); top: -2px; color: #9ff0f0; font-size: 13px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 3px #000; opacity: 0; pointer-events: none; }
+.stamina-float.show { animation: lingxi-float 1.2s ease-out 1; }
+@keyframes lingxi-float { 0% { opacity: 0; transform: translateY(4px); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+@keyframes flash { 50% { border-color: #ff6a50; background: rgb(150 20 10 / 60%); } }
+
+.items-panel { position: absolute; right: 30px; bottom: 26px; display: flex; gap: 18px; align-items: flex-end; }
+.item { display: grid; justify-items: center; gap: 4px; min-width: 76px; }
+.item-icon {
+  position: relative;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgb(40 70 80 / 85%), rgb(5 15 22 / 92%));
+  border: 1px solid var(--fx-nezha-gold-soft);
+  overflow: hidden;
+}
+.lotus-icon::before {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 22px; height: 16px; margin: -8px 0 0 -11px;
+  border-radius: 50% 50% 45% 45%;
+  background: radial-gradient(circle at 50% 35%, #f2c6a0, #c9873a);
+}
+.sash-glyph { position: absolute; inset: 13px; border: 3px solid #b8142a; border-radius: 50%; box-shadow: 0 0 8px rgb(231 191 106 / 60%); }
+.cooldown { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgb(0 0 0 / 70%) var(--fx-nezha-cd, 0%), transparent 0); z-index: 1; }
+.item-count { font: 700 13px ui-monospace, Menlo, monospace; color: #fbf6e8; text-shadow: 0 1px 2px #000; min-height: 16px; }
+.item-label { font-size: 12px; color: rgb(242 239 228 / 75%); white-space: nowrap; text-shadow: 0 1px 2px #000; }
+
+/* Boss bar (M3): name + health only, top centre. */
+.boss-panel {
+  position: absolute;
+  left: 50%; top: 34px;
+  width: min(560px, 46vw);
+  transform: translateX(-50%);
+  display: grid;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+}
+.boss-panel.show { opacity: 1; }
+.boss-name { justify-self: center; color: #e6e3da; font-size: 15px; letter-spacing: 0.24em; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+:host(:lang(en)) .boss-name { letter-spacing: 0.08em; }
+.boss-bar { position: relative; height: 9px; background: #25342e; border: 1px solid #3e4a3c; }
+.boss-tick { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #a88b4e; }
+.boss-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: #7fa295; transition: width 160ms linear; }
+
+/* Run HUD (M4): combat bars hide in the intro, the defeat and the victory. */
+.player-panel, .items-panel, .lock-marker, .boss-panel { transition: opacity 500ms ease-out; }
+:host(.run-menu) .look-tip, :host(.run-hud-off) .look-tip { display: none !important; }
+:host(.run-hud-off) .player-panel, :host(.run-hud-off) .items-panel, :host(.run-hud-off) .lock-marker { opacity: 0; }
+
+/* Subtitles (M4 §6): bottom centre at 84 %, no plate, outlined; speaker on its own small line. */
+.subtitle-box {
+  position: absolute;
+  left: 50%; top: 84%;
+  width: min(760px, 80vw);
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  text-align: center;
+}
+.subtitle-box.show { opacity: 1; }
+.subtitle-box .speaker { font-size: 13px; letter-spacing: 0.2em; text-shadow: -1px 0 #0d1e33, 1px 0 #0d1e33, 0 -1px #0d1e33, 0 1px #0d1e33, 0 0 5px #0d1e33; }
+:host(:lang(en)) .subtitle-box .speaker { letter-spacing: 0.06em; }
+.subtitle-box .speaker.dragonKing { color: #7fa295; }
+.subtitle-box .speaker.nezha { color: #d4a03a; }
+.subtitle-box .line {
+  color: #f2ece0;
+  font-size: 22px;
+  line-height: 1.45;
+  white-space: pre-line;
+  text-shadow: -1px 0 #0d1e33, 1px 0 #0d1e33, 0 -1px #0d1e33, 0 1px #0d1e33, 0 0 6px #0d1e33;
+}
+:host(:lang(en)) .subtitle-box .line { font-size: 20px; }
+
+.skip-hint {
+  position: absolute;
+  right: 30px; bottom: 26px;
+  font-size: 13px;
+  color: rgb(242 239 228 / 70%);
+  text-shadow: 0 1px 2px #000;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.skip-hint.show { opacity: 1; }
+kbd {
+  padding: 0 5px;
+  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
+  color: #f7ecd2;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 3px;
+}
+
+/* Defeat (M4 §7):「败」in lotus white, 18 % of the screen height; the world is greyed by the canvas filter. */
+.defeat {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4vh;
+  background: radial-gradient(ellipse at center, rgb(6 10 14 / 20%) 0%, rgb(6 10 14 / 62%) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease-out;
+}
+.defeat.show { opacity: 1; pointer-events: auto; }
+.defeat-word {
+  font: 700 18vh/1 "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  color: #f2ece0;
+  text-shadow: 0 0 22px rgb(13 30 51 / 70%), 0 3px 6px #000;
+}
+:host(:lang(en)) .defeat-word { font-size: 10vh; letter-spacing: 0.12em; }
+.retry {
+  padding: 9px 26px;
+  color: #f2ece0;
+  background: rgb(10 14 18 / 55%);
+  border: 1px solid #e7bf6a;
+  border-radius: 2px;
+  font-size: 17px;
+  letter-spacing: 0.14em;
+}
+:host(:lang(en)) .retry { letter-spacing: 0.05em; }
+.retry:hover { background: rgb(231 191 106 / 16%); }
+
+/* Result「东海潮平」(M4 §8): fades in, never flashes. */
+.result {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(2 8 14 / 55%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease-out;
+}
+.result.show { opacity: 1; pointer-events: auto; }
+.result-panel {
+  width: min(760px, 88vw);
+  padding: 30px 34px 26px;
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 22px 30px;
+  background: var(--fx-nezha-ink);
+  border: 1px solid rgb(231 191 106 / 32%);
+  border-radius: 3px;
+}
+.result-main h2 { margin: 0 0 18px; font-size: 34px; letter-spacing: 0.32em; color: #fbf6e8; font-weight: 700; }
+:host(:lang(en)) .result-main h2 { letter-spacing: 0.06em; font-size: 30px; }
+.stats { display: grid; gap: 8px; }
+.stat, .rating { display: flex; align-items: baseline; gap: 8px; font-size: 16px; }
+.stat-label { color: rgb(242 239 228 / 70%); }
+.stat-label::after { content: ":"; }
+.stat b { font: 600 18px ui-monospace, Menlo, monospace; color: #fbf6e8; }
+.rating { margin-top: 16px; }
+.rating-letter { font: 700 54px/1 "Songti SC", Georgia, serif; margin-left: 6px; }
+.rating-letter.S { color: #e7bf6a; }
+.rating-letter.A { color: #f2ece0; }
+.rating-letter.B { color: #587a6d; }
+.reward {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  padding: 16px 14px;
+  border: 1px solid #6b5a3a;
+  background: linear-gradient(180deg, rgb(37 52 46 / 70%), rgb(13 20 18 / 85%));
+}
+.reward-label { color: rgb(242 239 228 / 60%); font-size: 12px; letter-spacing: 0.2em; }
+.scale-icon {
+  width: 46px; height: 54px;
+  background: linear-gradient(160deg, #a9c9bc, #4f7466 55%, #25342e);
+  clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%);
+}
+.reward-name { color: #e7bf6a; font-size: 16px; letter-spacing: 0.12em; text-align: center; }
+:host(:lang(en)) .reward-name { letter-spacing: 0.02em; }
+.reward-desc { margin: 0; color: rgb(242 239 228 / 75%); font-size: 13px; text-align: center; white-space: pre-line; }
+.result-actions { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; }
+
+/* --- Development panel (dev builds only, ?dev=1; not localized) ---------------- */
+
+.dev-badge {
+  position: absolute;
+  left: 12px; top: 10px;
+  display: none;
+  padding: 2px 8px;
+  font: 600 11px/1.6 ui-monospace, Menlo, monospace;
+  color: #0b1a22;
+  background: #8fd3c0;
+  border-radius: 2px;
+  pointer-events: none;
+}
+:host(.dev) .dev-badge { display: block; }
+
+.debug-panel {
+  position: absolute;
+  right: 12px; top: 12px; bottom: 12px;
+  width: 340px;
+  display: none;
+  padding: 10px 12px;
+  overflow-y: auto;
+  font: 12px/1.45 ui-monospace, Menlo, monospace;
+  color: #dbe7ea;
+  background: rgb(4 12 18 / 92%);
+  border: 1px solid rgb(143 211 192 / 35%);
+  border-radius: 3px;
+  pointer-events: auto;
+}
+:host(.debug-open) .debug-panel { display: block; }
+.debug-panel h4 { margin: 10px 0 4px; color: #8fd3c0; font-size: 12px; letter-spacing: 0.08em; }
+.debug-panel .row { display: grid; grid-template-columns: 1fr 120px 52px; gap: 6px; align-items: center; }
+.debug-panel .row input { width: 120px; pointer-events: auto; }
+.debug-panel .row output { text-align: right; color: #f4d68f; }
+.debug-panel .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.debug-panel .actions button {
+  padding: 3px 8px;
+  font: 600 11px ui-monospace, Menlo, monospace;
+  color: #dbe7ea;
+  background: rgb(143 211 192 / 14%);
+  border: 1px solid rgb(143 211 192 / 40%);
+  border-radius: 2px;
+}
+.debug-panel .actions button.active { color: #0b1a22; background: #8fd3c0; }
+
+@media (max-width: 900px) {
+  .controls-card { display: none; }
+  .start-panel { width: 80vw; }
+}
+
+/* --- Combat HUD after the Sekiro reference (boss 11-07) -------------------------------------------
+   Boss: two life beads, a thin long health bar and a large name, top-left. Posture (破势) bar top-centre,
+   filling from the middle outwards, orange → hot when near breaking. Nezha: lotus beads over a long thin
+   health bar bottom-left; stamina as a tapered bar bottom-centre; items in dark frames bottom-right. */
+.boss-panel {
+  left: 52px; top: 44px; transform: none;
+  width: min(420px, 36vw);
+  gap: 6px;
+  justify-items: start;
+}
+.boss-lives { display: flex; gap: 7px; }
+.boss-lives .life { width: 13px; height: 13px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ff7a6a, #c3180e 60%, #5a0806); box-shadow: 0 0 8px rgb(255 50 30 / 75%); }
+.boss-lives .life.spent { background: rgb(40 40 40 / 80%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%); }
+.boss-bar { width: 100%; height: 7px; background: rgb(0 0 0 / 65%); border: 1px solid rgb(255 255 255 / 18%); }
+.boss-fill { background: linear-gradient(180deg, #d24a3a, #8e1d14); }
+:host(.boss-p2) .boss-fill { background: linear-gradient(180deg, #8ae8ff, #2a9ac8); }
+.boss-tick { background: rgb(255 255 255 / 55%); }
+.boss-name { justify-self: start; font-size: 24px; letter-spacing: 0.12em; color: #f2efe4; text-shadow: 0 2px 6px #000, 0 0 2px #000; padding: 1px 12px 2px 8px; background: linear-gradient(90deg, rgb(0 0 0 / 55%), rgb(0 0 0 / 0%)); }
+:host(:lang(en)) .boss-name { font-size: 22px; letter-spacing: 0.04em; }
+.boss-name .sub { display: block; margin: 2px 0 0; font-size: 11px; letter-spacing: 0.3em; }
+
+.posture {
+  position: absolute; left: 50%; top: 30px; transform: translateX(-50%);
+  width: min(460px, 40vw); height: 9px;
+  clip-path: polygon(0 50%, 3% 0, 97% 0, 100% 50%, 97% 100%, 3% 100%);
+  background: rgb(0 0 0 / 70%);
+  opacity: 0; transition: opacity 400ms ease-out; pointer-events: none;
+}
+:host(.boss-on) .posture { opacity: 1; }
+.posture-fill { position: absolute; top: 0; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 0; background: linear-gradient(90deg, #ff5a10, #ffb24a 50%, #ff5a10); transition: width 140ms linear; }
+.posture.hot .posture-fill { background: linear-gradient(90deg, #ff2a10, #fff0b0 50%, #ff2a10); }
+.posture.broken .posture-fill { width: 100% !important; background: #fff4d0; animation: flash 0.25s steps(2) 6; }
+.posture-mark { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 3px; margin-left: -1.5px; background: #ffe6a0; }
+
+.player-panel { left: 40px; bottom: 30px; width: 340px; gap: 5px; }
+.lotus-beads { display: flex; gap: 8px; margin-bottom: 4px; }
+.lotus-beads .bead { width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #ffd0e0, #e0608a 55%, #7a1c3a); box-shadow: 0 0 8px rgb(255 120 170 / 55%), inset 0 0 0 2px rgb(255 255 255 / 30%); position: relative; }
+.lotus-beads .bead::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 55%); }
+.lotus-beads .bead.used { background: rgb(30 30 30 / 75%); box-shadow: inset 0 0 0 2px rgb(255 255 255 / 15%); }
+.player-name { font-size: 20px; }
+.meter.hp .bar { height: 8px; }
+.meter.hp .fill { background: linear-gradient(180deg, #d24a3a, #8e1d14); }
+.meter-label { font-size: 13px; }
+.meter.stamina {
+  position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%);
+  width: min(300px, 26vw); grid-template-columns: 1fr; gap: 3px;
+}
+.meter.stamina .meter-label, .meter.stamina .meter-value { display: none; }
+.meter.stamina .bar { height: 8px; clip-path: polygon(0 50%, 4% 0, 96% 0, 100% 50%, 96% 100%, 4% 100%); background: rgb(0 0 0 / 70%); border: 0; }
+.meter.stamina .fill { background: linear-gradient(180deg, #f6d97c, #c08a28); }
+.meter.stamina .stamina-float { left: calc(100% + 10px); top: -6px; font-size: 15px; }
+
+.items-panel { right: 40px; bottom: 30px; gap: 14px; }
+.item-icon { width: 60px; height: 60px; border-radius: 6px; background: radial-gradient(circle at 50% 40%, rgb(60 70 72 / 90%), rgb(8 10 12 / 95%)); border: 1px solid rgb(255 255 255 / 22%); box-shadow: 0 4px 12px rgb(0 0 0 / 60%); }
+.item-count { font-size: 15px; }
+.item-label { font-size: 13px; }
+
+/* Bigger type on the title too (boss 11-07). */
+.game-title { font-size: clamp(44px, 6vw, 84px); }
+:host(:lang(en)) .game-title { font-size: clamp(36px, 4.8vw, 68px); }
+.title-sub { font-size: 15px; }
+.menu-label > span:first-child { font-size: 28px; }
+:host(:lang(en)) .menu-label > span:first-child { font-size: 25px; }
+.menu-label .sub { font-size: 13px; }
+.subtitle { font-size: 16px; }
